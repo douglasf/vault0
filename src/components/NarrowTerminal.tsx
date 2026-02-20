@@ -1,0 +1,96 @@
+import React, { useEffect } from "react"
+import { Box, Text, useInput } from "ink"
+import { Column } from "./Column.js"
+import { useDb } from "../lib/db-context.js"
+import { useBoard } from "../hooks/useBoard.js"
+import { useNavigation } from "../hooks/useNavigation.js"
+import { VISIBLE_STATUSES } from "../lib/constants.js"
+import { STATUS_LABELS } from "../lib/constants.js"
+import { getStatusColor } from "../lib/theme.js"
+import type { Task, Filters } from "../lib/types.js"
+
+export interface NarrowTerminalProps {
+  boardId: string
+  filters?: Filters
+  onSelectTask: (task: Task) => void
+  onHighlightTask?: (task: Task | undefined) => void
+}
+
+/**
+ * Degraded single-column view for narrow terminals (< 80 columns).
+ * Shows one status column at a time with left/right arrows to switch.
+ */
+export function NarrowTerminal({ boardId, filters, onSelectTask, onHighlightTask }: NarrowTerminalProps) {
+  const db = useDb()
+  const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
+
+  const rowCounts = VISIBLE_STATUSES.map((status) => (tasksByStatus.get(status) || []).length)
+
+  const nav = useNavigation({
+    columnCount: VISIBLE_STATUSES.length,
+    rowCounts,
+  })
+
+  // Report highlighted task to parent after every render
+  const currentColumnTasks = tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || []
+  const highlightedTask = currentColumnTasks[nav.selectedRow]
+
+  useEffect(() => {
+    onHighlightTask?.(highlightedTask)
+  })
+
+  // Keyboard handler — same as Board but also handles enter for selection
+  useInput((_input, key) => {
+    if (key.leftArrow) nav.navigateLeft()
+    else if (key.rightArrow) nav.navigateRight()
+    else if (key.upArrow) nav.navigateUp()
+    else if (key.downArrow) nav.navigateDown()
+    else if (key.return) {
+      const selected = nav.selectCurrent()
+      if (selected) {
+        const tasks = tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || []
+        if (tasks[selected.row]) {
+          onSelectTask(tasks[selected.row])
+        }
+      }
+    }
+  })
+
+  const activeStatus = VISIBLE_STATUSES[nav.selectedColumn]
+
+  return (
+    <Box flexDirection="column" width="100%" flexGrow={1}>
+      {/* Column tab indicator */}
+      <Box justifyContent="center" gap={1} marginBottom={1}>
+        {VISIBLE_STATUSES.map((status, i) => (
+          <Text
+            key={status}
+            bold={i === nav.selectedColumn}
+            color={i === nav.selectedColumn ? getStatusColor(status) : "gray"}
+            dimColor={i !== nav.selectedColumn}
+          >
+            {i === nav.selectedColumn ? `[${STATUS_LABELS[status]}]` : STATUS_LABELS[status]}
+          </Text>
+        ))}
+      </Box>
+
+      {/* Single visible column */}
+      <Column
+        status={activeStatus}
+        tasks={tasksByStatus.get(activeStatus) || []}
+        selectedRow={nav.selectedRow}
+        isActive={true}
+        readyIds={readyIds}
+        blockedIds={blockedIds}
+      />
+
+      <Box marginTop={1} justifyContent="center">
+        <Text dimColor>
+          {"<"}/{">"}  switch columns {"  "}
+          Up/Down navigate {"  "}
+          ? help
+        </Text>
+      </Box>
+    </Box>
+  )
+}
