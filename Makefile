@@ -1,4 +1,4 @@
-.PHONY: build install uninstall clean dev start help
+.PHONY: build install uninstall clean dev start help typecheck
 
 # Ensure bun is discoverable (installed via ~/.bun)
 BUN := $(or $(shell which bun 2>/dev/null),$(HOME)/.bun/bin/bun)
@@ -13,6 +13,7 @@ help:
 	@echo "  make uninstall  - Remove vault0 from /usr/local/bin"
 	@echo "  make dev        - Run with auto-reload (bun --watch)"
 	@echo "  make start      - Run once (bun run)"
+	@echo "  make typecheck  - Run TypeScript type checker"
 	@echo "  make clean      - Remove build artifacts"
 	@echo "  make help       - Show this message"
 	@echo ""
@@ -22,6 +23,12 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make dev"
+	@echo ""
+	@echo "CLI Usage (after install or via bun run):"
+	@echo "  vault0 task add --title \"Fix bug\" --priority high"
+	@echo "  vault0 task list --status todo --format json"
+	@echo "  vault0 task view <ID>"
+	@echo "  vault0 task help    # Full CLI reference"
 	@echo ""
 
 build: clean
@@ -55,6 +62,9 @@ dev:
 start:
 	@echo "Starting Vault0..."
 	$(BUN) run src/index.tsx
+
+typecheck:
+	$(BUN) run typecheck
 
 clean:
 	@echo "Cleaning build artifacts..."

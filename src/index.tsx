@@ -4,11 +4,16 @@ import React from "react"
 import { App } from "./components/App.js"
 import { initDatabase } from "./db/connection.js"
 import { seedDefaultBoard } from "./db/seed.js"
+import { runCli } from "./cli/index.js"
 import { migrate } from "drizzle-orm/bun-sqlite/migrator"
 import { existsSync, mkdirSync, appendFileSync } from "node:fs"
 import { join } from "node:path"
 
 const VERSION = "0.1.0"
+
+// ── CLI Entities (subcommand routing) ───────────────────────────────────
+
+const CLI_ENTITIES = new Set(["task", "board"])
 
 // ── CLI Argument Parsing ────────────────────────────────────────────────
 
@@ -17,21 +22,30 @@ function printHelp() {
 Vault0 — Terminal Kanban Board v${VERSION}
 
 Usage:
-  vault0              Launch board in current directory
-  vault0 --path DIR   Launch board for specific directory
-  vault0 --help       Show this help message
-  vault0 --version    Show version
+  vault0                          Launch interactive board (TUI)
+  vault0 task <command> [options] Manage tasks via CLI
+  vault0 board <command>          Manage boards via CLI
+  vault0 --path DIR               Launch board for specific directory
+  vault0 --help                   Show this help message
+  vault0 --version                Show version
 
-Data stored in: .vault0/vault0.db (per-repo, git-ignored)
+CLI Examples:
+  vault0 task add --title "Fix login bug" --priority high
+  vault0 task list --status todo
+  vault0 task list --format json
+  vault0 task view abc12345
+  vault0 task move abc12345 --status done
+  vault0 task complete abc12345
+  vault0 task dep add abc12345 --on def67890
 
-Examples:
+TUI Examples:
   vault0                    # Launch in current working directory
   vault0 --path ~/myproject # Launch for a specific project
 
-Keyboard Shortcuts:
-  Press '?' inside the app for a complete list of shortcuts.
+Run "vault0 task help" for full CLI command reference.
 
-For more information, visit: https://github.com/you/vault0
+Data stored in: .vault0/vault0.db (per-repo, git-ignored)
+Keyboard Shortcuts: Press '?' inside the TUI for a complete list.
 `)
 }
 
@@ -46,6 +60,51 @@ async function main() {
   let repoRoot = process.cwd()
   let showHelp = false
   let showVersion = false
+
+  // ── Detect CLI subcommand mode ──────────────────────────────────────
+  // If the first argument is a known entity (task, board), run in CLI mode
+  // Extract --path from anywhere in the args for CLI mode too
+
+  const firstArg = args[0]
+  const isCliMode = firstArg !== undefined && CLI_ENTITIES.has(firstArg)
+
+  if (isCliMode) {
+    // In CLI mode, extract --path if present anywhere in the args
+    const cliArgs = [...args]
+    const entity = cliArgs.shift() as string
+    const pathIdx = cliArgs.indexOf("--path")
+    if (pathIdx !== -1 && cliArgs[pathIdx + 1]) {
+      repoRoot = cliArgs[pathIdx + 1]
+      cliArgs.splice(pathIdx, 2)
+    }
+
+    // Initialize database (no TUI, minimal output)
+    try {
+      const { db, sqlite } = initDatabase(repoRoot)
+      const migrationsPath = new URL("../drizzle", import.meta.url).pathname
+      if (existsSync(migrationsPath)) {
+        try {
+          migrate(db, { migrationsFolder: migrationsPath })
+        } catch {
+          // Silent — migrations already applied
+        }
+      }
+      seedDefaultBoard(db)
+
+      const exitCode = runCli(entity, cliArgs, db)
+
+      sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
+      sqlite.close()
+      process.exit(exitCode)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`Error: ${message}`)
+      process.exit(1)
+    }
+    return
+  }
+
+  // ── TUI mode — original argument parsing ────────────────────────────
 
   // Parse arguments
   for (let i = 0; i < args.length; i++) {
@@ -91,7 +150,7 @@ async function main() {
   try {
     // Initialize database
     console.error("Initializing database...")
-    const { db, sqlite } = initDatabase(repoRoot)
+    const { db, sqlite, dbPath } = initDatabase(repoRoot)
 
     // Run migrations
     console.error("Running migrations...")
@@ -112,7 +171,7 @@ async function main() {
     console.error("Starting Vault0...\n")
 
     // Launch TUI
-    const { waitUntilExit } = render(<App db={db} />, {
+    const { waitUntilExit } = render(<App db={db} dbPath={dbPath} />, {
       exitOnCtrlC: true,
     })
 
