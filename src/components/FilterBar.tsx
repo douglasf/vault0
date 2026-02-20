@@ -22,7 +22,7 @@ type SectionKey = "status" | "priority" | "source" | "toggles" | "actions"
 const SECTIONS: SectionKey[] = ["status", "priority", "source", "toggles", "actions"]
 
 const PRIORITIES = Object.keys(PRIORITY_ORDER) as Priority[]
-const SOURCES: Source[] = ["manual", "plan", "todo_md", "import"]
+const SOURCES: Source[] = ["manual", "opencode", "opencode-plan", "todo_md", "import"]
 const TOGGLE_KEYS = ["readyOnly", "blockedOnly", "showArchived"] as const
 const TOGGLE_LABELS: Record<string, string> = {
   readyOnly: "Ready Only",

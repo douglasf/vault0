@@ -10,7 +10,7 @@ export type TaskStatusHistoryEntry = InferSelectModel<typeof taskStatusHistory>
 
 export type Status = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled"
 export type Priority = "critical" | "high" | "normal" | "low"
-export type Source = "manual" | "todo_md" | "plan" | "import"
+export type Source = "manual" | "todo_md" | "opencode" | "opencode-plan" | "import"
 
 export type TaskCard = Task & {
   dependencyCount: number

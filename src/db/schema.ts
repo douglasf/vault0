@@ -28,7 +28,7 @@ export const tasks = sqliteTable("tasks", {
     enum: ["critical", "high", "normal", "low"],
   }).notNull().default("normal"),
   source: text("source", {
-    enum: ["manual", "todo_md", "plan", "import"],
+    enum: ["manual", "todo_md", "opencode", "opencode-plan", "import"],
   }).notNull().default("manual"),
   sourceRef: text("source_ref"),
   tags: text("tags", { mode: "json" }).$type<string[]>().default([]),
