@@ -1,22 +1,78 @@
-import React from "react"
-import { Box, Text } from "ink"
-import type { Task } from "../lib/types.js"
+import React, { useEffect } from "react"
+import { Box, useInput } from "ink"
+import { Column } from "./Column.js"
+import { EmptyBoard } from "./EmptyBoard.js"
+import { useDb } from "../lib/db-context.js"
+import { useBoard } from "../hooks/useBoard.js"
+import { useNavigation } from "../hooks/useNavigation.js"
+import { VISIBLE_STATUSES } from "../lib/constants.js"
+import type { Task, Filters } from "../lib/types.js"
 
 export interface BoardProps {
   boardId: string
-  selectedColumn: number
-  selectedRow: number
+  filters?: Filters
   onSelectTask: (task: Task) => void
-  onNavigate: (column: number, row: number) => void
+  onHighlightTask?: (task: Task | undefined) => void
 }
 
-export function Board({ boardId, selectedColumn, selectedRow }: BoardProps) {
-  // Placeholder: just show a message
+export function Board({ boardId, filters, onSelectTask, onHighlightTask }: BoardProps) {
+  const db = useDb()
+  const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
+
+  // Check if board is empty (no tasks across all visible statuses)
+  const totalTasks = Array.from(tasksByStatus.values()).reduce((sum, tasks) => sum + tasks.length, 0)
+
+  // Build row counts per column for navigation boundary clamping
+  const rowCounts = VISIBLE_STATUSES.map((status) => (tasksByStatus.get(status) || []).length)
+
+  const nav = useNavigation({
+    columnCount: VISIBLE_STATUSES.length,
+    rowCounts,
+  })
+
+  // Compute the currently highlighted task from navigation position
+  const currentColumnTasks = tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || []
+  const highlightedTask = currentColumnTasks[nav.selectedRow]
+
+  // Report highlighted task to parent after every render
+  useEffect(() => {
+    onHighlightTask?.(highlightedTask)
+  })
+
+  // Keyboard handler for board navigation (disabled when board is empty)
+  useInput((_input, key) => {
+    if (key.leftArrow) nav.navigateLeft()
+    else if (key.rightArrow) nav.navigateRight()
+    else if (key.upArrow) nav.navigateUp()
+    else if (key.downArrow) nav.navigateDown()
+    else if (key.return) {
+      const selected = nav.selectCurrent()
+      if (selected) {
+        const tasks = tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || []
+        if (tasks[selected.row]) {
+          onSelectTask(tasks[selected.row])
+        }
+      }
+    }
+  }, { isActive: totalTasks > 0 })
+
+  if (totalTasks === 0) {
+    return <EmptyBoard />
+  }
+
   return (
-    <Box flexDirection="column" flexGrow={1} justifyContent="center" alignItems="center">
-      <Text>Board: {boardId}</Text>
-      <Text>Selected: Column {selectedColumn}, Row {selectedRow}</Text>
-      <Text dimColor>(Full board implementation in Step 5)</Text>
+    <Box flexDirection="row" flexGrow={1} width="100%">
+      {VISIBLE_STATUSES.map((status, colIndex) => (
+        <Column
+          key={status}
+          status={status}
+          tasks={tasksByStatus.get(status) || []}
+          selectedRow={nav.selectedRow}
+          isActive={colIndex === nav.selectedColumn}
+          readyIds={readyIds}
+          blockedIds={blockedIds}
+        />
+      ))}
     </Box>
   )
 }
