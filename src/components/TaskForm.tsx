@@ -7,6 +7,8 @@ import { getPriorityColor, getStatusColor } from "../lib/theme.js"
 export interface TaskFormProps {
   mode: "create" | "edit"
   task?: Task
+  /** When creating a subtask, the parent task's title (for display) */
+  parentTitle?: string
   onSubmit: (data: { title: string; description: string; priority: Priority; status: Status }) => void
   onCancel: () => void
 }
@@ -24,7 +26,7 @@ const STATUS_DISPLAY: Record<string, string> = {
   done: "Done",
 }
 
-export function TaskForm({ mode, task, onSubmit, onCancel }: TaskFormProps) {
+export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFormProps) {
   const [title, setTitle] = useState(task?.title || "")
   const [description, setDescription] = useState(task?.description || "")
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
@@ -125,8 +127,11 @@ export function TaskForm({ mode, task, onSubmit, onCancel }: TaskFormProps) {
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1}>
       <Text bold color="cyan">
-        {mode === "create" ? "Create Task" : "Edit Task"}
+        {mode === "create" ? (parentTitle ? "Create Subtask" : "Create Task") : "Edit Task"}
       </Text>
+      {parentTitle && (
+        <Text dimColor>  Parent: {parentTitle}</Text>
+      )}
 
       {/* Title Field */}
       <Box marginTop={1}>

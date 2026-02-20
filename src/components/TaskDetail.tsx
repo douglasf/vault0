@@ -14,6 +14,7 @@ export interface TaskDetailProps {
   onStatusPick: (task: Task) => void
   onCyclePriority: (taskId: string) => void
   onDelete: (taskId: string) => void
+  onCreateSubtask: (parent: Task) => void
 }
 
 export function TaskDetail({
@@ -23,6 +24,7 @@ export function TaskDetail({
   onStatusPick,
   onCyclePriority,
   onDelete,
+  onCreateSubtask,
 }: TaskDetailProps) {
   const db = useDb()
   const [scrollOffset, setScrollOffset] = useState(0)
@@ -68,6 +70,8 @@ export function TaskDetail({
     } else if (input === "d") {
       onDelete(detail.id)
       onBack()
+    } else if (input === "A") {
+      onCreateSubtask(detail)
     } else if (input === "+") {
       setShowDependencyPicker(true)
       setDependencyError("")
@@ -188,7 +192,7 @@ export function TaskDetail({
           {/* Footer shortcuts */}
           <Box marginTop={1} justifyContent="center">
             <Text dimColor>
-              [e]dit  [s]tatus  [p]riority  [d]elete  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
+              [e]dit  [s]tatus  [p]riority  [d]elete  [A]dd subtask  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
             </Text>
           </Box>
         </Box>

@@ -23,7 +23,7 @@ const sections: ShortcutSection[] = [
     title: "Task Management",
     shortcuts: [
       ["a", "Create new task"],
-      ["A (Shift+a)", "Create subtask (planned)"],
+      ["A (Shift+a)", "Create subtask under selected task"],
       ["s", "Change task status"],
       ["p", "Cycle task priority"],
       ["d", "Archive (soft-delete) task"],

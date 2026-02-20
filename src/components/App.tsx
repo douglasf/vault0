@@ -29,6 +29,8 @@ export interface AppState {
   currentBoardId: string
   uiMode: UIMode
   selectedTask?: Task
+  /** When set, the create form creates a subtask under this parent */
+  createParent?: Task
 }
 
 export function App({ db, dbPath }: AppProps) {
@@ -90,7 +92,12 @@ export function App({ db, dbPath }: AppProps) {
   useInput((input, key) => {
     if (state.uiMode === "board") {
       if (input === "a") {
-        setState((prev) => ({ ...prev, uiMode: "create" }))
+        setState((prev) => ({ ...prev, uiMode: "create", createParent: undefined }))
+      } else if (input === "A") {
+        const task = highlightedTaskRef.current
+        if (task) {
+          setState((prev) => ({ ...prev, uiMode: "create", createParent: task }))
+        }
       } else if (input === "e") {
         const task = highlightedTaskRef.current
         if (task) {
@@ -196,17 +203,21 @@ export function App({ db, dbPath }: AppProps) {
               actions.deleteTask(taskId)
               setState((prev) => ({ ...prev, selectedTask: undefined, uiMode: "board" }))
             }}
+            onCreateSubtask={(parent) => {
+              setState((prev) => ({ ...prev, uiMode: "create", createParent: parent }))
+            }}
           />
         )}
 
         {state.uiMode === "create" && (
           <TaskForm
             mode="create"
+            parentTitle={state.createParent?.title}
             onSubmit={(data) => {
-              actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority)
-              setState((prev) => ({ ...prev, uiMode: "board" }))
+              actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id)
+              setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))
             }}
-            onCancel={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+            onCancel={() => setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))}
           />
         )}
 
