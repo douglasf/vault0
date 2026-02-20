@@ -14,11 +14,13 @@ import { FilterBar } from "./FilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
+import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import type { Task } from "../lib/types.js"
 import { getBoards } from "../db/queries.js"
 
 export interface AppProps {
   db: Vault0Database
+  dbPath: string
 }
 
 export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "help"
@@ -29,7 +31,7 @@ export interface AppState {
   selectedTask?: Task
 }
 
-export function App({ db }: AppProps) {
+export function App({ db, dbPath }: AppProps) {
   const [state, setState] = useState<AppState>({
     currentBoardId: "",
     uiMode: "board",
@@ -37,6 +39,14 @@ export function App({ db }: AppProps) {
 
   const actions = useTaskActions(db)
   const filterHook = useFilters()
+
+  // Watch the SQLite database for external changes (e.g., CLI operations in
+  // another terminal) and force a re-render so inline DB queries pick up fresh data.
+  const forceRefresh = useCallback(() => {
+    setState((prev) => ({ ...prev }))
+  }, [])
+
+  useDbWatcher(dbPath, forceRefresh)
 
   // Track terminal dimensions for responsive layout (narrow terminal fallback)
   const [terminalColumns, setTerminalColumns] = useState(process.stdout.columns || 80)

@@ -33,7 +33,7 @@ export function initDatabase(repoRoot: string) {
   // Wrap with Drizzle ORM
   const db = drizzle({ client: sqlite, schema })
 
-  return { db, sqlite }
+  return { db, sqlite, dbPath }
 }
 
 export type Vault0Database = ReturnType<typeof initDatabase>["db"]
