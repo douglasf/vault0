@@ -137,11 +137,23 @@ export function TaskForm({ mode, task, onSubmit, onCancel }: TaskFormProps) {
       </Box>
 
       {/* Description Field */}
-      <Box marginTop={1}>
+      <Box marginTop={1} flexDirection="column">
         <Text color={focusField === "description" ? "cyan" : "white"}>
-          {focusField === "description" ? "▸ " : "  "}Description: {(description || "").substring(0, 50)}
-          {focusField === "description" ? cursor : ""}
+          {focusField === "description" ? "▸ " : "  "}Description:
         </Text>
+        <Box
+          marginLeft={4}
+          borderStyle={focusField === "description" ? "round" : "single"}
+          borderColor={focusField === "description" ? "cyan" : "gray"}
+          paddingX={1}
+          minHeight={5}
+          overflow="hidden"
+        >
+          <Text wrap="wrap" color={focusField === "description" ? "white" : "gray"}>
+            {description || (focusField === "description" ? "" : "(empty)")}
+            {focusField === "description" ? cursor : ""}
+          </Text>
+        </Box>
       </Box>
 
       {/* Priority Field */}
