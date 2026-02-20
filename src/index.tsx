@@ -5,7 +5,7 @@ import { App } from "./components/App.js"
 import { initDatabase } from "./db/connection.js"
 import { seedDefaultBoard } from "./db/seed.js"
 import { runCli } from "./cli/index.js"
-import { migrate } from "drizzle-orm/bun-sqlite/migrator"
+import { runEmbeddedMigrations } from "./db/migrations.js"
 import { existsSync, mkdirSync, appendFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -81,14 +81,7 @@ async function main() {
     // Initialize database (no TUI, minimal output)
     try {
       const { db, sqlite } = initDatabase(repoRoot)
-      const migrationsPath = new URL("../drizzle", import.meta.url).pathname
-      if (existsSync(migrationsPath)) {
-        try {
-          migrate(db, { migrationsFolder: migrationsPath })
-        } catch {
-          // Silent — migrations already applied
-        }
-      }
+      runEmbeddedMigrations(sqlite)
       seedDefaultBoard(db)
 
       const exitCode = runCli(entity, cliArgs, db)
@@ -152,17 +145,9 @@ async function main() {
     console.error("Initializing database...")
     const { db, sqlite, dbPath } = initDatabase(repoRoot)
 
-    // Run migrations
+    // Run migrations (embedded — works in both dev and compiled binary)
     console.error("Running migrations...")
-    const migrationsPath = new URL("../drizzle", import.meta.url).pathname
-    if (existsSync(migrationsPath)) {
-      try {
-        migrate(db, { migrationsFolder: migrationsPath })
-      } catch (migError) {
-        console.error(`Warning: Migration issue: ${migError instanceof Error ? migError.message : String(migError)}`)
-        console.error("  Continuing with database as-is...\n")
-      }
-    }
+    runEmbeddedMigrations(sqlite)
 
     // Seed default board
     console.error("Setting up default board...")
