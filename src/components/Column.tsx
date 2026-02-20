@@ -59,20 +59,52 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
               <Text dimColor>↑ {scrollOffset} more</Text>
             )}
 
-            {visibleTasks.map((task, i) => {
-              const globalIndex = scrollOffset + i
-              const isSelected = isActive && selectedRow === globalIndex
-              return (
-                <Box key={task.id} flexDirection="column" marginBottom={1}>
-                  <TaskCard
-                    task={task}
-                    isSelected={isSelected}
-                    isReady={readyIds.has(task.id)}
-                    isBlocked={blockedIds.has(task.id)}
-                  />
-                </Box>
+            {(() => {
+              // Precompute which parent IDs exist in this column
+              const parentIdsInColumn = new Set(
+                tasks.filter((t) => t.parentId === null).map((t) => t.id),
               )
-            })}
+
+              // Precompute which visible task indices need an orphan group header
+              const orphanHeaderIndices = new Set<number>()
+              const seenOrphanParents = new Set<string>()
+              for (let i = 0; i < visibleTasks.length; i++) {
+                const task = visibleTasks[i]
+                if (
+                  task.parentId &&
+                  !parentIdsInColumn.has(task.parentId) &&
+                  !seenOrphanParents.has(task.parentId)
+                ) {
+                  seenOrphanParents.add(task.parentId)
+                  orphanHeaderIndices.add(scrollOffset + i)
+                }
+              }
+
+              return visibleTasks.map((task, i) => {
+                const globalIndex = scrollOffset + i
+                const isSelected = isActive && selectedRow === globalIndex
+                const isSubtask = task.parentId !== null
+                const showOrphanHeader = orphanHeaderIndices.has(globalIndex)
+
+                return (
+                  <Box key={task.id} flexDirection="column" marginBottom={1}>
+                    {/* Orphan group header — shown once per parent group */}
+                    {showOrphanHeader && task.parentTitle && (
+                      <Text dimColor italic>
+                        ↳ {task.parentTitle.substring(0, 30)}
+                      </Text>
+                    )}
+                    <TaskCard
+                      task={task}
+                      isSelected={isSelected}
+                      isReady={readyIds.has(task.id)}
+                      isBlocked={blockedIds.has(task.id)}
+                      showParentRef={isSubtask ? false : undefined}
+                    />
+                  </Box>
+                )
+              })
+            })()}
 
             {/* Scroll down indicator */}
             {hasMore && (

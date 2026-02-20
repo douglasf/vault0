@@ -38,14 +38,25 @@ function groupByParent(cards: TaskCard[]): TaskCard[] {
     }
   }
 
-  // Build result: parent followed by its subtasks, then orphan subtasks
+  // Build result: parent followed by its subtasks, then orphan subtasks grouped by parent
   const result: TaskCard[] = []
   for (const parent of parents.sort((a, b) => a.sortOrder - b.sortOrder)) {
     result.push(parent)
     const children = subtasksByParent.get(parent.id) || []
     result.push(...children.sort((a, b) => a.sortOrder - b.sortOrder))
   }
-  result.push(...orphanSubtasks.sort((a, b) => a.sortOrder - b.sortOrder))
+
+  // Group orphan subtasks by parent so siblings appear together
+  const orphansByParent = new Map<string, TaskCard[]>()
+  for (const ost of orphanSubtasks) {
+    const pid = ost.parentId as string
+    const list = orphansByParent.get(pid) || []
+    list.push(ost)
+    orphansByParent.set(pid, list)
+  }
+  for (const group of orphansByParent.values()) {
+    result.push(...group.sort((a, b) => a.sortOrder - b.sortOrder))
+  }
 
   return result
 }

@@ -8,9 +8,10 @@ export interface TaskCardProps {
   isSelected: boolean
   isReady: boolean
   isBlocked: boolean
+  showParentRef?: boolean
 }
 
-export function TaskCard({ task, isSelected, isReady, isBlocked }: TaskCardProps) {
+export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef = true }: TaskCardProps) {
   const priorityColor = getPriorityColor(task.priority)
   const depsBadge = task.dependencyCount > 0 ? `⚑ ${task.dependencyCount} ` : ""
   const subtaskBadge = task.subtaskTotal > 0 ? `◫ ${task.subtaskDone}/${task.subtaskTotal}` : ""
@@ -28,8 +29,8 @@ export function TaskCard({ task, isSelected, isReady, isBlocked }: TaskCardProps
         {subtaskBadge !== "" && <Text dimColor> {subtaskBadge}</Text>}
       </Box>
 
-      {/* Parent reference for subtasks */}
-      {isSubtask && task.parentTitle && (
+      {/* Parent reference for subtasks (only when not grouped by Column) */}
+      {showParentRef && isSubtask && task.parentTitle && (
         <Box paddingLeft={2}>
           <Text dimColor italic>
             ↳ {task.parentTitle.substring(0, 28)}
