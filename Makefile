@@ -36,16 +36,22 @@ build: clean
 	$(BUN) install
 	@echo "🔨 Building Vault0..."
 	$(BUN) build --compile src/index.tsx --outfile vault0
+	@echo "🔏 Signing binary (required on macOS/Apple Silicon)..."
+	codesign --sign - --force vault0
 	@echo ""
-	@echo "✓ Vault0 built as ./vault0"
+	@echo "✓ Vault0 built and signed as ./vault0"
 	@echo ""
 
 install: build
 	@echo "📦 Installing to /usr/local/bin..."
+	sudo rm -f /usr/local/bin/vault0
 	sudo cp vault0 /usr/local/bin/vault0
+	@echo "🔏 Clearing provenance and re-signing at final location..."
+	sudo xattr -cr /usr/local/bin/vault0
+	sudo codesign --sign - --force /usr/local/bin/vault0
 	@rm vault0
 	@echo ""
-	@echo "✓ Vault0 installed to /usr/local/bin/vault0"
+	@echo "✓ Vault0 installed and signed at /usr/local/bin/vault0"
 	@echo "  Run 'vault0' from any directory to start"
 	@echo ""
 
