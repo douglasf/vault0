@@ -25,6 +25,7 @@ export function TaskCard({ task, isSelected, isReady, isBlocked }: TaskCardProps
         <Text inverse={isSelected} bold={isSelected}>
           {task.title.substring(0, isSubtask ? 32 : 35)}
         </Text>
+        {subtaskBadge !== "" && <Text dimColor> {subtaskBadge}</Text>}
       </Box>
 
       {/* Parent reference for subtasks */}
@@ -36,12 +37,11 @@ export function TaskCard({ task, isSelected, isReady, isBlocked }: TaskCardProps
         </Box>
       )}
 
-      {/* Dependency and subtask badges */}
-      {(depsBadge || subtaskBadge) && (
+      {/* Dependency badge */}
+      {depsBadge !== "" && (
         <Box paddingLeft={2}>
           <Text dimColor>
             {depsBadge}
-            {subtaskBadge}
           </Text>
         </Box>
       )}
