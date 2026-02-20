@@ -53,12 +53,14 @@ export function getTasksByStatus(db: Vault0Database, boardId: string): Map<Statu
 
 /**
  * Get enriched task cards with dependency/subtask metadata.
- * Only returns top-level (non-child) tasks. Each card includes:
+ * Returns all tasks (both top-level and subtasks) as independent board items.
+ * Each card includes:
  * - dependencyCount: total number of dependencies
  * - blockerCount: number of incomplete dependencies
- * - subtaskTotal/subtaskDone: subtask completion counts
+ * - subtaskTotal/subtaskDone: subtask completion counts (for parent tasks)
  * - isReady: has dependencies but all are done (eligible to start)
  * - isBlocked: has at least one incomplete dependency
+ * - parentTitle: title of the parent task (for subtasks)
  */
 export function getTaskCards(db: Vault0Database, boardId: string): TaskCard[] {
   const allTasks = db
@@ -73,7 +75,6 @@ export function getTaskCards(db: Vault0Database, boardId: string): TaskCard[] {
   const taskById = new Map(allTasks.map((t) => [t.id, t]))
 
   return allTasks
-    .filter((t) => t.parentId === null)
     .map((task) => {
       const taskDeps = deps.filter((d) => d.taskId === task.id)
       const dependencyCount = taskDeps.length
@@ -91,6 +92,9 @@ export function getTaskCards(db: Vault0Database, boardId: string): TaskCard[] {
         blockerCount === 0 &&
         (task.status === "backlog" || task.status === "todo")
 
+      // Resolve parent title for subtasks
+      const parentTitle = task.parentId ? taskById.get(task.parentId)?.title : undefined
+
       return {
         ...task,
         dependencyCount,
@@ -99,6 +103,7 @@ export function getTaskCards(db: Vault0Database, boardId: string): TaskCard[] {
         subtaskDone,
         isReady,
         isBlocked,
+        parentTitle,
       }
     })
 }

@@ -19,6 +19,7 @@ export type TaskCard = Task & {
   subtaskDone: number
   isReady: boolean
   isBlocked: boolean
+  parentTitle?: string
 }
 
 export type TaskDetail = Task & {

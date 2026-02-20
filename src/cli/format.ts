@@ -51,7 +51,10 @@ export function formatTaskRow(task: Task | TaskCard): string {
   const pri = priorityIcon(task.priority)
   const st = statusIcon(task.status)
   const statusLabel = pad(STATUS_LABELS[task.status as Status] || task.status, 12)
-  const title = truncate(task.title, 50)
+  const isSubtask = task.parentId !== null
+  const prefix = isSubtask ? "  → " : ""
+  const titleMax = isSubtask ? 46 : 50
+  const title = truncate(task.title, titleMax)
 
   let extras = ""
   if ("isBlocked" in task && task.isBlocked) extras += " [BLOCKED]"
@@ -59,8 +62,11 @@ export function formatTaskRow(task: Task | TaskCard): string {
   if ("subtaskTotal" in task && task.subtaskTotal > 0) {
     extras += ` [${task.subtaskDone}/${task.subtaskTotal} subtasks]`
   }
+  if ("parentTitle" in task && task.parentTitle) {
+    extras += ` (↳ ${truncate(task.parentTitle as string, 20)})`
+  }
 
-  return `${id}  ${pri} ${st} ${statusLabel}  ${title}${extras}`
+  return `${id}  ${pri} ${st} ${statusLabel}  ${prefix}${title}${extras}`
 }
 
 export function formatTaskList(tasks: (Task | TaskCard)[]): string {
@@ -69,7 +75,32 @@ export function formatTaskList(tasks: (Task | TaskCard)[]): string {
   const header = `${"ID".padEnd(10)}${"".padEnd(5)}${"Status".padEnd(14)}Title`
   const separator = "─".repeat(80)
 
-  const rows = tasks.map(formatTaskRow)
+  // Sort: parents first (by sortOrder), then their subtasks immediately after
+  const parents = tasks.filter((t) => t.parentId === null)
+  const subtasks = tasks.filter((t) => t.parentId !== null)
+  const subtasksByParent = new Map<string, (Task | TaskCard)[]>()
+  const orphanSubtasks: (Task | TaskCard)[] = []
+
+  for (const st of subtasks) {
+    const parentInList = parents.find((p) => p.id === st.parentId)
+    if (parentInList) {
+      const list = subtasksByParent.get(st.parentId as string) || []
+      list.push(st)
+      subtasksByParent.set(st.parentId as string, list)
+    } else {
+      orphanSubtasks.push(st)
+    }
+  }
+
+  const ordered: (Task | TaskCard)[] = []
+  for (const parent of parents) {
+    ordered.push(parent)
+    const children = subtasksByParent.get(parent.id) || []
+    ordered.push(...children)
+  }
+  ordered.push(...orphanSubtasks)
+
+  const rows = ordered.map(formatTaskRow)
   return [header, separator, ...rows, separator, `${tasks.length} task(s)`].join("\n")
 }
 
@@ -83,6 +114,10 @@ export function formatTaskDetail(detail: TaskDetail): string {
   lines.push(`║  Status:   ${statusIcon(detail.status)} ${(STATUS_LABELS[detail.status as Status] || detail.status).padEnd(61)}║`)
   lines.push(`║  Priority: ${priorityIcon(detail.priority)} ${(PRIORITY_LABELS[detail.priority as Priority] || detail.priority).padEnd(61)}║`)
   lines.push(`║  Source:   ${(detail.source || "manual").padEnd(64)}║`)
+
+  if (detail.parentId) {
+    lines.push(`║  Parent:   ↳ [${detail.parentId.slice(-8)}]${"".padEnd(55)}║`)
+  }
 
   if (detail.tags && detail.tags.length > 0) {
     lines.push(`║  Tags:     ${detail.tags.join(", ").padEnd(64)}║`)

@@ -15,16 +15,26 @@ export function TaskCard({ task, isSelected, isReady, isBlocked }: TaskCardProps
   const depsBadge = task.dependencyCount > 0 ? `⚑ ${task.dependencyCount} ` : ""
   const subtaskBadge = task.subtaskTotal > 0 ? `◫ ${task.subtaskDone}/${task.subtaskTotal}` : ""
   const statusLine = isBlocked ? "🔒 blocked" : isReady ? "✓ ready" : ""
+  const isSubtask = task.parentId !== null
 
   return (
-    <Box flexDirection="column">
-      {/* Title row with priority dot */}
+    <Box flexDirection="column" paddingLeft={isSubtask ? 1 : 0}>
+      {/* Title row with priority dot — subtasks get → prefix */}
       <Box>
-        <Text color={priorityColor}>● </Text>
+        <Text color={priorityColor}>{isSubtask ? "→ " : "● "}</Text>
         <Text inverse={isSelected} bold={isSelected}>
-          {task.title.substring(0, 35)}
+          {task.title.substring(0, isSubtask ? 32 : 35)}
         </Text>
       </Box>
+
+      {/* Parent reference for subtasks */}
+      {isSubtask && task.parentTitle && (
+        <Box paddingLeft={2}>
+          <Text dimColor italic>
+            ↳ {task.parentTitle.substring(0, 28)}
+          </Text>
+        </Box>
+      )}
 
       {/* Dependency and subtask badges */}
       {(depsBadge || subtaskBadge) && (
