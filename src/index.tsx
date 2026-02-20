@@ -5,28 +5,16 @@ import { App } from "./components/App.js"
 import { initDatabase } from "./db/connection.js"
 import { seedDefaultBoard } from "./db/seed.js"
 import { migrate } from "drizzle-orm/bun-sqlite/migrator"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, mkdirSync, appendFileSync } from "node:fs"
+import { join } from "node:path"
 
-// Parse CLI arguments
-const args = process.argv.slice(2)
-let repoRoot = process.cwd()
-let showHelp = false
-let showVersion = false
+const VERSION = "0.1.0"
 
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--path" && args[i + 1]) {
-    repoRoot = args[++i]
-  } else if (args[i] === "--help" || args[i] === "-h") {
-    showHelp = true
-  } else if (args[i] === "--version" || args[i] === "-v") {
-    showVersion = true
-  }
-}
+// ── CLI Argument Parsing ────────────────────────────────────────────────
 
-// Show help
-if (showHelp) {
+function printHelp() {
   console.log(`
-Vault0 — Terminal Kanban Board
+Vault0 — Terminal Kanban Board v${VERSION}
 
 Usage:
   vault0              Launch board in current directory
@@ -34,48 +22,141 @@ Usage:
   vault0 --help       Show this help message
   vault0 --version    Show version
 
-Data stored in: .vault0/vault0.db (per-repo)
-  `)
-  process.exit(0)
+Data stored in: .vault0/vault0.db (per-repo, git-ignored)
+
+Examples:
+  vault0                    # Launch in current working directory
+  vault0 --path ~/myproject # Launch for a specific project
+
+Keyboard Shortcuts:
+  Press '?' inside the app for a complete list of shortcuts.
+
+For more information, visit: https://github.com/you/vault0
+`)
 }
 
-// Show version
-if (showVersion) {
-  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"))
-  console.log(`v${pkg.version}`)
-  process.exit(0)
+function printVersion() {
+  console.log(`Vault0 v${VERSION}`)
 }
 
-// Check terminal size
-const { columns = 80, rows = 24 } = process.stdout
-if (columns < 80 || rows < 24) {
-  console.warn(`Warning: Terminal size ${columns}x${rows} is below recommended 80x24. UI may be degraded.`)
-}
+// ── Main Entry Point ────────────────────────────────────────────────────
 
-try {
-  // Initialize database
-  const { db, sqlite } = initDatabase(repoRoot)
+async function main() {
+  const args = process.argv.slice(2)
+  let repoRoot = process.cwd()
+  let showHelp = false
+  let showVersion = false
 
-  // Run migrations
-  const migrationsFolder = new URL("../drizzle", import.meta.url).pathname
-  if (existsSync(migrationsFolder)) {
-    migrate(db, { migrationsFolder })
+  // Parse arguments
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--path" && args[i + 1]) {
+      repoRoot = args[++i]
+    } else if (args[i] === "--help" || args[i] === "-h") {
+      showHelp = true
+    } else if (args[i] === "--version" || args[i] === "-v") {
+      showVersion = true
+    } else {
+      console.error(`Unknown argument: ${args[i]}`)
+      printHelp()
+      process.exit(1)
+    }
   }
 
-  // Seed default board
-  seedDefaultBoard(db)
+  // Handle special modes
+  if (showHelp) {
+    printHelp()
+    process.exit(0)
+  }
 
-  // Launch TUI
-  const { waitUntilExit } = render(<App db={db} />, {
-    exitOnCtrlC: true,
-  })
+  if (showVersion) {
+    printVersion()
+    process.exit(0)
+  }
 
-  // Cleanup on exit
-  waitUntilExit().then(() => {
+  // Validate repo root exists
+  if (!existsSync(repoRoot)) {
+    console.error(`Error: Directory not found: ${repoRoot}`)
+    process.exit(1)
+  }
+
+  // Check terminal size
+  const columns = process.stdout.columns || 80
+  const rows = process.stdout.rows || 24
+
+  if (columns < 80 || rows < 24) {
+    console.warn(`Warning: Terminal size ${columns}x${rows} is smaller than recommended 80x24`)
+    console.warn("  UI may be degraded or unreadable\n")
+  }
+
+  try {
+    // Initialize database
+    console.error("Initializing database...")
+    const { db, sqlite } = initDatabase(repoRoot)
+
+    // Run migrations
+    console.error("Running migrations...")
+    const migrationsPath = new URL("../drizzle", import.meta.url).pathname
+    if (existsSync(migrationsPath)) {
+      try {
+        migrate(db, { migrationsFolder: migrationsPath })
+      } catch (migError) {
+        console.error(`Warning: Migration issue: ${migError instanceof Error ? migError.message : String(migError)}`)
+        console.error("  Continuing with database as-is...\n")
+      }
+    }
+
+    // Seed default board
+    console.error("Setting up default board...")
+    seedDefaultBoard(db)
+
+    console.error("Starting Vault0...\n")
+
+    // Launch TUI
+    const { waitUntilExit } = render(<App db={db} />, {
+      exitOnCtrlC: true,
+    })
+
+    // Cleanup on exit
+    await waitUntilExit()
+    console.error("\nCleaning up...")
     sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
     sqlite.close()
-  })
-} catch (error) {
-  console.error("Error initializing Vault0:", error instanceof Error ? error.message : String(error))
-  process.exit(1)
+    console.error("Vault0 closed. Goodbye!")
+  } catch (error) {
+    console.error("\nError starting Vault0:")
+
+    if (error instanceof Error) {
+      const message = error.message
+
+      // Check for common error patterns and provide actionable messages
+      if (message.includes("EACCES")) {
+        console.error(`  Permission denied: cannot write to ${repoRoot}/.vault0`)
+        console.error("  Check directory permissions and try again.")
+      } else if (message.includes("database") || message.includes("SQLite")) {
+        console.error(`  Database error: ${message}`)
+        console.error("  Try deleting .vault0/vault0.db and relaunching.")
+      } else {
+        console.error(`  ${message}`)
+      }
+
+      // Log full error to file for debugging
+      const errorLogPath = join(repoRoot, ".vault0", "error.log")
+      try {
+        mkdirSync(join(repoRoot, ".vault0"), { recursive: true })
+        const timestamp = new Date().toISOString()
+        const logEntry = `[${timestamp}] ${error.stack || error.message}\n`
+        appendFileSync(errorLogPath, logEntry)
+        console.error(`\n  Full error logged to: ${errorLogPath}`)
+      } catch {
+        // Silent fail on error logging — don't mask the original error
+      }
+    } else {
+      console.error(`  ${String(error)}`)
+    }
+
+    process.exit(1)
+  }
 }
+
+// Run main
+main()

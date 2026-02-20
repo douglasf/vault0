@@ -1,19 +1,37 @@
 {
   "name": "vault0",
   "version": "0.1.0",
+  "description": "Terminal kanban board with dependency tracking and SQLite persistence",
+  "author": "Douglas Frisk",
+  "license": "MIT",
   "type": "module",
+  "main": "src/index.tsx",
+  "bin": {
+    "vault0": "./src/index.tsx"
+  },
   "scripts": {
     "start": "bun run src/index.tsx",
     "dev": "bun --watch run src/index.tsx",
+    "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
+  "keywords": [
+    "kanban",
+    "tui",
+    "terminal",
+    "task-management",
+    "sqlite",
+    "ink",
+    "react"
+  ],
   "dependencies": {
     "drizzle-orm": "^0.45.1",
     "ink": "^6.8.0",
     "react": "^19.2.4",
+    "react-devtools-core": "^6.1.1",
     "ulidx": "^2.4.1"
   },
   "devDependencies": {
