@@ -164,12 +164,17 @@ export function createTask(
 
 /**
  * Update task metadata (title, description, priority, tags).
+ * Throws if the task does not exist or is archived.
  */
 export function updateTask(
   db: Vault0Database,
   taskId: string,
   data: Partial<{ title: string; description: string; priority: string; tags: string[] }>,
 ) {
+  const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (!current) throw new Error(`Task ${taskId} not found`)
+  if (current.archivedAt) throw new Error(`Cannot update archived task: ${taskId}`)
+
   return db
     .update(tasks)
     .set({
@@ -183,10 +188,12 @@ export function updateTask(
 
 /**
  * Transition a task to a new status and record the change in history.
+ * Throws if the task does not exist or is archived.
  */
 export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status) {
   const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
   if (!current) throw new Error(`Task ${taskId} not found`)
+  if (current.archivedAt) throw new Error(`Cannot update status of archived task: ${taskId}`)
 
   db.update(tasks)
     .set({ status: newStatus, updatedAt: new Date() })
@@ -204,8 +211,13 @@ export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: 
 
 /**
  * Soft-delete a task by setting archivedAt. Cascades to subtasks.
+ * No-ops if the task is already archived.
  */
 export function archiveTask(db: Vault0Database, taskId: string) {
+  const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (!current) throw new Error(`Task ${taskId} not found`)
+  if (current.archivedAt) return // Already archived — no-op
+
   const now = new Date()
 
   db.update(tasks)
@@ -232,9 +244,18 @@ export function archiveTask(db: Vault0Database, taskId: string) {
 
 /**
  * Add a dependency: taskId depends on dependsOnId.
- * Throws if adding the dependency would create a cycle.
+ * Throws if adding the dependency would create a cycle,
+ * or if either task does not exist or is archived.
  */
 export function addDependency(db: Vault0Database, taskId: string, dependsOnId: string) {
+  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (!task) throw new Error(`Task ${taskId} not found`)
+  if (task.archivedAt) throw new Error(`Cannot add dependency to archived task: ${taskId}`)
+
+  const depTask = db.select().from(tasks).where(eq(tasks.id, dependsOnId)).get()
+  if (!depTask) throw new Error(`Dependency target ${dependsOnId} not found`)
+  if (depTask.archivedAt) throw new Error(`Cannot depend on archived task: ${dependsOnId}`)
+
   if (wouldCreateCycle(db, taskId, dependsOnId)) {
     throw new Error(`Cannot add dependency: would create cycle (${taskId} -> ${dependsOnId})`)
   }
