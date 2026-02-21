@@ -15,7 +15,7 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
   const priorityColor = getPriorityColor(task.priority)
   const depsBadge = task.dependencyCount > 0 ? `⚑ ${task.dependencyCount} ` : ""
   const subtaskBadge = task.subtaskTotal > 0 ? `◫ ${task.subtaskDone}/${task.subtaskTotal}` : ""
-  const statusLine = isBlocked ? "🔒 blocked" : isReady ? "✓ ready" : ""
+  const statusLine = isBlocked ? "🔒 blocked" : ""
   const isSubtask = task.parentId !== null
 
   return (
@@ -47,10 +47,10 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
         </Box>
       )}
 
-      {/* Ready/blocked indicator */}
+      {/* Blocked indicator */}
       {statusLine && (
         <Box paddingLeft={2}>
-          <Text color={isBlocked ? "red" : "green"}>{statusLine}</Text>
+          <Text color="red">{statusLine}</Text>
         </Box>
       )}
     </Box>

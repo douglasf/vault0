@@ -58,7 +58,6 @@ export function formatTaskRow(task: Task | TaskCard): string {
 
   let extras = ""
   if ("isBlocked" in task && task.isBlocked) extras += " [BLOCKED]"
-  if ("isReady" in task && task.isReady) extras += " [READY]"
   if ("subtaskTotal" in task && task.subtaskTotal > 0) {
     extras += ` [${task.subtaskDone}/${task.subtaskTotal} subtasks]`
   }
