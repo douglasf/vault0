@@ -3,6 +3,8 @@ import { useState, useCallback } from "react"
 export interface UseNavigationOptions {
   columnCount: number
   rowCounts: number[] // rowCounts[colIndex] = number of tasks in that column
+  initialColumn?: number
+  initialRow?: number
 }
 
 export interface UseNavigationResult {
@@ -19,7 +21,10 @@ export interface UseNavigationResult {
 export function useNavigation(options: UseNavigationOptions): UseNavigationResult {
   // Combined position state avoids stale closures when column and row
   // need to update atomically (e.g. clamping row when switching columns)
-  const [position, setPosition] = useState({ column: 0, row: 0 })
+  const [position, setPosition] = useState({
+    column: options.initialColumn ?? 0,
+    row: options.initialRow ?? 0,
+  })
 
   const getMaxRow = useCallback(
     (col: number) => Math.max(0, (options.rowCounts[col] ?? 0) - 1),

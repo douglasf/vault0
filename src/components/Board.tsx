@@ -11,12 +11,14 @@ import type { Task, Filters, Status } from "../lib/types.js"
 export interface BoardProps {
   boardId: string
   filters?: Filters
+  /** When set, the board will focus this task on mount (restoring position after detail view) */
+  focusTaskId?: string
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
 }
 
-export function Board({ boardId, filters, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
+export function Board({ boardId, filters, focusTaskId, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
@@ -26,9 +28,26 @@ export function Board({ boardId, filters, onSelectTask, onHighlightTask, onMoveT
   // Build row counts per column for navigation boundary clamping
   const rowCounts = VISIBLE_STATUSES.map((status) => (tasksByStatus.get(status) || []).length)
 
+  // Compute initial navigation position from focusTaskId (restores position after detail view)
+  let initialColumn = 0
+  let initialRow = 0
+  if (focusTaskId) {
+    for (let col = 0; col < VISIBLE_STATUSES.length; col++) {
+      const tasks = tasksByStatus.get(VISIBLE_STATUSES[col]) || []
+      const rowIndex = tasks.findIndex((t) => t.id === focusTaskId)
+      if (rowIndex >= 0) {
+        initialColumn = col
+        initialRow = rowIndex
+        break
+      }
+    }
+  }
+
   const nav = useNavigation({
     columnCount: VISIBLE_STATUSES.length,
     rowCounts,
+    initialColumn,
+    initialRow,
   })
 
   // Compute the currently highlighted task from navigation position

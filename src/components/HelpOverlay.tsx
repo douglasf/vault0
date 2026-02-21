@@ -1,5 +1,6 @@
-import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import React, { useState, useMemo } from "react"
+import { Box, Text, useInput, useStdout } from "ink"
+import { Scrollbar } from "./Scrollbar.js"
 
 export interface HelpOverlayProps {
   onClose: () => void
@@ -27,7 +28,8 @@ const sections: ShortcutSection[] = [
       ["A (Shift+a)", "Create subtask under selected task"],
       ["s", "Change task status"],
       ["p", "Cycle task priority"],
-      ["d", "Archive (soft-delete) task"],
+      ["d", "Delete task (archive, or permanent if already archived)"],
+      ["D (Shift+d)", "Archive all tasks in Done lane"],
       ["e", "Edit task"],
     ],
   },
@@ -58,10 +60,8 @@ const sections: ShortcutSection[] = [
   },
 ]
 
-const ITEMS_PER_PAGE = 14
-
 /**
- * Flatten sections into renderable items so we can paginate cleanly.
+ * Flatten sections into renderable items for display.
  * Each item is either a section header or a shortcut row.
  */
 interface HeaderItem {
@@ -87,24 +87,117 @@ function buildItems(): RenderItem[] {
 }
 
 const allItems = buildItems()
-const totalPages = Math.max(1, Math.ceil(allItems.length / ITEMS_PER_PAGE))
+
+/**
+ * Filter the flat item list by a search string. Matches against both the key
+ * binding and its description (case-insensitive). Section headers are included
+ * only when at least one shortcut in the section matches.
+ */
+function filterItems(items: RenderItem[], query: string): RenderItem[] {
+  if (!query) return items
+  const lower = query.toLowerCase()
+  const result: RenderItem[] = []
+  let pendingHeader: HeaderItem | null = null
+
+  for (const item of items) {
+    if (item.kind === "header") {
+      pendingHeader = item
+    } else {
+      if (item.desc.toLowerCase().includes(lower) || item.key.toLowerCase().includes(lower)) {
+        if (pendingHeader) {
+          result.push(pendingHeader)
+          pendingHeader = null
+        }
+        result.push(item)
+      }
+    }
+  }
+  return result
+}
 
 export function HelpOverlay({ onClose }: HelpOverlayProps) {
-  const [page, setPage] = useState(0)
+  const { stdout } = useStdout()
+  const terminalRows = stdout?.rows || 24
+
+  const [filter, setFilter] = useState("")
+  const [scrollOffset, setScrollOffset] = useState(0)
+
+  const filteredItems = useMemo(() => filterItems(allItems, filter), [filter])
+
+  // Available height for the scrollable content area.
+  // Subtract chrome: App header with border (~4), overlay border (2),
+  // overlay paddingY (2), title line + marginBottom (2), filter line (1),
+  // footer + marginTop (2). Total overhead ≈ 13 lines.
+  const contentHeight = Math.max(3, terminalRows - 13)
+
+  // Clamp scroll offset to valid range
+  const maxScroll = Math.max(0, filteredItems.length - 1)
+
+  // Find the scroll offset that ensures the content fits. We scroll by item
+  // index and compute how many items fit in the content area starting at offset.
+  const visibleWindow = useMemo(() => {
+    const offset = Math.min(scrollOffset, maxScroll)
+    let linesUsed = 0
+    let count = 0
+    for (let i = offset; i < filteredItems.length; i++) {
+      let itemLines = 1
+      // Section headers (not at the top of the window) have a margin line above
+      if (filteredItems[i].kind === "header" && i > offset) {
+        itemLines += 1
+      }
+      if (linesUsed + itemLines > contentHeight && count > 0) break
+      linesUsed += itemLines
+      count++
+    }
+    return { offset, count, linesUsed }
+  }, [scrollOffset, maxScroll, filteredItems, contentHeight])
+
+  const visible = filteredItems.slice(visibleWindow.offset, visibleWindow.offset + visibleWindow.count)
+  const needsScrollbar = filteredItems.length > visibleWindow.count || visibleWindow.offset > 0
 
   useInput((input, key) => {
+    // Close overlay
     if (input === "?" || key.escape) {
       onClose()
-    } else if (key.pageDown || input === "j") {
-      setPage((p) => Math.min(totalPages - 1, p + 1))
-    } else if (key.pageUp || input === "k") {
-      setPage((p) => Math.max(0, p - 1))
+      return
+    }
+
+    // Scroll
+    if (key.upArrow) {
+      setScrollOffset((prev) => Math.max(0, prev - 1))
+      return
+    }
+    if (key.downArrow) {
+      setScrollOffset((prev) => Math.min(maxScroll, prev + 1))
+      return
+    }
+    if (key.pageDown) {
+      setScrollOffset((prev) => Math.min(maxScroll, prev + contentHeight))
+      return
+    }
+    if (key.pageUp) {
+      setScrollOffset((prev) => Math.max(0, prev - contentHeight))
+      return
+    }
+
+    // Backspace — remove last character from filter
+    if (key.backspace || key.delete) {
+      setFilter((prev) => prev.slice(0, -1))
+      setScrollOffset(0)
+      return
+    }
+
+    // Regular character input — append to filter
+    if (input && !key.ctrl && !key.meta) {
+      setFilter((prev) => prev + input)
+      setScrollOffset(0)
+      return
     }
   })
 
-  const start = page * ITEMS_PER_PAGE
-  const end = Math.min(start + ITEMS_PER_PAGE, allItems.length)
-  const visible = allItems.slice(start, end)
+  const matchCount = filteredItems.filter((i) => i.kind === "shortcut").length
+  const totalCount = allItems.filter((i) => i.kind === "shortcut").length
+  const isFiltered = filter.length > 0
 
   return (
     <Box
@@ -116,42 +209,69 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
       paddingY={1}
       flexGrow={1}
     >
+      {/* Title bar */}
       <Box justifyContent="space-between" marginBottom={1}>
         <Text bold color="cyan">
           Vault0 — Keyboard Shortcuts
         </Text>
-        <Text dimColor>
-          Page {page + 1}/{totalPages}
-        </Text>
+        {isFiltered && (
+          <Text dimColor>
+            {matchCount}/{totalCount} matches
+          </Text>
+        )}
       </Box>
 
-      <Box flexDirection="column" flexGrow={1}>
-        {visible.map((item, i) => {
-          if (item.kind === "header") {
-            return (
-              <Box key={`h-${start + i}`} marginTop={i === 0 ? 0 : 1}>
-                <Text bold underline color="yellow">
-                  {item.title}
-                </Text>
-              </Box>
-            )
-          }
-          return (
-            <Box key={`s-${start + i}`}>
-              <Box width={16}>
-                <Text bold color="green">
-                  {item.key}
-                </Text>
-              </Box>
-              <Text>{item.desc}</Text>
-            </Box>
-          )
-        })}
+      {/* Filter input */}
+      <Box>
+        <Text dimColor>Filter: </Text>
+        <Text color="cyan">{filter}</Text>
+        <Text color="cyan">▎</Text>
       </Box>
 
+      {/* Scrollable shortcut list */}
+      <Box flexDirection="row" flexGrow={1} marginTop={1}>
+        <Box flexDirection="column" flexGrow={1}>
+          {visible.length === 0 ? (
+            <Text dimColor italic>No matching shortcuts</Text>
+          ) : (
+            visible.map((item, i) => {
+              if (item.kind === "header") {
+                return (
+                  <Box key={`h-${visibleWindow.offset + i}`} marginTop={i === 0 ? 0 : 1}>
+                    <Text bold underline color="yellow">
+                      {item.title}
+                    </Text>
+                  </Box>
+                )
+              }
+              return (
+                <Box key={`s-${visibleWindow.offset + i}`}>
+                  <Box width={16}>
+                    <Text bold color="green">
+                      {item.key}
+                    </Text>
+                  </Box>
+                  <Text>{item.desc}</Text>
+                </Box>
+              )
+            })
+          )}
+        </Box>
+        {needsScrollbar && (
+          <Scrollbar
+            totalItems={filteredItems.length}
+            visibleItems={visibleWindow.count}
+            scrollOffset={visibleWindow.offset}
+            trackHeight={visibleWindow.linesUsed}
+            isActive
+          />
+        )}
+      </Box>
+
+      {/* Footer */}
       <Box marginTop={1}>
         <Text dimColor>
-          j/PgDn next page · k/PgUp prev page · ? or Esc to close
+          Type to filter · ↑/↓ scroll · ? or Esc to close
         </Text>
       </Box>
     </Box>

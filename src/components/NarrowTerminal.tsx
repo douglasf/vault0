@@ -12,6 +12,8 @@ import type { Task, Filters, Status } from "../lib/types.js"
 export interface NarrowTerminalProps {
   boardId: string
   filters?: Filters
+  /** When set, the view will focus this task on mount (restoring position after detail view) */
+  focusTaskId?: string
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
@@ -21,15 +23,32 @@ export interface NarrowTerminalProps {
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, focusTaskId, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
   const rowCounts = VISIBLE_STATUSES.map((status) => (tasksByStatus.get(status) || []).length)
 
+  // Compute initial navigation position from focusTaskId (restores position after detail view)
+  let initialColumn = 0
+  let initialRow = 0
+  if (focusTaskId) {
+    for (let col = 0; col < VISIBLE_STATUSES.length; col++) {
+      const tasks = tasksByStatus.get(VISIBLE_STATUSES[col]) || []
+      const rowIndex = tasks.findIndex((t) => t.id === focusTaskId)
+      if (rowIndex >= 0) {
+        initialColumn = col
+        initialRow = rowIndex
+        break
+      }
+    }
+  }
+
   const nav = useNavigation({
     columnCount: VISIBLE_STATUSES.length,
     rowCounts,
+    initialColumn,
+    initialRow,
   })
 
   // Report highlighted task to parent after every render
