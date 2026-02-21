@@ -11,6 +11,7 @@ import { TaskForm } from "./TaskForm.js"
 import { StatusPicker } from "./StatusPicker.js"
 import { TaskDetail } from "./TaskDetail.js"
 import { FilterBar } from "./FilterBar.js"
+import { TextFilterBar } from "./TextFilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
 import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
@@ -25,7 +26,7 @@ export interface AppProps {
   dbPath: string
 }
 
-export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "help" | "confirm-delete" | "confirm-archive-done"
+export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done"
 
 export interface AppState {
   currentBoardId: string
@@ -141,6 +142,8 @@ export function App({ db, dbPath }: AppProps) {
         setState((prev) => ({ ...prev }))
       }
     } else if (input === "f") {
+      setState((prev) => ({ ...prev, uiMode: "text-filter" }))
+    } else if (input === "F") {
       setState((prev) => ({ ...prev, uiMode: "filter" }))
     } else if (input === "r") {
       filterHook.toggleReady()
@@ -157,32 +160,43 @@ export function App({ db, dbPath }: AppProps) {
     <ErrorBoundary>
       <DbContext.Provider value={db}>
         <Box flexDirection="column" width="100%" height={terminalRows}>
-          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} />
+          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} />
 
-          {state.uiMode === "board" && (
-            terminalColumns < 80 ? (
-              <NarrowTerminal
-                boardId={state.currentBoardId}
-                filters={filterHook.filters}
-                focusTaskId={state.selectedTask?.id}
-                onSelectTask={(task) =>
-                  setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                }
-                onHighlightTask={handleHighlightTask}
-                onMoveTask={handleMoveTask}
-              />
-            ) : (
-              <Board
-                boardId={state.currentBoardId}
-                filters={filterHook.filters}
-                focusTaskId={state.selectedTask?.id}
-                onSelectTask={(task) =>
-                  setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                }
-                onHighlightTask={handleHighlightTask}
-                onMoveTask={handleMoveTask}
-              />
-            )
+          {(state.uiMode === "board" || state.uiMode === "text-filter") && (
+            <>
+              {state.uiMode === "text-filter" && (
+                <TextFilterBar
+                  initialValue={filterHook.filters.search || ""}
+                  onSearch={filterHook.setSearch}
+                  onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+                />
+              )}
+              {terminalColumns < 80 ? (
+                <NarrowTerminal
+                  boardId={state.currentBoardId}
+                  filters={filterHook.filters}
+                  focusTaskId={state.selectedTask?.id}
+                  onSelectTask={(task) =>
+                    setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
+                  }
+                  onHighlightTask={handleHighlightTask}
+                  onMoveTask={handleMoveTask}
+                  inputActive={state.uiMode === "board"}
+                />
+              ) : (
+                <Board
+                  boardId={state.currentBoardId}
+                  filters={filterHook.filters}
+                  focusTaskId={state.selectedTask?.id}
+                  onSelectTask={(task) =>
+                    setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
+                  }
+                  onHighlightTask={handleHighlightTask}
+                  onMoveTask={handleMoveTask}
+                  inputActive={state.uiMode === "board"}
+                />
+              )}
+            </>
           )}
 
         {state.uiMode === "filter" && (

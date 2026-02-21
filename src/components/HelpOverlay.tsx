@@ -36,10 +36,10 @@ const sections: ShortcutSection[] = [
   {
     title: "Filtering & Search",
     shortcuts: [
-      ["f", "Open filter menu"],
+      ["f", "Search tasks by title / description"],
+      ["F (Shift+f)", "Open filter menu (status, priority, source)"],
       ["r", "Toggle 'ready tasks only' filter"],
       ["b", "Toggle 'blocked tasks only' filter"],
-      ["/", "Quick search by title (future)"],
     ],
   },
   {

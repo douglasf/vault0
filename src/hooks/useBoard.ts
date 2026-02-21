@@ -84,7 +84,10 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters)
       }
       if (filters?.search) {
         const term = filters.search.toLowerCase()
-        cards = cards.filter((c) => c.title.toLowerCase().includes(term))
+        cards = cards.filter((c) =>
+          c.title.toLowerCase().includes(term) ||
+          c.description?.toLowerCase().includes(term)
+        )
       }
       if (filters?.readyOnly) {
         cards = cards.filter((c) => c.isReady)

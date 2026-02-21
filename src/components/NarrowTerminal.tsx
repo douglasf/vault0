@@ -14,6 +14,8 @@ export interface NarrowTerminalProps {
   filters?: Filters
   /** When set, the view will focus this task on mount (restoring position after detail view) */
   focusTaskId?: string
+  /** Whether keyboard input is active (default true) */
+  inputActive?: boolean
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
@@ -23,7 +25,7 @@ export interface NarrowTerminalProps {
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, focusTaskId, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
@@ -91,7 +93,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, onSelectTask, on
         }
       }
     }
-  })
+  }, { isActive: inputActive !== false })
 
   const activeStatus = VISIBLE_STATUSES[nav.selectedColumn]
 

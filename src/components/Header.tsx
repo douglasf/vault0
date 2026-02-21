@@ -9,9 +9,11 @@ export interface HeaderProps {
   boardId: string
   filters: Filters
   activeFilterCount?: number
+  /** Current text search term to display in the header */
+  searchTerm?: string
 }
 
-export function Header({ boardId, filters, activeFilterCount = 0 }: HeaderProps) {
+export function Header({ boardId, filters, activeFilterCount = 0, searchTerm }: HeaderProps) {
   const db = useDb()
   const gitStatus = useGitStatus()
 
@@ -89,6 +91,9 @@ export function Header({ boardId, filters, activeFilterCount = 0 }: HeaderProps)
       <Box justifyContent="space-between" paddingX={1}>
         <Text dimColor>{boardName}</Text>
         <Box>
+          {searchTerm && (
+            <Text color="cyan"> 🔍 {searchTerm} </Text>
+          )}
           {filters.showArchived && (
             <Text color="yellow" bold> ⌫ archived </Text>
           )}
@@ -96,7 +101,7 @@ export function Header({ boardId, filters, activeFilterCount = 0 }: HeaderProps)
             <Text color="cyan" bold> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </Text>
           )}
         </Box>
-        <Text dimColor>f filter | r ready | b blocked | ? help | q quit</Text>
+        <Text dimColor>f search | F filter | r ready | b blocked | ? help | q quit</Text>
       </Box>
     </Box>
   )

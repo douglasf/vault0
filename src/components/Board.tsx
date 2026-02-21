@@ -13,12 +13,14 @@ export interface BoardProps {
   filters?: Filters
   /** When set, the board will focus this task on mount (restoring position after detail view) */
   focusTaskId?: string
+  /** Whether the board's keyboard input is active (default true) */
+  inputActive?: boolean
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
 }
 
-export function Board({ boardId, filters, focusTaskId, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
+export function Board({ boardId, filters, focusTaskId, inputActive, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
@@ -91,7 +93,7 @@ export function Board({ boardId, filters, focusTaskId, onSelectTask, onHighlight
         }
       }
     }
-  }, { isActive: totalTasks > 0 })
+  }, { isActive: totalTasks > 0 && inputActive !== false })
 
   if (totalTasks === 0) {
     return <EmptyBoard />

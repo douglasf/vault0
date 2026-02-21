@@ -73,7 +73,11 @@ export function useFilters(): UseFiltersResult {
         if (filters.status && task.status !== filters.status) return false
         if (filters.priority && task.priority !== filters.priority) return false
         if (filters.source && task.source !== filters.source) return false
-        if (filters.search && !task.title.toLowerCase().includes(filters.search.toLowerCase())) return false
+        if (filters.search) {
+          const term = filters.search.toLowerCase()
+          if (!task.title.toLowerCase().includes(term) &&
+              !task.description?.toLowerCase().includes(term)) return false
+        }
         return true
       })
     },
