@@ -162,49 +162,51 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         </Text>
       </Box>
 
-      {/* Description Field — multi-line with cursor and scroll */}
-      <Box marginTop={1} flexDirection="column">
+      {/* Description Field — label */}
+      <Box marginTop={1}>
         <Text color={isDescFocused ? "cyan" : "white"}>
           {isDescFocused ? "\u25B8 " : "  "}Description:
         </Text>
-        <Box
-          marginLeft={4}
-          borderStyle={isDescFocused ? "round" : "single"}
-          borderColor={isDescFocused ? "cyan" : "gray"}
-          paddingX={1}
-          minHeight={3}
-          flexDirection="column"
-        >
-          {descHasMoreAbove && (
-            <Text dimColor>{`\u2191 ${descScrollStart} more`}</Text>
-          )}
-          {descInput.value === "" && !isDescFocused ? (
-            <Text dimColor>(empty)</Text>
-          ) : (
-            descVisibleLines.map((line, i) => {
-              const globalLineIdx = descScrollStart + i
-              const lineKey = `line-${globalLineIdx}`
-              const isActiveLine = isDescFocused && globalLineIdx === descInput.cursorLine
-              if (isActiveLine) {
-                const before = line.slice(0, descInput.cursorCol)
-                const after = line.slice(descInput.cursorCol)
-                return (
-                  <Text key={lineKey} color="white">
-                    {before}<Text inverse>{after[0] || " "}</Text>{after.slice(1)}
-                  </Text>
-                )
-              }
+      </Box>
+
+      {/* Description Field — multi-line textarea with cursor and scroll */}
+      <Box
+        marginLeft={4}
+        borderStyle={isDescFocused ? "round" : "single"}
+        borderColor={isDescFocused ? "cyan" : "gray"}
+        paddingX={1}
+        minHeight={3}
+        flexDirection="column"
+      >
+        {descHasMoreAbove && (
+          <Text dimColor>{`\u2191 ${descScrollStart} more`}</Text>
+        )}
+        {descInput.value === "" && !isDescFocused ? (
+          <Text dimColor>(empty)</Text>
+        ) : (
+          descVisibleLines.map((line, i) => {
+            const globalLineIdx = descScrollStart + i
+            const lineKey = `line-${globalLineIdx}`
+            const isActiveLine = isDescFocused && globalLineIdx === descInput.cursorLine
+            if (isActiveLine) {
+              const before = line.slice(0, descInput.cursorCol)
+              const after = line.slice(descInput.cursorCol)
               return (
-                <Text key={lineKey} color={isDescFocused ? "white" : "gray"}>
-                  {line || " "}
+                <Text key={lineKey} color="white">
+                  {before}<Text inverse>{after[0] || " "}</Text>{after.slice(1)}
                 </Text>
               )
-            })
-          )}
-          {descHasMoreBelow && (
-            <Text dimColor>{`\u2193 ${descTotalLines - descScrollStart - DESC_VIEWPORT} more`}</Text>
-          )}
-        </Box>
+            }
+            return (
+              <Text key={lineKey} color={isDescFocused ? "white" : "gray"}>
+                {line || " "}
+              </Text>
+            )
+          })
+        )}
+        {descHasMoreBelow && (
+          <Text dimColor>{`\u2193 ${descTotalLines - descScrollStart - DESC_VIEWPORT} more`}</Text>
+        )}
       </Box>
 
       {/* Priority Field */}
