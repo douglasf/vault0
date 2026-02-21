@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink"
 import type { Task, Priority, Status } from "../lib/types.js"
 import { PRIORITY_LABELS } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor } from "../lib/theme.js"
+import { useTextInput } from "../hooks/useTextInput.js"
 
 export interface TaskFormProps {
   mode: "create" | "edit"
@@ -26,9 +27,12 @@ const STATUS_DISPLAY: Record<string, string> = {
   done: "Done",
 }
 
+/** Max visible lines in the description viewport before scrolling kicks in */
+const DESC_VIEWPORT = 8
+
 export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFormProps) {
-  const [title, setTitle] = useState(task?.title || "")
-  const [description, setDescription] = useState(task?.description || "")
+  const titleInput = useTextInput(task?.title || "", false)
+  const descInput = useTextInput(task?.description || "", true)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [status, setStatus] = useState<Status>((task?.status as Status) || "backlog")
   const [focusField, setFocusField] = useState<FormField>("title")
@@ -55,27 +59,28 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
     // Enter on submit button
     if (key.return && focusField === "submit") {
-      if (title.trim()) {
-        onSubmit({ title: title.trim(), description, priority, status })
+      if (titleInput.value.trim()) {
+        onSubmit({ title: titleInput.value.trim(), description: descInput.value, priority, status })
       }
       return
     }
 
-    // Text editing for title and description
-    if (focusField === "title" || focusField === "description") {
-      const setter = focusField === "title" ? setTitle : setDescription
-
-      if (key.backspace || key.delete) {
-        setter((prev: string) => prev.slice(0, -1))
-      } else if (key.return) {
-        // Enter on text fields advances to next field
-        const currentIndex = fields.indexOf(focusField)
+    // Text editing for title (single-line: Enter advances to next field)
+    if (focusField === "title") {
+      if (key.return) {
+        const currentIndex = fields.indexOf("title")
         if (currentIndex < fields.length - 1) {
           setFocusField(fields[currentIndex + 1])
         }
-      } else if (input && !key.ctrl && !key.meta) {
-        setter((prev: string) => prev + input)
+        return
       }
+      titleInput.handleInput(input, key)
+      return
+    }
+
+    // Text editing for description (multiline: Enter inserts newline via hook)
+    if (focusField === "description") {
+      descInput.handleInput(input, key)
       return
     }
 
@@ -122,7 +127,22 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
     }
   })
 
-  const cursor = "█"
+  // Description viewport: scroll to keep cursor visible
+  const descLines = descInput.lines
+  const descTotalLines = descLines.length
+  const isTitleFocused = focusField === "title"
+  const isDescFocused = focusField === "description"
+
+  let descScrollStart = 0
+  if (isDescFocused && descTotalLines > DESC_VIEWPORT) {
+    descScrollStart = Math.max(0, Math.min(
+      descInput.cursorLine - Math.floor(DESC_VIEWPORT / 2),
+      descTotalLines - DESC_VIEWPORT,
+    ))
+  }
+  const descVisibleLines = descLines.slice(descScrollStart, descScrollStart + DESC_VIEWPORT)
+  const descHasMoreAbove = descScrollStart > 0
+  const descHasMoreBelow = descScrollStart + DESC_VIEWPORT < descTotalLines
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1}>
@@ -133,41 +153,67 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         <Text dimColor>  Parent: {parentTitle}</Text>
       )}
 
-      {/* Title Field */}
+      {/* Title Field — single-line with inverse-video cursor */}
       <Box marginTop={1}>
-        <Text color={focusField === "title" ? "cyan" : "white"}>
-          {focusField === "title" ? "▸ " : "  "}Title: {title}
-          {focusField === "title" ? cursor : ""}
+        <Text color={isTitleFocused ? "cyan" : "white"}>
+          {isTitleFocused ? "\u25B8 " : "  "}Title: {titleInput.beforeCursor}
+          {isTitleFocused && <Text inverse>{titleInput.afterCursor[0] || " "}</Text>}
+          {isTitleFocused ? titleInput.afterCursor.slice(1) : titleInput.afterCursor}
         </Text>
       </Box>
 
-      {/* Description Field */}
+      {/* Description Field — multi-line with cursor and scroll */}
       <Box marginTop={1} flexDirection="column">
-        <Text color={focusField === "description" ? "cyan" : "white"}>
-          {focusField === "description" ? "▸ " : "  "}Description:
+        <Text color={isDescFocused ? "cyan" : "white"}>
+          {isDescFocused ? "\u25B8 " : "  "}Description:
         </Text>
         <Box
           marginLeft={4}
-          borderStyle={focusField === "description" ? "round" : "single"}
-          borderColor={focusField === "description" ? "cyan" : "gray"}
+          borderStyle={isDescFocused ? "round" : "single"}
+          borderColor={isDescFocused ? "cyan" : "gray"}
           paddingX={1}
-          minHeight={5}
-          overflow="hidden"
+          minHeight={3}
+          flexDirection="column"
         >
-          <Text wrap="wrap" color={focusField === "description" ? "white" : "gray"}>
-            {description || (focusField === "description" ? "" : "(empty)")}
-            {focusField === "description" ? cursor : ""}
-          </Text>
+          {descHasMoreAbove && (
+            <Text dimColor>{`\u2191 ${descScrollStart} more`}</Text>
+          )}
+          {descInput.value === "" && !isDescFocused ? (
+            <Text dimColor>(empty)</Text>
+          ) : (
+            descVisibleLines.map((line, i) => {
+              const globalLineIdx = descScrollStart + i
+              const lineKey = `line-${globalLineIdx}`
+              const isActiveLine = isDescFocused && globalLineIdx === descInput.cursorLine
+              if (isActiveLine) {
+                const before = line.slice(0, descInput.cursorCol)
+                const after = line.slice(descInput.cursorCol)
+                return (
+                  <Text key={lineKey} color="white">
+                    {before}<Text inverse>{after[0] || " "}</Text>{after.slice(1)}
+                  </Text>
+                )
+              }
+              return (
+                <Text key={lineKey} color={isDescFocused ? "white" : "gray"}>
+                  {line || " "}
+                </Text>
+              )
+            })
+          )}
+          {descHasMoreBelow && (
+            <Text dimColor>{`\u2193 ${descTotalLines - descScrollStart - DESC_VIEWPORT} more`}</Text>
+          )}
         </Box>
       </Box>
 
       {/* Priority Field */}
       <Box marginTop={1}>
         <Text color={focusField === "priority" ? "cyan" : "white"}>
-          {focusField === "priority" ? "▸ " : "  "}Priority:{" "}
+          {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
         </Text>
         <Text color={getPriorityColor(priority)}>
-          {"◀ "}{PRIORITY_LABELS[priority]}{" ▶"}
+          {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
         </Text>
       </Box>
 
@@ -175,10 +221,10 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       {mode === "create" && (
         <Box marginTop={1}>
           <Text color={focusField === "status" ? "cyan" : "white"}>
-            {focusField === "status" ? "▸ " : "  "}Status:{" "}
+            {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
           </Text>
           <Text color={getStatusColor(status)}>
-            {"◀ "}{STATUS_DISPLAY[status] || status}{" ▶"}
+            {"\u25C0 "}{STATUS_DISPLAY[status] || status}{" \u25B6"}
           </Text>
         </Box>
       )}
@@ -186,13 +232,14 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       {/* Submit Button */}
       <Box marginTop={2}>
         <Text inverse={focusField === "submit"} color={focusField === "submit" ? "cyan" : "white"}>
-          {focusField === "submit" ? "▸ " : "  "}
+          {focusField === "submit" ? "\u25B8 " : "  "}
           [{mode === "create" ? "Create" : "Save"}]
         </Text>
       </Box>
 
-      <Box marginTop={1}>
-        <Text dimColor>Tab: next field  Shift+Tab: prev  Enter: submit/next  Esc: cancel</Text>
+      <Box marginTop={1} flexDirection="column">
+        <Text dimColor>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</Text>
+        <Text dimColor>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</Text>
       </Box>
     </Box>
   )
