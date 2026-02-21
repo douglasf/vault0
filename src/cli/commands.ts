@@ -7,6 +7,7 @@ import {
   updateTask,
   updateTaskStatus,
   archiveTask,
+  archiveDoneTasks,
   getTaskCards,
   getTaskDetail,
   getBoards,
@@ -309,6 +310,7 @@ export function cmdComplete(db: Vault0Database, taskId: string, format: OutputFo
 
 /**
  * vault0 task delete <ID>
+ * First delete: archives (soft-delete). Second delete: permanently removes (hard-delete).
  */
 export function cmdDelete(db: Vault0Database, taskId: string, format: OutputFormat): CommandResult {
   if (!taskId) {
@@ -317,17 +319,18 @@ export function cmdDelete(db: Vault0Database, taskId: string, format: OutputForm
 
   const resolvedId = resolveTaskId(db, taskId)
 
-  // Get task info before archiving
+  // Get task info before deletion
   const task = db.select().from(tasks).where(eq(tasks.id, resolvedId)).get()
-  archiveTask(db, resolvedId)
+  const { hardDeleted } = archiveTask(db, resolvedId)
 
   if (format === "json") {
-    return { success: true, message: jsonOutput({ archived: resolvedId, title: task?.title }), data: task }
+    return { success: true, message: jsonOutput({ archived: !hardDeleted, hardDeleted, id: resolvedId, title: task?.title }), data: task }
   }
 
+  const action = hardDeleted ? "permanently deleted" : "archived"
   return {
     success: true,
-    message: formatSuccess(`Task archived: [${resolvedId.slice(-8)}] ${task?.title}`),
+    message: formatSuccess(`Task ${action}: [${resolvedId.slice(-8)}] ${task?.title}`),
     data: task,
   }
 }
@@ -432,6 +435,27 @@ export function cmdDepList(db: Vault0Database, taskId: string, format: OutputFor
   }
 
   return { success: true, message: lines.join("\n"), data: result }
+}
+
+/**
+ * vault0 task archive-done [--board ID]
+ */
+export function cmdArchiveDone(db: Vault0Database, flags: Record<string, string>, format: OutputFormat): CommandResult {
+  const boardId = flags.board || getDefaultBoardId(db)
+  const count = archiveDoneTasks(db, boardId)
+
+  if (format === "json") {
+    return { success: true, message: jsonOutput({ archived: count, boardId }), data: { archived: count } }
+  }
+
+  if (count === 0) {
+    return { success: true, message: "No tasks in Done lane to archive." }
+  }
+
+  return {
+    success: true,
+    message: formatSuccess(`Archived ${count} task${count !== 1 ? "s" : ""} from Done lane`),
+  }
 }
 
 /**

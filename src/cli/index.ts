@@ -8,6 +8,7 @@ import {
   cmdMove,
   cmdComplete,
   cmdDelete,
+  cmdArchiveDone,
   cmdDepAdd,
   cmdDepRemove,
   cmdDepList,
@@ -166,6 +167,10 @@ function handleTask(args: string[], db: Vault0Database): number {
       result = cmdDelete(db, parsed.positional[0] || parsed.flags.id || "", parsed.format)
       break
 
+    case "archive-done":
+      result = cmdArchiveDone(db, parsed.flags, parsed.format)
+      break
+
     case "dep": {
       const sub = parsed.subsubcommand || ""
       const targetId = parsed.positional[0] || parsed.flags.id || ""
@@ -256,7 +261,8 @@ Commands:
   edit, update  <ID>            Update task metadata
   move, mv      <ID>            Change task status
   complete, done <ID>           Mark task as done
-  delete, rm    <ID>            Archive (soft-delete) a task
+  delete, rm    <ID>            Delete a task (archive first, hard-delete if already archived)
+  archive-done                  Archive all tasks in Done lane
   dep add       <ID>            Add a dependency
   dep rm        <ID>            Remove a dependency
   dep list      <ID>            List dependencies

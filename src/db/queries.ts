@@ -1,7 +1,7 @@
 import type { Vault0Database } from "./connection.js"
 import type { Status, Task, TaskDetail, TaskCard } from "../lib/types.js"
 import { tasks, taskDependencies, taskStatusHistory, boards } from "./schema.js"
-import { and, eq, isNull, sql } from "drizzle-orm"
+import { and, eq, isNull, or, sql } from "drizzle-orm"
 import { wouldCreateCycle } from "../lib/dag.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 
@@ -62,11 +62,16 @@ export function getTasksByStatus(db: Vault0Database, boardId: string): Map<Statu
  * - isBlocked: has at least one incomplete dependency
  * - parentTitle: title of the parent task (for subtasks)
  */
-export function getTaskCards(db: Vault0Database, boardId: string): TaskCard[] {
+export function getTaskCards(db: Vault0Database, boardId: string, opts?: { includeArchived?: boolean }): TaskCard[] {
+  const conditions = [eq(tasks.boardId, boardId)]
+  if (!opts?.includeArchived) {
+    conditions.push(isNull(tasks.archivedAt))
+  }
+
   const allTasks = db
     .select()
     .from(tasks)
-    .where(and(eq(tasks.boardId, boardId), isNull(tasks.archivedAt)))
+    .where(and(...conditions))
     .all()
 
   const deps = db.select().from(taskDependencies).all()
@@ -308,13 +313,38 @@ export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: 
 }
 
 /**
- * Soft-delete a task by setting archivedAt. Cascades to subtasks.
- * No-ops if the task is already archived.
+ * Archive all non-archived tasks in the "done" status for a board.
+ * Cascades to subtasks of each archived task.
+ * Returns the count of top-level tasks archived.
  */
-export function archiveTask(db: Vault0Database, taskId: string) {
+export function archiveDoneTasks(db: Vault0Database, boardId: string): number {
+  const doneTasks = db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.boardId, boardId), eq(tasks.status, "done"), isNull(tasks.archivedAt)))
+    .all()
+
+  for (const task of doneTasks) {
+    archiveTask(db, task.id)
+  }
+
+  return doneTasks.length
+}
+
+/**
+ * Soft-delete a task by setting archivedAt. Cascades to subtasks.
+ * If the task is already archived, performs a hard delete (permanent removal).
+ * Returns an object indicating which operation was performed.
+ */
+export function archiveTask(db: Vault0Database, taskId: string): { hardDeleted: boolean } {
   const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
   if (!current) throw new Error(`Task ${taskId} not found`)
-  if (current.archivedAt) return // Already archived — no-op
+
+  // Already archived — hard delete (permanent removal)
+  if (current.archivedAt) {
+    hardDeleteTask(db, taskId)
+    return { hardDeleted: true }
+  }
 
   const now = new Date()
 
@@ -336,6 +366,57 @@ export function archiveTask(db: Vault0Database, taskId: string) {
       .where(eq(tasks.id, st.id))
       .run()
   }
+
+  return { hardDeleted: false }
+}
+
+/**
+ * Permanently remove a task and all related data from the database.
+ * Cascades to subtasks: removes their dependencies, status history, and rows.
+ * Also cleans up dependencies and status history for the task itself.
+ */
+export function hardDeleteTask(db: Vault0Database, taskId: string) {
+  const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (!current) throw new Error(`Task ${taskId} not found`)
+
+  // 1. Hard-delete all subtasks first (they reference this task via parentId)
+  const subtasks = db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.parentId, taskId))
+    .all()
+
+  for (const subtask of subtasks) {
+    // Remove dependencies involving the subtask
+    db.delete(taskDependencies)
+      .where(or(eq(taskDependencies.taskId, subtask.id), eq(taskDependencies.dependsOn, subtask.id)))
+      .run()
+
+    // Remove status history for the subtask
+    db.delete(taskStatusHistory)
+      .where(eq(taskStatusHistory.taskId, subtask.id))
+      .run()
+
+    // Remove the subtask row
+    db.delete(tasks)
+      .where(eq(tasks.id, subtask.id))
+      .run()
+  }
+
+  // 2. Remove dependencies involving this task (both directions)
+  db.delete(taskDependencies)
+    .where(or(eq(taskDependencies.taskId, taskId), eq(taskDependencies.dependsOn, taskId)))
+    .run()
+
+  // 3. Remove status history for this task
+  db.delete(taskStatusHistory)
+    .where(eq(taskStatusHistory.taskId, taskId))
+    .run()
+
+  // 4. Remove the task row
+  db.delete(tasks)
+    .where(eq(tasks.id, taskId))
+    .run()
 }
 
 // ── Dependency Mutations ────────────────────────────────────────────
