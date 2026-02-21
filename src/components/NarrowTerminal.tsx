@@ -7,20 +7,21 @@ import { useNavigation } from "../hooks/useNavigation.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { STATUS_LABELS } from "../lib/constants.js"
 import { getStatusColor } from "../lib/theme.js"
-import type { Task, Filters } from "../lib/types.js"
+import type { Task, Filters, Status } from "../lib/types.js"
 
 export interface NarrowTerminalProps {
   boardId: string
   filters?: Filters
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
+  onMoveTask?: (task: Task, targetStatus: Status) => void
 }
 
 /**
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, onSelectTask, onHighlightTask }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
@@ -40,8 +41,25 @@ export function NarrowTerminal({ boardId, filters, onSelectTask, onHighlightTask
   })
 
   // Keyboard handler — same as Board but also handles enter for selection
-  useInput((_input, key) => {
-    if (key.leftArrow) nav.navigateLeft()
+  useInput((input, key) => {
+    const moveLeft = input === "<"
+    const moveRight = input === ">"
+
+    if (moveLeft) {
+      const task = currentColumnTasks[nav.selectedRow]
+      if (task && nav.selectedColumn > 0) {
+        const targetStatus = VISIBLE_STATUSES[nav.selectedColumn - 1]
+        onMoveTask?.(task, targetStatus)
+        nav.navigateLeft()
+      }
+    } else if (moveRight) {
+      const task = currentColumnTasks[nav.selectedRow]
+      if (task && nav.selectedColumn < VISIBLE_STATUSES.length - 1) {
+        const targetStatus = VISIBLE_STATUSES[nav.selectedColumn + 1]
+        onMoveTask?.(task, targetStatus)
+        nav.navigateRight()
+      }
+    } else if (key.leftArrow) nav.navigateLeft()
     else if (key.rightArrow) nav.navigateRight()
     else if (key.upArrow) nav.navigateUp()
     else if (key.downArrow) nav.navigateDown()

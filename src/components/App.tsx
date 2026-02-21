@@ -16,7 +16,7 @@ import { ConfirmDelete } from "./ConfirmDelete.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
-import type { Task } from "../lib/types.js"
+import type { Task, Status } from "../lib/types.js"
 import { getBoards } from "../db/queries.js"
 
 export interface AppProps {
@@ -76,6 +76,12 @@ export function App({ db, dbPath }: AppProps) {
   const handleHighlightTask = useCallback((task: Task | undefined) => {
     highlightedTaskRef.current = task
   }, [])
+
+  const handleMoveTask = useCallback((task: Task, targetStatus: Status) => {
+    actions.updateStatus(task.id, targetStatus)
+    // Force re-render so Board/NarrowTerminal fetches fresh data
+    setState((prev) => ({ ...prev }))
+  }, [actions])
 
   // Initialize board on mount — fetch the first board from the database
   const initializeBoard = useCallback(() => {
@@ -158,6 +164,7 @@ export function App({ db, dbPath }: AppProps) {
                   setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
                 }
                 onHighlightTask={handleHighlightTask}
+                onMoveTask={handleMoveTask}
               />
             ) : (
               <Board
@@ -167,6 +174,7 @@ export function App({ db, dbPath }: AppProps) {
                   setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
                 }
                 onHighlightTask={handleHighlightTask}
+                onMoveTask={handleMoveTask}
               />
             )
           )}

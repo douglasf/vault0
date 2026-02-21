@@ -6,16 +6,17 @@ import { useDb } from "../lib/db-context.js"
 import { useBoard } from "../hooks/useBoard.js"
 import { useNavigation } from "../hooks/useNavigation.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
-import type { Task, Filters } from "../lib/types.js"
+import type { Task, Filters, Status } from "../lib/types.js"
 
 export interface BoardProps {
   boardId: string
   filters?: Filters
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
+  onMoveTask?: (task: Task, targetStatus: Status) => void
 }
 
-export function Board({ boardId, filters, onSelectTask, onHighlightTask }: BoardProps) {
+export function Board({ boardId, filters, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
@@ -40,8 +41,25 @@ export function Board({ boardId, filters, onSelectTask, onHighlightTask }: Board
   })
 
   // Keyboard handler for board navigation (disabled when board is empty)
-  useInput((_input, key) => {
-    if (key.leftArrow) nav.navigateLeft()
+  useInput((input, key) => {
+    const moveLeft = input === "<"
+    const moveRight = input === ">"
+
+    if (moveLeft) {
+      const task = currentColumnTasks[nav.selectedRow]
+      if (task && nav.selectedColumn > 0) {
+        const targetStatus = VISIBLE_STATUSES[nav.selectedColumn - 1]
+        onMoveTask?.(task, targetStatus)
+        nav.navigateLeft()
+      }
+    } else if (moveRight) {
+      const task = currentColumnTasks[nav.selectedRow]
+      if (task && nav.selectedColumn < VISIBLE_STATUSES.length - 1) {
+        const targetStatus = VISIBLE_STATUSES[nav.selectedColumn + 1]
+        onMoveTask?.(task, targetStatus)
+        nav.navigateRight()
+      }
+    } else if (key.leftArrow) nav.navigateLeft()
     else if (key.rightArrow) nav.navigateRight()
     else if (key.upArrow) nav.navigateUp()
     else if (key.downArrow) nav.navigateDown()

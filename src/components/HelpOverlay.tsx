@@ -16,6 +16,7 @@ const sections: ShortcutSection[] = [
     shortcuts: [
       ["←/→", "Move between columns"],
       ["↑/↓", "Move between tasks within column"],
+      ["</>", "Move task to previous/next lane"],
       ["Enter", "Open task detail view"],
     ],
   },
