@@ -10,6 +10,7 @@ import { NarrowTerminal } from "./NarrowTerminal.js"
 import { TaskForm } from "./TaskForm.js"
 import { StatusPicker } from "./StatusPicker.js"
 import { TaskDetail } from "./TaskDetail.js"
+import { TaskPreview } from "./TaskPreview.js"
 import { FilterBar } from "./FilterBar.js"
 import { TextFilterBar } from "./TextFilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
@@ -75,8 +76,18 @@ export function App({ db, dbPath }: AppProps) {
   // (avoids re-render loops — Board updates this after every render)
   const highlightedTaskRef = useRef<Task | undefined>(undefined)
 
+  // State-tracked version of the highlighted task for the preview panel.
+  // Only updates when the task ID actually changes, breaking the render loop.
+  const [previewTask, setPreviewTask] = useState<Task | undefined>(undefined)
+  const [previewVisible, setPreviewVisible] = useState(false)
+
   const handleHighlightTask = useCallback((task: Task | undefined) => {
     highlightedTaskRef.current = task
+    // Only trigger re-render when task ID changes (prevents infinite loop)
+    setPreviewTask((prev) => {
+      if (prev?.id === task?.id) return prev
+      return task
+    })
   }, [])
 
   const handleMoveTask = useCallback((task: Task, targetStatus: Status) => {
@@ -151,10 +162,33 @@ export function App({ db, dbPath }: AppProps) {
       filterHook.toggleBlocked()
     } else if (input === "?") {
       setState((prev) => ({ ...prev, uiMode: "help" }))
+    } else if (input === "v") {
+      setPreviewVisible((prev) => !prev)
     } else if (input === "q") {
       process.exit(0)
     }
   }, { isActive: appInputActive })
+
+  // ── Preview panel layout computation ──────────────────────────────────
+  // Bottom panel: terminal tall enough (>= 28 rows)
+  // Side panel: terminal wide enough (>= 120 cols) but too short for bottom
+  // Hidden: neither condition met (toggle state preserved for when terminal resizes)
+  const MIN_ROWS_BOTTOM = 28
+  const MIN_COLS_SIDE = 120
+
+  let previewLayout: "bottom" | "side" | "hidden" = "hidden"
+  let previewHeight = 0
+  let boardHeightReduction = 0
+
+  if (previewVisible) {
+    if (terminalRows >= MIN_ROWS_BOTTOM) {
+      previewLayout = "bottom"
+      previewHeight = Math.min(12, Math.max(7, Math.floor(terminalRows / 3)))
+      boardHeightReduction = previewHeight
+    } else if (terminalColumns >= MIN_COLS_SIDE) {
+      previewLayout = "side"
+    }
+  }
 
   return (
     <ErrorBoundary>
@@ -171,30 +205,72 @@ export function App({ db, dbPath }: AppProps) {
                   onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
                 />
               )}
-              {terminalColumns < 80 ? (
-                <NarrowTerminal
-                  boardId={state.currentBoardId}
-                  filters={filterHook.filters}
-                  focusTaskId={state.selectedTask?.id}
-                  onSelectTask={(task) =>
-                    setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                  }
-                  onHighlightTask={handleHighlightTask}
-                  onMoveTask={handleMoveTask}
-                  inputActive={state.uiMode === "board"}
-                />
+              {previewLayout === "side" ? (
+                <Box flexDirection="row" flexGrow={1}>
+                  {terminalColumns < 80 ? (
+                    <Box flexGrow={1}>
+                      <NarrowTerminal
+                        boardId={state.currentBoardId}
+                        filters={filterHook.filters}
+                        focusTaskId={state.selectedTask?.id}
+                        onSelectTask={(task) =>
+                          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
+                        }
+                        onHighlightTask={handleHighlightTask}
+                        onMoveTask={handleMoveTask}
+                        inputActive={state.uiMode === "board"}
+                      />
+                    </Box>
+                  ) : (
+                    <Box flexGrow={1}>
+                      <Board
+                        boardId={state.currentBoardId}
+                        filters={filterHook.filters}
+                        focusTaskId={state.selectedTask?.id}
+                        onSelectTask={(task) =>
+                          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
+                        }
+                        onHighlightTask={handleHighlightTask}
+                        onMoveTask={handleMoveTask}
+                        inputActive={state.uiMode === "board"}
+                      />
+                    </Box>
+                  )}
+                  <TaskPreview task={previewTask} orientation="side" />
+                </Box>
               ) : (
-                <Board
-                  boardId={state.currentBoardId}
-                  filters={filterHook.filters}
-                  focusTaskId={state.selectedTask?.id}
-                  onSelectTask={(task) =>
-                    setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                  }
-                  onHighlightTask={handleHighlightTask}
-                  onMoveTask={handleMoveTask}
-                  inputActive={state.uiMode === "board"}
-                />
+                <>
+                  {terminalColumns < 80 ? (
+                    <NarrowTerminal
+                      boardId={state.currentBoardId}
+                      filters={filterHook.filters}
+                      focusTaskId={state.selectedTask?.id}
+                      onSelectTask={(task) =>
+                        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
+                      }
+                      onHighlightTask={handleHighlightTask}
+                      onMoveTask={handleMoveTask}
+                      inputActive={state.uiMode === "board"}
+                      heightReduction={boardHeightReduction}
+                    />
+                  ) : (
+                    <Board
+                      boardId={state.currentBoardId}
+                      filters={filterHook.filters}
+                      focusTaskId={state.selectedTask?.id}
+                      onSelectTask={(task) =>
+                        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
+                      }
+                      onHighlightTask={handleHighlightTask}
+                      onMoveTask={handleMoveTask}
+                      inputActive={state.uiMode === "board"}
+                      heightReduction={boardHeightReduction}
+                    />
+                  )}
+                  {previewLayout === "bottom" && (
+                    <TaskPreview task={previewTask} orientation="bottom" maxHeight={previewHeight} />
+                  )}
+                </>
               )}
             </>
           )}
@@ -244,7 +320,7 @@ export function App({ db, dbPath }: AppProps) {
             mode="create"
             parentTitle={state.createParent?.title}
             onSubmit={(data) => {
-              actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status)
+              actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status, data.type)
               setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))
             }}
             onCancel={() => setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))}
@@ -257,7 +333,7 @@ export function App({ db, dbPath }: AppProps) {
             task={state.selectedTask}
             onSubmit={(data) => {
               if (state.selectedTask) {
-                actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority)
+                actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority, data.type)
               }
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }}

@@ -13,6 +13,8 @@ export interface ColumnProps {
   isActive: boolean
   readyIds: Set<string>
   blockedIds: Set<string>
+  /** Extra lines to subtract from available height (e.g. preview panel) */
+  heightReduction?: number
 }
 
 /** Compute the rendered line height of a single task card (excluding bottom margin). */
@@ -79,7 +81,7 @@ function computeVisibleWindow(
   return { visibleCount, orphanHeaderIndices, totalLinesUsed: Math.max(linesUsed, 1) }
 }
 
-export function Column({ status, tasks, selectedRow, isActive, readyIds, blockedIds }: ColumnProps) {
+export function Column({ status, tasks, selectedRow, isActive, readyIds, blockedIds, heightReduction }: ColumnProps) {
   const { stdout } = useStdout()
   const terminalRows = stdout?.rows || 24
 
@@ -88,7 +90,8 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
   // Available height in terminal lines for task content.
   // Reserve lines for: App header with border (~4), column border top/bottom (2),
   // column header + marginBottom (2), horizontal padding (~1), bottom breathing room (~1).
-  const availableHeight = Math.max(3, terminalRows - 10)
+  // When a preview panel is visible, subtract its height too.
+  const availableHeight = Math.max(3, terminalRows - 10 - (heightReduction || 0))
 
   // Precompute which parent IDs exist in this column
   const parentIdsInColumn = new Set(

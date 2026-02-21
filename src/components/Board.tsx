@@ -15,12 +15,14 @@ export interface BoardProps {
   focusTaskId?: string
   /** Whether the board's keyboard input is active (default true) */
   inputActive?: boolean
+  /** Extra lines to subtract from column available height (e.g. preview panel) */
+  heightReduction?: number
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
 }
 
-export function Board({ boardId, filters, focusTaskId, inputActive, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
+export function Board({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
@@ -56,10 +58,10 @@ export function Board({ boardId, filters, focusTaskId, inputActive, onSelectTask
   const currentColumnTasks = tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || []
   const highlightedTask = currentColumnTasks[nav.selectedRow]
 
-  // Report highlighted task to parent after every render
+  // Report highlighted task to parent when it changes
   useEffect(() => {
     onHighlightTask?.(highlightedTask)
-  })
+  }, [highlightedTask, onHighlightTask])
 
   // Keyboard handler for board navigation (disabled when board is empty)
   useInput((input, key) => {
@@ -110,6 +112,7 @@ export function Board({ boardId, filters, focusTaskId, inputActive, onSelectTask
           isActive={colIndex === nav.selectedColumn}
           readyIds={readyIds}
           blockedIds={blockedIds}
+          heightReduction={heightReduction}
         />
       ))}
     </Box>

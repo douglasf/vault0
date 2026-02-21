@@ -16,6 +16,8 @@ export interface NarrowTerminalProps {
   focusTaskId?: string
   /** Whether keyboard input is active (default true) */
   inputActive?: boolean
+  /** Extra lines to subtract from column available height (e.g. preview panel) */
+  heightReduction?: number
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
@@ -25,7 +27,7 @@ export interface NarrowTerminalProps {
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
@@ -53,13 +55,14 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, onS
     initialRow,
   })
 
-  // Report highlighted task to parent after every render
+  // Compute the currently highlighted task from navigation position
   const currentColumnTasks = tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || []
   const highlightedTask = currentColumnTasks[nav.selectedRow]
 
+  // Report highlighted task to parent when it changes
   useEffect(() => {
     onHighlightTask?.(highlightedTask)
-  })
+  }, [highlightedTask, onHighlightTask])
 
   // Keyboard handler — same as Board but also handles enter for selection
   useInput((input, key) => {
@@ -121,6 +124,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, onS
         isActive={true}
         readyIds={readyIds}
         blockedIds={blockedIds}
+        heightReduction={heightReduction}
       />
 
       <Box marginTop={1} justifyContent="center">
