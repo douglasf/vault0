@@ -1,7 +1,8 @@
 import React from "react"
 import { Box, Text } from "ink"
-import type { TaskCard as TaskCardType } from "../lib/types.js"
-import { getPriorityColor } from "../lib/theme.js"
+import type { TaskCard as TaskCardType, TaskType } from "../lib/types.js"
+import { getPriorityColor, getTaskTypeColor } from "../lib/theme.js"
+import { TASK_TYPE_INDICATORS } from "../lib/constants.js"
 
 export interface TaskCardProps {
   task: TaskCardType
@@ -19,6 +20,11 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
   const isSubtask = task.parentId !== null
   const isArchived = task.archivedAt !== null
 
+  // Subtle type indicator — shown dimmed after the title
+  const taskType = task.type as TaskType | null
+  const typeIndicator = taskType ? TASK_TYPE_INDICATORS[taskType] : ""
+  const typeColor = taskType ? getTaskTypeColor(taskType) : undefined
+
   return (
     <Box flexDirection="column" paddingLeft={isSubtask ? 1 : 0}>
       {/* Title row with priority dot — subtasks get → prefix */}
@@ -28,6 +34,7 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
           {task.title.substring(0, isSubtask ? 32 : 35)}
         </Text>
         {isArchived && <Text dimColor> ⌫</Text>}
+        {typeIndicator !== "" && <Text dimColor color={typeColor}> {typeIndicator}</Text>}
         {subtaskBadge !== "" && <Text dimColor> {subtaskBadge}</Text>}
       </Box>
 

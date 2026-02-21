@@ -275,6 +275,7 @@ Add Options:
   --title <string>              Task title (required)
   --description <string>        Task description
   --priority <level>            critical | high | normal | low (default: normal)
+  --type <type>                 feature | bug | analysis (default: none)
   --status <status>             backlog | todo | in_progress | in_review | done | cancelled (default: backlog)
   --parent <ID>                 Parent task ID (for subtasks)
   --tags <t1,t2,...>            Comma-separated tags
@@ -292,6 +293,7 @@ Edit Options:
   --title <string>              New title
   --description <string>        New description
   --priority <level>            New priority
+  --type <type>                 New type (feature | bug | analysis, or empty to clear)
   --tags <t1,t2,...>            New tags (replaces existing)
 
 Move Options:
@@ -301,8 +303,8 @@ Dependency Options:
   --on <ID>                     Dependency target task ID (required for add/rm)
 
 Examples:
-  vault0 task add --title "Fix login bug" --priority high --status todo
-  vault0 task add --title "Implement auth" --source opencode --source-ref "session-123"
+  vault0 task add --title "Fix login bug" --priority high --type bug --status todo
+  vault0 task add --title "Implement auth" --type feature --source opencode --source-ref "session-123"
   vault0 task add --title "Refactor DB layer" --source opencode-plan --source-ref my-plan
   vault0 task list --status in_progress
   vault0 task list --format json

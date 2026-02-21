@@ -1,7 +1,7 @@
 import type { Vault0Database } from "./connection.js"
 import type { Status, Task, TaskDetail, TaskCard } from "../lib/types.js"
 import { tasks, taskDependencies, taskStatusHistory, boards } from "./schema.js"
-import { and, eq, isNull, or, sql } from "drizzle-orm"
+import { and, eq, isNull, or, sql, inArray } from "drizzle-orm"
 import { wouldCreateCycle } from "../lib/dag.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 
@@ -74,7 +74,11 @@ export function getTaskCards(db: Vault0Database, boardId: string, opts?: { inclu
     .where(and(...conditions))
     .all()
 
-  const deps = db.select().from(taskDependencies).all()
+  // Only fetch dependencies involving tasks on this board (not the entire table)
+  const taskIds = allTasks.map((t) => t.id)
+  const deps = taskIds.length > 0
+    ? db.select().from(taskDependencies).where(inArray(taskDependencies.taskId, taskIds)).all()
+    : []
 
   // Build a lookup for quick task resolution
   const taskById = new Map(allTasks.map((t) => [t.id, t]))
@@ -139,6 +143,7 @@ export function createTask(
     title: string
     description?: string
     priority?: string
+    type?: string
     status?: Status
     source?: string
     sourceRef?: string
@@ -161,6 +166,7 @@ export function createTask(
       title: data.title,
       description: data.description,
       priority: data.priority ?? "normal",
+      type: data.type,
       status: data.status ?? "backlog",
       source: data.source ?? "manual",
       sourceRef: data.sourceRef,
@@ -187,7 +193,7 @@ export function createTask(
 export function updateTask(
   db: Vault0Database,
   taskId: string,
-  data: Partial<{ title: string; description: string; priority: string; tags: string[] }>,
+  data: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[] }>,
 ) {
   const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
   if (!current) throw new Error(`Task ${taskId} not found`)

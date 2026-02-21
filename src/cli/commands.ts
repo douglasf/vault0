@@ -1,5 +1,5 @@
 import type { Vault0Database } from "../db/connection.js"
-import type { Status, Priority, Source } from "../lib/types.js"
+import type { Status, Priority, Source, TaskType } from "../lib/types.js"
 import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
 import {
@@ -29,6 +29,7 @@ import {
 const VALID_STATUSES: Status[] = ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]
 const VALID_PRIORITIES: Priority[] = ["critical", "high", "normal", "low"]
 const VALID_SOURCES: Source[] = ["manual", "todo_md", "opencode", "opencode-plan", "import"]
+const VALID_TASK_TYPES: TaskType[] = ["feature", "bug", "analysis"]
 
 function validateStatus(s: string): Status {
   if (!VALID_STATUSES.includes(s as Status)) {
@@ -49,6 +50,13 @@ function validateSource(s: string): Source {
     throw new Error(`Invalid source: "${s}". Must be one of: ${VALID_SOURCES.join(", ")}`)
   }
   return s as Source
+}
+
+function validateTaskType(t: string): TaskType {
+  if (!VALID_TASK_TYPES.includes(t as TaskType)) {
+    throw new Error(`Invalid type: "${t}". Must be one of: ${VALID_TASK_TYPES.join(", ")}`)
+  }
+  return t as TaskType
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -108,6 +116,7 @@ export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format
   const parentId = flags.parent ? resolveTaskId(db, flags.parent) : undefined
   const source = flags.source ? validateSource(flags.source) : undefined
   const sourceRef = flags["source-ref"] || undefined
+  const type = flags.type ? validateTaskType(flags.type) : undefined
 
   // Prevent creating subtasks of subtasks — only top-level tasks can have children
   if (parentId) {
@@ -126,6 +135,7 @@ export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format
     title,
     description: flags.description,
     priority: priority ?? undefined,
+    type,
     status,
     source,
     sourceRef,
@@ -218,17 +228,20 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
   }
 
   const resolvedId = resolveTaskId(db, taskId)
-  const updates: Partial<{ title: string; description: string; priority: string; tags: string[] }> = {}
+  const updates: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[] }> = {}
 
   if (flags.title) updates.title = flags.title
   if (flags.description !== undefined) updates.description = flags.description
   if (flags.priority) updates.priority = validatePriority(flags.priority)
+  if (flags.type !== undefined) {
+    updates.type = flags.type ? validateTaskType(flags.type) : null
+  }
   if (flags.tags !== undefined) {
     updates.tags = flags.tags.split(",").map((t) => t.trim()).filter(Boolean)
   }
 
   if (Object.keys(updates).length === 0) {
-    return { success: false, message: formatError("No updates specified. Use --title, --description, --priority, or --tags.") }
+    return { success: false, message: formatError("No updates specified. Use --title, --description, --priority, --type, or --tags.") }
   }
 
   const updated = updateTask(db, resolvedId, updates)

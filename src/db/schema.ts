@@ -27,6 +27,9 @@ export const tasks = sqliteTable("tasks", {
   priority: text("priority", {
     enum: ["critical", "high", "normal", "low"],
   }).notNull().default("normal"),
+  type: text("type", {
+    enum: ["feature", "bug", "analysis"],
+  }),
   source: text("source", {
     enum: ["manual", "todo_md", "opencode", "opencode-plan", "import"],
   }).notNull().default("manual"),

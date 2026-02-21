@@ -84,6 +84,11 @@ CREATE INDEX IF NOT EXISTS \`idx_tasks_source\` ON \`tasks\` (\`source\`);`,
 -- "opencode-plan" = tasks created from OpenCode plan files
 UPDATE \`tasks\` SET \`source\` = 'opencode-plan' WHERE \`source\` = 'plan';`,
   },
+  {
+    tag: "0002_add_task_type",
+    sql: `-- Add task type column (feature, bug, analysis). Nullable — existing tasks have no type.
+ALTER TABLE \`tasks\` ADD COLUMN \`type\` text;`,
+  },
 ]
 
 // ── Migration Runner ────────────────────────────────────────────────

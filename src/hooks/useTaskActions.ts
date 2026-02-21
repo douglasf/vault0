@@ -1,13 +1,13 @@
 import { useCallback } from "react"
 import type { Vault0Database } from "../db/connection.js"
-import type { Status, Priority } from "../lib/types.js"
+import type { Status, Priority, TaskType } from "../lib/types.js"
 import { createTask, updateTask, updateTaskStatus, archiveTask, archiveDoneTasks } from "../db/queries.js"
 import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
 
 export interface UseTaskActionsResult {
-  createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status) => ReturnType<typeof createTask>
-  updateTaskData: (taskId: string, title: string, description: string, priority: Priority) => ReturnType<typeof updateTask>
+  createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => ReturnType<typeof createTask>
+  updateTaskData: (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null) => ReturnType<typeof updateTask>
   updateStatus: (taskId: string, newStatus: Status) => void
   cyclePriority: (taskId: string) => void
   deleteTask: (taskId: string) => void
@@ -16,12 +16,13 @@ export interface UseTaskActionsResult {
 
 export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
   const createNewTask = useCallback(
-    (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status) => {
+    (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => {
       return createTask(db, {
         boardId,
         title,
         description,
         priority: priority || "normal",
+        type: type ?? undefined,
         parentId,
         status,
       })
@@ -30,11 +31,12 @@ export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
   )
 
   const updateTaskData = useCallback(
-    (taskId: string, title: string, description: string, priority: Priority) => {
+    (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null) => {
       return updateTask(db, taskId, {
         title,
         description,
         priority,
+        type: type !== undefined ? type : undefined,
       })
     },
     [db],

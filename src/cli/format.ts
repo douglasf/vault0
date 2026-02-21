@@ -1,5 +1,5 @@
-import type { Task, TaskCard, TaskDetail, Status, Priority, Board } from "../lib/types.js"
-import { STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
+import type { Task, TaskCard, TaskDetail, Status, Priority, TaskType, Board } from "../lib/types.js"
+import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS, TASK_TYPE_INDICATORS } from "../lib/constants.js"
 
 // ── Output Mode ─────────────────────────────────────────────────────
 
@@ -53,6 +53,7 @@ export function formatTaskRow(task: Task | TaskCard): string {
   const statusLabel = pad(STATUS_LABELS[task.status as Status] || task.status, 12)
   const isSubtask = task.parentId !== null
   const prefix = isSubtask ? "  → " : ""
+  const typeIndicator = task.type ? ` ${TASK_TYPE_INDICATORS[task.type as TaskType] || ""}` : ""
   const titleMax = isSubtask ? 46 : 50
   const title = truncate(task.title, titleMax)
 
@@ -65,7 +66,7 @@ export function formatTaskRow(task: Task | TaskCard): string {
     extras += ` (↳ ${truncate(task.parentTitle as string, 20)})`
   }
 
-  return `${id}  ${pri} ${st} ${statusLabel}  ${prefix}${title}${extras}`
+  return `${id}  ${pri} ${st} ${statusLabel}  ${prefix}${title}${typeIndicator}${extras}`
 }
 
 export function formatTaskList(tasks: (Task | TaskCard)[]): string {
@@ -112,6 +113,11 @@ export function formatTaskDetail(detail: TaskDetail): string {
   lines.push(`║  ID:       ${detail.id.padEnd(64)}║`)
   lines.push(`║  Status:   ${statusIcon(detail.status)} ${(STATUS_LABELS[detail.status as Status] || detail.status).padEnd(61)}║`)
   lines.push(`║  Priority: ${priorityIcon(detail.priority)} ${(PRIORITY_LABELS[detail.priority as Priority] || detail.priority).padEnd(61)}║`)
+  if (detail.type) {
+    const typeLabel = TASK_TYPE_LABELS[detail.type as TaskType] || detail.type
+    const typeIcon = TASK_TYPE_INDICATORS[detail.type as TaskType] || ""
+    lines.push(`║  Type:     ${typeIcon} ${typeLabel.padEnd(62)}║`)
+  }
   lines.push(`║  Source:   ${(detail.source || "manual").padEnd(64)}║`)
 
   if (detail.parentId) {

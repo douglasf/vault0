@@ -17,6 +17,13 @@ export const theme = {
     cancelled: "red",
   },
 
+  // Task type colors (subtle/dim — these tint the type indicator)
+  taskType: {
+    feature: "green",
+    bug: "red",
+    analysis: "cyan",
+  },
+
   // UI element colors
   ui: {
     border: "gray",
@@ -42,4 +49,9 @@ export function getPriorityColor(priority: string): string {
 // Export helper: get status color
 export function getStatusColor(status: string): string {
   return theme.status[status as keyof typeof theme.status] || "white"
+}
+
+// Export helper: get task type color
+export function getTaskTypeColor(type: string): string {
+  return theme.taskType[type as keyof typeof theme.taskType] || "gray"
 }

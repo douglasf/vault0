@@ -1,4 +1,4 @@
-import type { Status, Priority } from "./types.js"
+import type { Status, Priority, TaskType } from "./types.js"
 
 export const VISIBLE_STATUSES: Status[] = ["backlog", "todo", "in_progress", "in_review", "done"]
 
@@ -23,6 +23,21 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
   high: "High",
   normal: "Normal",
   low: "Low",
+}
+
+export const TASK_TYPES: TaskType[] = ["feature", "bug", "analysis"]
+
+export const TASK_TYPE_LABELS: Record<TaskType, string> = {
+  feature: "Feature",
+  bug: "Bug",
+  analysis: "Analysis",
+}
+
+/** Subtle single-character indicators for task types shown on the board */
+export const TASK_TYPE_INDICATORS: Record<TaskType, string> = {
+  feature: "✦",
+  bug: "▪",
+  analysis: "◇",
 }
 
 // Column configuration

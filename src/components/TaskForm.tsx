@@ -1,8 +1,8 @@
 import React, { useState } from "react"
 import { Box, Text, useInput } from "ink"
-import type { Task, Priority, Status } from "../lib/types.js"
-import { PRIORITY_LABELS } from "../lib/constants.js"
-import { getPriorityColor, getStatusColor } from "../lib/theme.js"
+import type { Task, Priority, Status, TaskType } from "../lib/types.js"
+import { PRIORITY_LABELS, TASK_TYPE_LABELS, TASK_TYPES } from "../lib/constants.js"
+import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
 import { useTextInput } from "../hooks/useTextInput.js"
 
 export interface TaskFormProps {
@@ -10,14 +10,17 @@ export interface TaskFormProps {
   task?: Task
   /** When creating a subtask, the parent task's title (for display) */
   parentTitle?: string
-  onSubmit: (data: { title: string; description: string; priority: Priority; status: Status }) => void
+  onSubmit: (data: { title: string; description: string; priority: Priority; status: Status; type: TaskType | null }) => void
   onCancel: () => void
 }
 
-type FormField = "title" | "description" | "priority" | "status" | "submit"
+type FormField = "title" | "description" | "priority" | "type" | "status" | "submit"
 
 const PRIORITIES: Priority[] = ["low", "normal", "high", "critical"]
 const STATUSES: Status[] = ["backlog", "todo", "in_progress", "in_review", "done"]
+
+/** Type options include null (no type) plus the three types */
+const TYPE_OPTIONS: (TaskType | null)[] = [null, ...TASK_TYPES]
 
 const STATUS_DISPLAY: Record<string, string> = {
   backlog: "Backlog",
@@ -34,12 +37,13 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   const titleInput = useTextInput(task?.title || "", false)
   const descInput = useTextInput(task?.description || "", true)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
+  const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
   const [status, setStatus] = useState<Status>((task?.status as Status) || "backlog")
   const [focusField, setFocusField] = useState<FormField>("title")
 
   const fields: FormField[] = mode === "create"
-    ? ["title", "description", "priority", "status", "submit"]
-    : ["title", "description", "priority", "submit"]
+    ? ["title", "description", "priority", "type", "status", "submit"]
+    : ["title", "description", "priority", "type", "submit"]
 
   useInput((input, key) => {
     if (key.escape) {
@@ -60,7 +64,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
     // Enter on submit button
     if (key.return && focusField === "submit") {
       if (titleInput.value.trim()) {
-        onSubmit({ title: titleInput.value.trim(), description: descInput.value, priority, status })
+        onSubmit({ title: titleInput.value.trim(), description: descInput.value, priority, status, type: taskType })
       }
       return
     }
@@ -95,6 +99,27 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         setPriority((prev) => {
           const idx = PRIORITIES.indexOf(prev)
           return PRIORITIES[(idx + 1) % PRIORITIES.length]
+        })
+      } else if (key.return) {
+        const currentIndex = fields.indexOf(focusField)
+        if (currentIndex < fields.length - 1) {
+          setFocusField(fields[currentIndex + 1])
+        }
+      }
+      return
+    }
+
+    // Task type cycling with arrow keys
+    if (focusField === "type") {
+      if (key.leftArrow || key.upArrow) {
+        setTaskType((prev) => {
+          const idx = TYPE_OPTIONS.indexOf(prev)
+          return TYPE_OPTIONS[(idx - 1 + TYPE_OPTIONS.length) % TYPE_OPTIONS.length]
+        })
+      } else if (key.rightArrow || key.downArrow) {
+        setTaskType((prev) => {
+          const idx = TYPE_OPTIONS.indexOf(prev)
+          return TYPE_OPTIONS[(idx + 1) % TYPE_OPTIONS.length]
         })
       } else if (key.return) {
         const currentIndex = fields.indexOf(focusField)
@@ -216,6 +241,16 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         </Text>
         <Text color={getPriorityColor(priority)}>
           {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
+        </Text>
+      </Box>
+
+      {/* Type Field */}
+      <Box marginTop={1}>
+        <Text color={focusField === "type" ? "cyan" : "white"}>
+          {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
+        </Text>
+        <Text color={taskType ? getTaskTypeColor(taskType) : "gray"}>
+          {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
         </Text>
       </Box>
 

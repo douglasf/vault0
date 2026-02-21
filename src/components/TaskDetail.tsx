@@ -1,10 +1,10 @@
 import React, { useState } from "react"
 import { Box, Text, useInput } from "ink"
-import type { Task, Status, Priority, TaskDetail as TaskDetailType } from "../lib/types.js"
+import type { Task, Status, Priority, TaskType, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTaskDetail, addDependency, removeDependency } from "../db/queries.js"
-import { STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
-import { getPriorityColor, getStatusColor } from "../lib/theme.js"
+import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
+import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
 import { DependencyPicker } from "./DependencyPicker.js"
 
 export interface TaskDetailProps {
@@ -294,6 +294,14 @@ function buildSections(detail: TaskDetailType): LineData[] {
     value: PRIORITY_LABELS[detail.priority as Priority] || detail.priority,
     color: getPriorityColor(detail.priority),
   })
+  if (detail.type) {
+    lines.push({
+      type: "field",
+      label: "Type",
+      value: TASK_TYPE_LABELS[detail.type as TaskType] || detail.type,
+      color: getTaskTypeColor(detail.type),
+    })
+  }
   lines.push({ type: "field", label: "Source", value: detail.source || "manual" })
   if (detail.sourceRef) {
     lines.push({ type: "field", label: "Source Ref", value: detail.sourceRef })
