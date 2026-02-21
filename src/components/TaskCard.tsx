@@ -17,15 +17,17 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
   const subtaskBadge = task.subtaskTotal > 0 ? `◫ ${task.subtaskDone}/${task.subtaskTotal}` : ""
   const statusLine = isBlocked ? "🔒 blocked" : ""
   const isSubtask = task.parentId !== null
+  const isArchived = task.archivedAt !== null
 
   return (
     <Box flexDirection="column" paddingLeft={isSubtask ? 1 : 0}>
       {/* Title row with priority dot — subtasks get → prefix */}
       <Box>
-        <Text color={priorityColor}>{isSubtask ? "→ " : "● "}</Text>
-        <Text inverse={isSelected} bold={isSelected}>
+        <Text color={isArchived ? "gray" : priorityColor}>{isSubtask ? "→ " : "● "}</Text>
+        <Text inverse={isSelected} bold={isSelected} dimColor={isArchived} strikethrough={isArchived}>
           {task.title.substring(0, isSubtask ? 32 : 35)}
         </Text>
+        {isArchived && <Text dimColor> ⌫</Text>}
         {subtaskBadge !== "" && <Text dimColor> {subtaskBadge}</Text>}
       </Box>
 

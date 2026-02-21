@@ -21,12 +21,21 @@ export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps)
     ? `${task.title.substring(0, 47)}...`
     : task.title
 
+  const isHardDelete = task.archivedAt !== null
+
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="red" paddingX={2} paddingY={1}>
-      <Text bold color="red">Archive Task</Text>
+      <Text bold color="red">{isHardDelete ? "Permanently Delete Task" : "Archive Task"}</Text>
 
       <Box marginTop={1} flexDirection="column">
-        <Text>Are you sure you want to archive this task?</Text>
+        {isHardDelete ? (
+          <>
+            <Text>Do you want to permanently delete this task?</Text>
+            <Text color="red" bold>This action is irreversible.</Text>
+          </>
+        ) : (
+          <Text>Are you sure you want to archive this task?</Text>
+        )}
         <Box marginTop={1}>
           <Text dimColor>Task: </Text>
           <Text bold>{truncatedTitle}</Text>

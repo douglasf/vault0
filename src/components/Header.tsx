@@ -89,6 +89,9 @@ export function Header({ boardId, filters, activeFilterCount = 0 }: HeaderProps)
       <Box justifyContent="space-between" paddingX={1}>
         <Text dimColor>{boardName}</Text>
         <Box>
+          {filters.showArchived && (
+            <Text color="yellow" bold> ⌫ archived </Text>
+          )}
           {activeFilterCount > 0 && (
             <Text color="cyan" bold> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </Text>
           )}

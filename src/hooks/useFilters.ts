@@ -87,6 +87,7 @@ export function useFilters(): UseFiltersResult {
     if (filters.source) count++
     if (filters.readyOnly) count++
     if (filters.blockedOnly) count++
+    if (filters.showArchived) count++
     if (filters.search) count++
     return count
   }, [filters])

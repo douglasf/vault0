@@ -70,7 +70,7 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters)
 
   if (boardId) {
     try {
-      let cards = getTaskCards(db, boardId)
+      let cards = getTaskCards(db, boardId, { includeArchived: filters?.showArchived })
 
       // Apply filters before grouping
       if (filters?.status) {

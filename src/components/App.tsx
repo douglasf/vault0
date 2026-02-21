@@ -13,18 +13,19 @@ import { TaskDetail } from "./TaskDetail.js"
 import { FilterBar } from "./FilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
+import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import type { Task, Status } from "../lib/types.js"
-import { getBoards } from "../db/queries.js"
+import { getBoards, getTaskCards } from "../db/queries.js"
 
 export interface AppProps {
   db: Vault0Database
   dbPath: string
 }
 
-export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "help" | "confirm-delete"
+export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "help" | "confirm-delete" | "confirm-archive-done"
 
 export interface AppState {
   currentBoardId: string
@@ -95,57 +96,60 @@ export function App({ db, dbPath }: AppProps) {
     initializeBoard()
   }, [initializeBoard])
 
-  // App-level input is active only in board mode
-  // Detail mode has its own useInput inside TaskDetail
-  // Form/picker modes have their own useInput handlers
-  const appInputActive = state.uiMode === "board" || state.uiMode === "help"
+  // App-level input is active only in board mode.
+  // Help mode input is handled entirely by HelpOverlay (which owns text filter input).
+  // Detail mode has its own useInput inside TaskDetail.
+  // Form/picker modes have their own useInput handlers.
+  const appInputActive = state.uiMode === "board"
 
-  useInput((input, key) => {
-    if (state.uiMode === "board") {
-      if (input === "a") {
-        setState((prev) => ({ ...prev, uiMode: "create", createParent: undefined }))
-      } else if (input === "A") {
-        const task = highlightedTaskRef.current
-        if (task && !task.parentId) {
-          setState((prev) => ({ ...prev, uiMode: "create", createParent: task }))
-        }
-      } else if (input === "e") {
-        const task = highlightedTaskRef.current
-        if (task) {
-          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "edit" }))
-        }
-      } else if (input === "d") {
-        const task = highlightedTaskRef.current
-        if (task) {
-          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "confirm-delete", deleteReturnMode: "board" }))
-        }
-      } else if (input === "s") {
-        const task = highlightedTaskRef.current
-        if (task) {
-          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "status-picker" }))
-        }
-      } else if (input === "p") {
-        const task = highlightedTaskRef.current
-        if (task) {
-          actions.cyclePriority(task.id)
-          // Force re-render so Board fetches fresh data
-          setState((prev) => ({ ...prev }))
-        }
-      } else if (input === "f") {
-        setState((prev) => ({ ...prev, uiMode: "filter" }))
-      } else if (input === "r") {
-        filterHook.toggleReady()
-      } else if (input === "b") {
-        filterHook.toggleBlocked()
-      } else if (input === "?") {
-        setState((prev) => ({ ...prev, uiMode: "help" }))
-      } else if (input === "q") {
-        process.exit(0)
+  useInput((input, _key) => {
+    if (input === "a") {
+      setState((prev) => ({ ...prev, uiMode: "create", createParent: undefined }))
+    } else if (input === "A") {
+      const task = highlightedTaskRef.current
+      if (task && !task.parentId) {
+        setState((prev) => ({ ...prev, uiMode: "create", createParent: task }))
       }
-    } else if (state.uiMode === "help") {
-      if (key.escape || input === "q" || input === "?") {
-        setState((prev) => ({ ...prev, uiMode: "board" }))
+    } else if (input === "e") {
+      const task = highlightedTaskRef.current
+      if (task) {
+        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "edit" }))
       }
+    } else if (input === "d") {
+      const task = highlightedTaskRef.current
+      if (task) {
+        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "confirm-delete", deleteReturnMode: "board" }))
+      }
+    } else if (input === "D") {
+      // Archive all tasks in the Done lane
+      if (state.currentBoardId) {
+        const doneCards = getTaskCards(db, state.currentBoardId).filter((c) => c.status === "done")
+        if (doneCards.length > 0) {
+          setState((prev) => ({ ...prev, uiMode: "confirm-archive-done" }))
+        }
+      }
+    } else if (input === "s") {
+      const task = highlightedTaskRef.current
+      if (task) {
+        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "status-picker" }))
+      }
+    } else if (input === "p") {
+      const task = highlightedTaskRef.current
+      if (task) {
+        actions.cyclePriority(task.id)
+        // Force re-render so Board fetches fresh data
+        setState((prev) => ({ ...prev }))
+      }
+    } else if (input === "f") {
+      setState((prev) => ({ ...prev, uiMode: "filter" }))
+    } else if (input === "r") {
+      filterHook.toggleReady()
+    } else if (input === "b") {
+      filterHook.toggleBlocked()
+    } else if (input === "?") {
+      setState((prev) => ({ ...prev, uiMode: "help" }))
+    } else if (input === "q") {
+      process.exit(0)
     }
   }, { isActive: appInputActive })
 
@@ -160,6 +164,7 @@ export function App({ db, dbPath }: AppProps) {
               <NarrowTerminal
                 boardId={state.currentBoardId}
                 filters={filterHook.filters}
+                focusTaskId={state.selectedTask?.id}
                 onSelectTask={(task) =>
                   setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
                 }
@@ -170,6 +175,7 @@ export function App({ db, dbPath }: AppProps) {
               <Board
                 boardId={state.currentBoardId}
                 filters={filterHook.filters}
+                focusTaskId={state.selectedTask?.id}
                 onSelectTask={(task) =>
                   setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
                 }
@@ -277,6 +283,25 @@ export function App({ db, dbPath }: AppProps) {
             onCancel={() => {
               const returnMode = state.deleteReturnMode || "board"
               setState((prev) => ({ ...prev, uiMode: returnMode, deleteReturnMode: undefined }))
+            }}
+          />
+        )}
+
+        {state.uiMode === "confirm-archive-done" && (
+          <ConfirmArchiveDone
+            doneCount={
+              state.currentBoardId
+                ? getTaskCards(db, state.currentBoardId).filter((c) => c.status === "done").length
+                : 0
+            }
+            onConfirm={() => {
+              if (state.currentBoardId) {
+                actions.archiveDoneLane(state.currentBoardId)
+              }
+              setState((prev) => ({ ...prev, uiMode: "board" }))
+            }}
+            onCancel={() => {
+              setState((prev) => ({ ...prev, uiMode: "board" }))
             }}
           />
         )}

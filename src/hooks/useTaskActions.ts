@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import type { Vault0Database } from "../db/connection.js"
 import type { Status, Priority } from "../lib/types.js"
-import { createTask, updateTask, updateTaskStatus, archiveTask } from "../db/queries.js"
+import { createTask, updateTask, updateTaskStatus, archiveTask, archiveDoneTasks } from "../db/queries.js"
 import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
 
@@ -11,6 +11,7 @@ export interface UseTaskActionsResult {
   updateStatus: (taskId: string, newStatus: Status) => void
   cyclePriority: (taskId: string) => void
   deleteTask: (taskId: string) => void
+  archiveDoneLane: (boardId: string) => number
 }
 
 export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
@@ -66,11 +67,19 @@ export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
     [db],
   )
 
+  const archiveDoneLane = useCallback(
+    (boardId: string) => {
+      return archiveDoneTasks(db, boardId)
+    },
+    [db],
+  )
+
   return {
     createNewTask,
     updateTaskData,
     updateStatus,
     cyclePriority,
     deleteTask,
+    archiveDoneLane,
   }
 }
