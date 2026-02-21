@@ -7,15 +7,19 @@ A local-first, per-repo terminal UI kanban board with hierarchical tasks, depend
 ## Features
 
 - **5-Column Kanban Board**: Backlog, To Do, In Progress, In Review, Done
+- **Dual Interface**: Interactive TUI and headless CLI (`vault0 task add`, `vault0 task list`, etc.)
 - **Dependency Tracking**: Mark tasks as blocked/ready based on upstream dependencies
 - **Cycle Detection**: Prevents circular dependencies via DAG reachability checks
-- **Hierarchical Tasks**: Create subtasks and track completion progress
+- **Hierarchical Tasks**: Create subtasks from the board view (`A`) or detail view
 - **Priority & Tags**: Organize with critical/high/normal/low priorities
-- **Filtering & Search**: Filter by status, priority, source, ready/blocked state
-- **SQLite Persistence**: Per-repo database at `.vault0/vault0.db`
+- **Live Search & Filtering**: Inline text search (`f`), multi-section filter menu (`F`), ready/blocked toggles
+- **SQLite Persistence**: Per-repo database at `.vault0/vault0.db` with embedded migrations
 - **Keyboard-First**: Vim-inspired navigation, all actions via keyboard
+- **Git-Aware Header**: Shows current branch, staged/modified/untracked counts, ahead/behind remote
+- **Auto-Refresh**: Watches database file for external changes (e.g., CLI in another terminal)
 - **Audit Trail**: Full status history for every task change
 - **Terminal-Aware**: Graceful degradation for narrow terminals, resize support
+- **OpenCode Integration**: CLI supports `opencode` and `opencode-plan` task sources for AI tool integration
 
 ## Installation
 
@@ -33,17 +37,18 @@ bun install
 bun run src/index.tsx
 ```
 
-### Install Globally (when packaged)
+### Build & Install (Compiled Binary)
 
 ```bash
-bun install --global vault0
-vault0                    # launches in current directory
-vault0 --path ~/myproject # launches for specific directory
+make install              # builds, signs, and installs to ~/.local/bin
+vault0                    # launch from any directory
 ```
+
+Override the install prefix with `make install PREFIX=/usr/local/bin`.
 
 ## Usage
 
-### Launching
+### TUI (Interactive Board)
 
 ```bash
 vault0                    # Launch in current directory
@@ -52,26 +57,52 @@ vault0 --help             # Show help
 vault0 --version          # Show version
 ```
 
+### CLI (Headless Task Management)
+
+```bash
+vault0 task add --title "Fix login bug" --priority high --status todo
+vault0 task list --status in_progress
+vault0 task list --format json
+vault0 task view abc12345
+vault0 task edit abc12345 --priority critical
+vault0 task move abc12345 --status done
+vault0 task complete abc12345
+vault0 task delete abc12345
+vault0 task dep add abc12345 --on def67890
+vault0 task dep list abc12345
+vault0 task archive-done
+vault0 board list
+vault0 task help                          # Full CLI reference
+```
+
+The CLI outputs plain text by default. Pass `--format json` for machine-readable output. Task IDs can be shortened — use the last 8+ characters.
+
 ### Keyboard Shortcuts
 
 Press `?` inside the app to see a full list. Quick reference:
 
 | Key | Action |
 |-----|--------|
-| `Left`/`Right` | Move between columns |
-| `Up`/`Down` | Move between tasks within column |
+| `←`/`→` | Move between columns |
+| `↑`/`↓` | Move between tasks within column |
+| `<`/`>` | Move task to previous/next lane |
 | `Enter` | Open task detail view |
+| `Esc` | Return to board view |
 | `a` | Create new task |
+| `A` | Create subtask under selected task |
 | `s` | Change task status |
-| `p` | Cycle priority: normal -> high -> critical -> low |
-| `d` | Archive (soft-delete) task |
+| `p` | Cycle priority: normal → high → critical → low |
+| `d` | Delete task (archive, or permanent if already archived) |
+| `D` | Archive all tasks in Done lane |
 | `e` | Edit task title/description |
 | `+` / `-` | Add/remove dependencies (in detail view) |
-| `f` | Open filter menu |
+| `f` | Search tasks by title / description (live filter) |
+| `F` | Open filter menu (status, priority, source) |
 | `r` | Toggle "ready only" filter |
 | `b` | Toggle "blocked only" filter |
 | `?` | Show help |
 | `q` | Quit |
+| `Ctrl+C` | Emergency exit |
 
 ### Data Storage
 
@@ -104,27 +135,36 @@ The `.vault0/` directory is automatically git-ignored on creation and is safe to
 ```
 vault0/
   src/
-    index.tsx                # CLI entry point (arg parsing, DB init, render)
+    index.tsx                # Entry point (CLI routing, DB init, TUI render)
+    cli/
+      index.ts               # CLI argument parser & command router
+      commands.ts            # Command handlers (add, list, view, edit, move, etc.)
+      format.ts              # Text & JSON output formatters
     components/
       App.tsx                # Root component — mode routing & global keys
       Board.tsx              # 5-column kanban board layout
       Column.tsx             # Single column with scroll & task cards
+      Scrollbar.tsx          # Visual scrollbar indicator
       TaskCard.tsx           # Compact task card (priority, deps, subtasks)
       TaskDetail.tsx         # Full task detail view with scrolling
       TaskForm.tsx           # Create/edit form with field navigation
       StatusPicker.tsx       # Status transition selector
       DependencyPicker.tsx   # Add dependency with search filtering
       FilterBar.tsx          # Multi-section filter menu
+      TextFilterBar.tsx      # Inline live text search bar
       HelpOverlay.tsx        # Paginated keyboard shortcut reference
+      ConfirmDelete.tsx      # Delete confirmation dialog
+      ConfirmArchiveDone.tsx # Archive-done-lane confirmation dialog
       ErrorBoundary.tsx      # React error boundary for graceful failures
       EmptyBoard.tsx         # Empty state with onboarding hint
       NarrowTerminal.tsx     # Single-column fallback for <80-col terminals
-      Header.tsx             # Top bar with board info & active filters
+      Header.tsx             # Top bar with git status, board info & filters
       index.ts               # Barrel export
     db/
       schema.ts              # Drizzle ORM schema (boards, tasks, deps, history)
       connection.ts          # SQLite init with WAL mode & optimal PRAGMAs
       queries.ts             # All query helpers & mutation functions
+      migrations.ts          # Embedded SQL migrations (works in compiled binary)
       seed.ts                # Default board seeding on first launch
       index.ts               # Barrel export
     hooks/
@@ -132,6 +172,9 @@ vault0/
       useNavigation.ts       # 2D grid keyboard navigation state
       useTaskActions.ts      # Task CRUD mutations (create, update, delete)
       useFilters.ts          # Filter state management & counting
+      useDbWatcher.ts        # SQLite file watcher for auto-refresh on external changes
+      useTextInput.ts        # Controlled text input with cursor management
+      useGitStatus.ts        # Git branch & working tree status polling
       index.ts               # Barrel export
     lib/
       types.ts               # TypeScript types (inferred from Drizzle schema)
@@ -143,6 +186,7 @@ vault0/
     test-db.ts               # Manual database setup test
     test-queries.ts          # Manual query & DAG operation tests
   drizzle/                   # Generated SQL migrations
+  Makefile                   # Build, install, dev commands
   package.json
   tsconfig.json
   drizzle.config.ts
@@ -150,12 +194,12 @@ vault0/
 
 ### Data Model
 
-**Boards** — Containers for tasks. Currently single board per repo (multi-board planned for v1.1).
+**Boards** — Containers for tasks. Currently single board per repo (multi-board planned).
 
 **Tasks** — Items with status, priority, description, and metadata:
 - **Status**: backlog | todo | in_progress | in_review | done | cancelled
 - **Priority**: critical | high | normal | low
-- **Source**: manual | todo_md | plan | import
+- **Source**: manual | todo_md | opencode | opencode-plan | import
 - **Hierarchy**: Tasks can have subtasks via `parentId`
 
 **Dependencies** — Directed acyclic graph (DAG) of task relationships:
@@ -172,6 +216,7 @@ vault0/
 - **WAL mode** — Write-Ahead Logging for concurrent read safety and durability.
 - **Soft deletes** — Tasks are archived (set `archivedAt`), never hard-deleted. Cascade to subtasks.
 - **ULID primary keys** — Time-sortable, globally unique, no sequence conflicts.
+- **Embedded migrations** — SQL migrations are compiled into the source so they work in both dev mode and standalone binaries.
 
 ## Development
 
@@ -182,11 +227,20 @@ bun install               # Install dependencies
 bun run src/index.tsx      # Launch TUI
 bun --watch run src/index.tsx  # Auto-reload on file changes
 
+# Or via Make targets
+make start                # Launch TUI
+make dev                  # Auto-reload on file changes
+make typecheck            # Run TypeScript type checker
+make build                # Build standalone binary (no install)
+make install              # Build, sign, and install to ~/.local/bin
+make uninstall            # Remove from ~/.local/bin
+make clean                # Remove build artifacts
+
 # Database management (via Drizzle Kit)
-npm run db:generate       # Generate migration from schema changes
-npm run db:migrate        # Run pending migrations
-npm run db:push           # Push schema directly to database
-npm run db:studio         # Open Drizzle Studio (web-based DB browser)
+bun run db:generate       # Generate migration from schema changes
+bun run db:migrate        # Run pending migrations
+bun run db:push           # Push schema directly to database
+bun run db:studio         # Open Drizzle Studio (web-based DB browser)
 ```
 
 ### Running Tests
@@ -203,7 +257,7 @@ bun src/test-queries.ts   # Test all query helpers, DAG ops, and edge cases
 The project uses strict TypeScript with Bun types. To type-check:
 
 ```bash
-npm run typecheck
+bun run typecheck         # or: make typecheck
 ```
 
 > **Note**: `schema.ts` produces 2 expected warnings due to Drizzle ORM's self-referential table pattern (tasks.parentId references tasks.id). These are harmless.
@@ -213,20 +267,26 @@ npm run typecheck
 No build step is normally required — Bun loads TypeScript directly. For distribution as a single binary:
 
 ```bash
+make build                # builds and signs the binary as ./vault0
+make install              # builds, signs, and installs to ~/.local/bin
+```
+
+Or manually:
+
+```bash
 bun build --compile src/index.tsx --outfile vault0
+codesign --sign - --force vault0    # required on macOS/Apple Silicon
 ```
 
 ## Future Plans
 
-### v1.1 (Near-term)
+### Near-term
 
 - [ ] Multi-board support (switch between boards)
-- [ ] Subtask creation from board view (`A` shortcut)
 - [ ] Tag autocomplete in task form
-- [ ] Quick search by title (`/` shortcut)
 - [ ] Task templates (e.g., "Bug Report" template)
 
-### v2.0 (Medium-term)
+### Medium-term
 
 - [ ] FTS5 full-text search for fast querying
 - [ ] Import/export (JSON, Markdown, CSV)
@@ -236,9 +296,8 @@ bun build --compile src/index.tsx --outfile vault0
 - [ ] Automated test suite (Vitest)
 - [ ] Config file support (`vault0.config.json`)
 
-### v3.0 (Long-term)
+### Long-term
 
-- [ ] OpenCode integration (programmatic CRUD via tools)
 - [ ] Cloud sync (Turso/libSQL backend)
 - [ ] Real-time collaboration
 - [ ] Web UI companion (read-only or synced)
@@ -246,8 +305,8 @@ bun build --compile src/index.tsx --outfile vault0
 
 ## Known Limitations
 
-- **Single Board**: Only one board per repo in v1 (multi-board planned)
-- **No Mouse Support**: Keyboard-first design in v1
+- **Single Board**: Only one board per repo currently (multi-board planned)
+- **No Mouse Support**: Keyboard-first design
 - **No Custom Themes**: Single default color scheme
 - **Self-Referential Schema Warning**: TypeScript reports 2 harmless warnings in `schema.ts` (Drizzle ORM limitation with self-referencing foreign keys)
 
