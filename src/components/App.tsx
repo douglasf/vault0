@@ -12,6 +12,7 @@ import { StatusPicker } from "./StatusPicker.js"
 import { TaskDetail } from "./TaskDetail.js"
 import { FilterBar } from "./FilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
+import { ConfirmDelete } from "./ConfirmDelete.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
@@ -23,7 +24,7 @@ export interface AppProps {
   dbPath: string
 }
 
-export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "help"
+export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "help" | "confirm-delete"
 
 export interface AppState {
   currentBoardId: string
@@ -31,6 +32,8 @@ export interface AppState {
   selectedTask?: Task
   /** When set, the create form creates a subtask under this parent */
   createParent?: Task
+  /** The UI mode to return to if the user cancels a delete confirmation */
+  deleteReturnMode?: UIMode
 }
 
 export function App({ db, dbPath }: AppProps) {
@@ -50,12 +53,14 @@ export function App({ db, dbPath }: AppProps) {
 
   useDbWatcher(dbPath, forceRefresh)
 
-  // Track terminal dimensions for responsive layout (narrow terminal fallback)
+  // Track terminal dimensions for responsive layout (narrow terminal fallback + fullscreen height)
   const [terminalColumns, setTerminalColumns] = useState(process.stdout.columns || 80)
+  const [terminalRows, setTerminalRows] = useState(process.stdout.rows || 24)
 
   useEffect(() => {
     const handleResize = () => {
       setTerminalColumns(process.stdout.columns || 80)
+      setTerminalRows(process.stdout.rows || 24)
     }
 
     process.stdout.on("resize", handleResize)
@@ -106,9 +111,7 @@ export function App({ db, dbPath }: AppProps) {
       } else if (input === "d") {
         const task = highlightedTaskRef.current
         if (task) {
-          actions.deleteTask(task.id)
-          highlightedTaskRef.current = undefined
-          setState((prev) => ({ ...prev, selectedTask: undefined }))
+          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "confirm-delete", deleteReturnMode: "board" }))
         }
       } else if (input === "s") {
         const task = highlightedTaskRef.current
@@ -143,7 +146,7 @@ export function App({ db, dbPath }: AppProps) {
   return (
     <ErrorBoundary>
       <DbContext.Provider value={db}>
-        <Box flexDirection="column" width="100%">
+        <Box flexDirection="column" width="100%" height={terminalRows}>
           <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} />
 
           {state.uiMode === "board" && (
@@ -199,9 +202,8 @@ export function App({ db, dbPath }: AppProps) {
               // Force re-render so TaskDetail re-fetches
               setState((prev) => ({ ...prev }))
             }}
-            onDelete={(taskId) => {
-              actions.deleteTask(taskId)
-              setState((prev) => ({ ...prev, selectedTask: undefined, uiMode: "board" }))
+            onDelete={(_taskId) => {
+              setState((prev) => ({ ...prev, uiMode: "confirm-delete", deleteReturnMode: "detail" }))
             }}
             onCreateSubtask={(parent) => {
               setState((prev) => ({ ...prev, uiMode: "create", createParent: parent }))
@@ -214,7 +216,7 @@ export function App({ db, dbPath }: AppProps) {
             mode="create"
             parentTitle={state.createParent?.title}
             onSubmit={(data) => {
-              actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id)
+              actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status)
               setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))
             }}
             onCancel={() => setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))}
@@ -251,6 +253,23 @@ export function App({ db, dbPath }: AppProps) {
         {state.uiMode === "help" && (
           <HelpOverlay
             onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+          />
+        )}
+
+        {state.uiMode === "confirm-delete" && state.selectedTask && (
+          <ConfirmDelete
+            task={state.selectedTask}
+            onConfirm={() => {
+              if (state.selectedTask) {
+                actions.deleteTask(state.selectedTask.id)
+                highlightedTaskRef.current = undefined
+              }
+              setState((prev) => ({ ...prev, selectedTask: undefined, uiMode: "board", deleteReturnMode: undefined }))
+            }}
+            onCancel={() => {
+              const returnMode = state.deleteReturnMode || "board"
+              setState((prev) => ({ ...prev, uiMode: returnMode, deleteReturnMode: undefined }))
+            }}
           />
         )}
       </Box>

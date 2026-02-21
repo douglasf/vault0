@@ -6,7 +6,7 @@ import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
 
 export interface UseTaskActionsResult {
-  createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string) => ReturnType<typeof createTask>
+  createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status) => ReturnType<typeof createTask>
   updateTaskData: (taskId: string, title: string, description: string, priority: Priority) => ReturnType<typeof updateTask>
   updateStatus: (taskId: string, newStatus: Status) => void
   cyclePriority: (taskId: string) => void
@@ -15,13 +15,14 @@ export interface UseTaskActionsResult {
 
 export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
   const createNewTask = useCallback(
-    (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string) => {
+    (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status) => {
       return createTask(db, {
         boardId,
         title,
         description,
         priority: priority || "normal",
         parentId,
+        status,
       })
     },
     [db],
