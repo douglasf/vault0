@@ -52,8 +52,20 @@ export function TaskDetail({
   // (detail is re-queried from sync DB on every render — no caching needed)
   const sections = buildSections(detail)
 
-  const maxVisible = Math.max(1, (process.stdout.rows || 24) - 8) // leave room for border + footer
+  // Total overhead = App Header (5) + TaskDetail chrome (10) = 15 lines.
+  //
+  // App Header: border(2) + content rows(2) + marginBottom(1) = 5
+  // TaskDetail: border(2) + paddingY(2) + title(1) + scroll-up(1) +
+  //             content margin(1) + scroll-down(1) + footer margin(1) + footer(1) = 10
+  //
+  // IMPORTANT: maxVisible is ALWAYS rows-15, regardless of whether scrolling
+  // is needed. This prevents a feedback loop where showing/hiding scroll
+  // indicators changes the viewport size, which changes whether indicators
+  // are needed, causing content to oscillate between renders. The cost is
+  // 2 unused lines when content fits without scrolling — negligible.
+  const rows = process.stdout.rows || 24
   const totalLines = sections.length
+  const maxVisible = Math.max(1, rows - 15)
   const clampedOffset = Math.min(scrollOffset, Math.max(0, totalLines - maxVisible))
 
   const visibleLines = sections.slice(clampedOffset, clampedOffset + maxVisible)
@@ -117,6 +129,16 @@ export function TaskDetail({
 
   const hasMore = totalLines > maxVisible
 
+  // Render callback for visible scroll lines.
+  // Keys include the scroll offset so React unmounts/remounts every SectionLine
+  // when the viewport shifts. This prevents Ink's terminal diff from corrupting
+  // output when in-place content changes (text length changes cause ghost
+  // characters, structural changes between line types cause layout glitches).
+  // This matches the pattern used by HelpOverlay's absolute-index keys.
+  const renderSlot = (line: LineData, slot: number) => (
+    <SectionLine key={`${clampedOffset}-${slot}`} line={line} />
+  )
+
   return (
     <Box flexDirection="column" width="100%">
       {showDependencyPicker ? (
@@ -164,26 +186,29 @@ export function TaskDetail({
             <Text bold color="cyan">Task Detail</Text>
           </Box>
 
-          {/* Scroll-up indicator */}
-          {hasMore && clampedOffset > 0 && (
-            <Box justifyContent="flex-end">
-              <Text dimColor>↑ {clampedOffset} more</Text>
-            </Box>
-          )}
-
-          {/* Content */}
-          <Box flexDirection="column" marginTop={1}>
-            {visibleLines.map((line, i) => (
-              <SectionLine key={`${clampedOffset + i}`} line={line} />
-            ))}
+          {/* Scroll-up indicator — always render the slot to keep constant
+              output height and prevent React reconciliation churn */}
+          <Box justifyContent="flex-end">
+            {hasMore && clampedOffset > 0
+              ? <Text dimColor>↑ {clampedOffset} more</Text>
+              : <Text> </Text>}
           </Box>
 
-          {/* Scroll-down indicator */}
-          {hasMore && clampedOffset + maxVisible < totalLines && (
-            <Box justifyContent="flex-end">
-              <Text dimColor>↓ {totalLines - clampedOffset - maxVisible} more</Text>
-            </Box>
-          )}
+          {/* Content — keys include the scroll offset so React creates fresh
+              SectionLine instances on each scroll step. This avoids Ink terminal
+              diff artifacts (ghost characters, corrupted values) that occur when
+              updating slot content in-place with varying text lengths/structures. */}
+          <Box flexDirection="column" marginTop={1}>
+            {visibleLines.map(renderSlot)}
+          </Box>
+
+          {/* Scroll-down indicator — always render the slot to keep constant
+              output height and prevent React reconciliation churn */}
+          <Box justifyContent="flex-end">
+            {hasMore && clampedOffset + maxVisible < totalLines
+              ? <Text dimColor>↓ {totalLines - clampedOffset - maxVisible} more</Text>
+              : <Text> </Text>}
+          </Box>
 
           {/* Dependency error */}
           {dependencyError && (
@@ -221,7 +246,7 @@ function SectionLine({ line }: { line: LineData }) {
   switch (line.type) {
     case "heading":
       return (
-        <Box marginTop={1}>
+        <Box>
           <Text bold color="cyan">── {line.label} ──</Text>
         </Box>
       )
@@ -257,7 +282,7 @@ function SectionLine({ line }: { line: LineData }) {
       )
     case "blocked-banner":
       return (
-        <Box marginTop={1}>
+        <Box>
           <Text color="red" bold>🔒 Blocked — waiting on {line.value} {Number(line.value) === 1 ? "dependency" : "dependencies"}</Text>
         </Box>
       )
@@ -328,14 +353,17 @@ function buildSections(detail: TaskDetailType): LineData[] {
   // Blocked banner
   const blockerCount = detail.dependsOn.filter((d) => d.status !== "done").length
   if (blockerCount > 0) {
+    lines.push({ type: "blank" })
     lines.push({ type: "blocked-banner", value: String(blockerCount) })
   }
 
   // Description
   if (detail.description) {
+    lines.push({ type: "blank" })
     lines.push({ type: "heading", label: "Description" })
-    // Word-wrap long descriptions to ~70 chars per line
-    const wrapped = wordWrap(detail.description, 70)
+    // Word-wrap long descriptions to fit terminal width
+    const wrapWidth = Math.max(20, (process.stdout.columns || 80) - 10)
+    const wrapped = wordWrap(detail.description, wrapWidth)
     for (const wl of wrapped) {
       lines.push({ type: "text", value: `  ${wl}` })
     }
@@ -343,6 +371,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
 
   // Dependencies
   if (detail.dependsOn.length > 0) {
+    lines.push({ type: "blank" })
     lines.push({ type: "heading", label: `Dependencies (${detail.dependsOn.length})` })
     for (const dep of detail.dependsOn) {
       lines.push({
@@ -356,6 +385,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
 
   // Depended on by
   if (detail.dependedOnBy.length > 0) {
+    lines.push({ type: "blank" })
     lines.push({ type: "heading", label: `Depended on by (${detail.dependedOnBy.length})` })
     for (const dep of detail.dependedOnBy) {
       lines.push({
@@ -370,6 +400,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
   // Subtasks
   if (detail.subtasks.length > 0) {
     const doneCount = detail.subtasks.filter((s) => s.status === "done").length
+    lines.push({ type: "blank" })
     lines.push({ type: "heading", label: `Subtasks (${doneCount}/${detail.subtasks.length})` })
     for (const st of detail.subtasks) {
       lines.push({
@@ -382,6 +413,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
 
   // Status history
   if (detail.statusHistory.length > 0) {
+    lines.push({ type: "blank" })
     lines.push({ type: "heading", label: "History" })
     for (const h of detail.statusHistory) {
       const fromLabel = h.fromStatus ? (STATUS_LABELS[h.fromStatus as Status] || h.fromStatus) : "—"
