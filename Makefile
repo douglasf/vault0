@@ -1,4 +1,4 @@
-.PHONY: build install uninstall clean dev start help typecheck
+.PHONY: build install uninstall clean dev start help typecheck test
 
 # Ensure bun is discoverable (installed via ~/.bun)
 BUN := $(or $(shell which bun 2>/dev/null),$(HOME)/.bun/bin/bun)
@@ -83,6 +83,9 @@ start:
 
 typecheck:
 	$(BUN) run typecheck
+
+test:
+	$(BUN) test
 
 clean:
 	@echo "Cleaning build artifacts..."
