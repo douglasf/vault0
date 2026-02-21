@@ -201,7 +201,9 @@ export function updateTask(
 
 /**
  * Transition a task to a new status and record the change in history.
- * When a parent task is moved, all its non-archived subtasks are moved to the same status.
+ * When a parent task is moved, non-archived subtasks that are in the same
+ * lane (status) as the parent are moved along. Subtasks already in a
+ * different lane (e.g. "done") are left untouched.
  * Throws if the task does not exist or is archived.
  */
 export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status) {
@@ -224,28 +226,34 @@ export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: 
     })
     .run()
 
-  // Cascade status change to non-archived subtasks
+  // Cascade status change to non-archived subtasks that are in the same lane
+  // (status) as the parent's old status. Subtasks already in a different lane
+  // (e.g. "done") should not be dragged along.
   const subtasks = db
     .select()
     .from(tasks)
-    .where(and(eq(tasks.parentId, taskId), isNull(tasks.archivedAt)))
+    .where(
+      and(
+        eq(tasks.parentId, taskId),
+        isNull(tasks.archivedAt),
+        eq(tasks.status, current.status),
+      ),
+    )
     .all()
 
   for (const subtask of subtasks) {
-    if (subtask.status !== newStatus) {
-      db.update(tasks)
-        .set({ status: newStatus, updatedAt: now })
-        .where(eq(tasks.id, subtask.id))
-        .run()
+    db.update(tasks)
+      .set({ status: newStatus, updatedAt: now })
+      .where(eq(tasks.id, subtask.id))
+      .run()
 
-      db.insert(taskStatusHistory)
-        .values({
-          taskId: subtask.id,
-          fromStatus: subtask.status,
-          toStatus: newStatus,
-        })
-        .run()
-    }
+    db.insert(taskStatusHistory)
+      .values({
+        taskId: subtask.id,
+        fromStatus: subtask.status,
+        toStatus: newStatus,
+      })
+      .run()
   }
 }
 
