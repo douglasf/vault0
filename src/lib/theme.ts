@@ -26,6 +26,11 @@ export const theme = {
     blocked: "red",
     header: "bold",
     muted: "gray",
+    scrollbar: {
+      track: "gray",
+      thumb: "white",
+      thumbActive: "cyan",
+    },
   },
 }
 
