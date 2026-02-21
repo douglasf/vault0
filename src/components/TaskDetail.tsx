@@ -71,7 +71,10 @@ export function TaskDetail({
       onDelete(detail.id)
       onBack()
     } else if (input === "A") {
-      onCreateSubtask(detail)
+      // Only allow adding subtasks to top-level tasks (not subtasks of subtasks)
+      if (!detail.parentId) {
+        onCreateSubtask(detail)
+      }
     } else if (input === "+") {
       setShowDependencyPicker(true)
       setDependencyError("")
@@ -192,7 +195,7 @@ export function TaskDetail({
           {/* Footer shortcuts */}
           <Box marginTop={1} justifyContent="center">
             <Text dimColor>
-              [e]dit  [s]tatus  [p]riority  [d]elete  [A]dd subtask  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
+              [e]dit  [s]tatus  [p]riority  [d]elete  {!detail.parentId && "[A]dd subtask  "}[+]dep  [-]dep  [Esc]back  ↑↓ scroll
             </Text>
           </Box>
         </Box>

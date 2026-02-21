@@ -100,7 +100,7 @@ export function App({ db, dbPath }: AppProps) {
         setState((prev) => ({ ...prev, uiMode: "create", createParent: undefined }))
       } else if (input === "A") {
         const task = highlightedTaskRef.current
-        if (task) {
+        if (task && !task.parentId) {
           setState((prev) => ({ ...prev, uiMode: "create", createParent: task }))
         }
       } else if (input === "e") {

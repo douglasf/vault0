@@ -58,7 +58,7 @@ export function getTasksByStatus(db: Vault0Database, boardId: string): Map<Statu
  * - dependencyCount: total number of dependencies
  * - blockerCount: number of incomplete dependencies
  * - subtaskTotal/subtaskDone: subtask completion counts (for parent tasks)
- * - isReady: has dependencies but all are done (eligible to start)
+ * - isReady: no unmet dependencies (eligible to start — includes tasks with zero deps)
  * - isBlocked: has at least one incomplete dependency
  * - parentTitle: title of the parent task (for subtasks)
  */
@@ -88,8 +88,7 @@ export function getTaskCards(db: Vault0Database, boardId: string): TaskCard[] {
 
       const isBlocked = blockerCount > 0
       const isReady =
-        dependencyCount > 0 &&
-        blockerCount === 0 &&
+        !isBlocked &&
         (task.status === "backlog" || task.status === "todo")
 
       // Resolve parent title for subtasks
@@ -140,6 +139,15 @@ export function createTask(
     sourceRef?: string
   },
 ) {
+  // Prevent creating subtasks of subtasks — only top-level tasks can have children
+  if (data.parentId) {
+    const parent = db.select().from(tasks).where(eq(tasks.id, data.parentId)).get()
+    if (!parent) throw new Error(`Parent task ${data.parentId} not found`)
+    if (parent.parentId) {
+      throw new Error("Cannot add a subtask to a subtask. Only top-level tasks can have subtasks.")
+    }
+  }
+
   const result = db
     .insert(tasks)
     .values({
@@ -193,6 +201,7 @@ export function updateTask(
 
 /**
  * Transition a task to a new status and record the change in history.
+ * When a parent task is moved, all its non-archived subtasks are moved to the same status.
  * Throws if the task does not exist or is archived.
  */
 export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status) {
@@ -200,8 +209,10 @@ export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: 
   if (!current) throw new Error(`Task ${taskId} not found`)
   if (current.archivedAt) throw new Error(`Cannot update status of archived task: ${taskId}`)
 
+  const now = new Date()
+
   db.update(tasks)
-    .set({ status: newStatus, updatedAt: new Date() })
+    .set({ status: newStatus, updatedAt: now })
     .where(eq(tasks.id, taskId))
     .run()
 
@@ -212,6 +223,30 @@ export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: 
       toStatus: newStatus,
     })
     .run()
+
+  // Cascade status change to non-archived subtasks
+  const subtasks = db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.parentId, taskId), isNull(tasks.archivedAt)))
+    .all()
+
+  for (const subtask of subtasks) {
+    if (subtask.status !== newStatus) {
+      db.update(tasks)
+        .set({ status: newStatus, updatedAt: now })
+        .where(eq(tasks.id, subtask.id))
+        .run()
+
+      db.insert(taskStatusHistory)
+        .values({
+          taskId: subtask.id,
+          fromStatus: subtask.status,
+          toStatus: newStatus,
+        })
+        .run()
+    }
+  }
 }
 
 /**

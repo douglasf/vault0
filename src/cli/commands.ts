@@ -108,6 +108,17 @@ export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format
   const source = flags.source ? validateSource(flags.source) : undefined
   const sourceRef = flags["source-ref"] || undefined
 
+  // Prevent creating subtasks of subtasks — only top-level tasks can have children
+  if (parentId) {
+    const parentTask = db.select().from(tasks).where(eq(tasks.id, parentId)).get()
+    if (parentTask?.parentId) {
+      return {
+        success: false,
+        message: formatError("Cannot add a subtask to a subtask. Only top-level tasks can have subtasks."),
+      }
+    }
+  }
+
   const task = createTask(db, {
     boardId,
     parentId,
