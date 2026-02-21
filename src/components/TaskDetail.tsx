@@ -281,6 +281,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
 
   // Basic info
   lines.push({ type: "field", label: "Title", value: detail.title, bold: true })
+  lines.push({ type: "field", label: "ID", value: detail.id, dimColor: true })
   lines.push({
     type: "field",
     label: "Status",
