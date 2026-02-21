@@ -86,8 +86,17 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
                 const isSubtask = task.parentId !== null
                 const showOrphanHeader = orphanHeaderIndices.has(globalIndex)
 
+                // Reduce vertical spacing within parent–subtask groups:
+                // No margin between a parent and its first subtask, or between sibling subtasks.
+                const next = visibleTasks[i + 1]
+                const isFollowedByChild =
+                  next !== undefined &&
+                  next.parentId !== null &&
+                  (next.parentId === task.id || next.parentId === task.parentId)
+                const bottomMargin = isFollowedByChild ? 0 : 1
+
                 return (
-                  <Box key={task.id} flexDirection="column" marginBottom={1}>
+                  <Box key={task.id} flexDirection="column" marginBottom={bottomMargin}>
                     {/* Orphan group header — shown once per parent group */}
                     {showOrphanHeader && task.parentTitle && (
                       <Text dimColor italic>
