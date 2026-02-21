@@ -156,9 +156,11 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
                   <Box key={task.id} flexDirection="column" marginBottom={bottomMargin}>
                     {/* Orphan group header — shown once per parent group */}
                     {showOrphanHeader && task.parentTitle && (
-                      <Text dimColor italic>
-                        ↳ {task.parentTitle.substring(0, 30)}
-                      </Text>
+                      <Box overflow="hidden">
+                        <Text dimColor italic wrap="truncate-end">
+                          ↳ {task.parentTitle}
+                        </Text>
+                      </Box>
                     )}
                     <TaskCard
                       task={task}
