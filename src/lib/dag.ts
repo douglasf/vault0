@@ -106,7 +106,9 @@ export function getTransitiveDependencies(db: Vault0Database, taskId: string): s
       .all()
 
     for (const d of deps) {
-      result.push(d.dependsOn)
+      if (!visited.has(d.dependsOn)) {
+        result.push(d.dependsOn)
+      }
       dfs(d.dependsOn)
     }
   }
@@ -134,7 +136,9 @@ export function getTransitiveDependents(db: Vault0Database, taskId: string): str
       .all()
 
     for (const d of dependents) {
-      result.push(d.taskId)
+      if (!visited.has(d.taskId)) {
+        result.push(d.taskId)
+      }
       dfs(d.taskId)
     }
   }
