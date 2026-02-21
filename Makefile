@@ -3,14 +3,18 @@
 # Ensure bun is discoverable (installed via ~/.bun)
 BUN := $(or $(shell which bun 2>/dev/null),$(HOME)/.bun/bin/bun)
 
+# Install prefix — defaults to ~/.local/bin (user-writable, no sudo needed).
+# Override with: make install PREFIX=/usr/local/bin
+PREFIX ?= $(HOME)/.local/bin
+
 # Default target
 help:
 	@echo "Vault0 — Terminal Kanban Board"
 	@echo ""
 	@echo "Available commands:"
 	@echo "  make build      - Build vault0 locally (no install)"
-	@echo "  make install    - Build and install vault0 to /usr/local/bin"
-	@echo "  make uninstall  - Remove vault0 from /usr/local/bin"
+	@echo "  make install    - Build and install vault0 to $(PREFIX)"
+	@echo "  make uninstall  - Remove vault0 from $(PREFIX)"
 	@echo "  make dev        - Run with auto-reload (bun --watch)"
 	@echo "  make start      - Run once (bun run)"
 	@echo "  make typecheck  - Run TypeScript type checker"
@@ -43,22 +47,30 @@ build: clean
 	@echo ""
 
 install: build
-	@echo "📦 Installing to /usr/local/bin..."
-	sudo rm -f /usr/local/bin/vault0
-	sudo cp vault0 /usr/local/bin/vault0
+	@mkdir -p $(PREFIX)
+	@echo "📦 Installing to $(PREFIX)..."
+	rm -f $(PREFIX)/vault0
+	cp vault0 $(PREFIX)/vault0
 	@echo "🔏 Clearing provenance and re-signing at final location..."
-	sudo xattr -cr /usr/local/bin/vault0
-	sudo codesign --sign - --force /usr/local/bin/vault0
+	xattr -cr $(PREFIX)/vault0
+	codesign --sign - --force $(PREFIX)/vault0
 	@rm vault0
 	@echo ""
-	@echo "✓ Vault0 installed and signed at /usr/local/bin/vault0"
+	@echo "✓ Vault0 installed and signed at $(PREFIX)/vault0"
 	@echo "  Run 'vault0' from any directory to start"
-	@echo ""
+	@if ! echo "$$PATH" | tr ':' '\n' | grep -qx '$(PREFIX)'; then \
+		echo ""; \
+		echo "⚠  $(PREFIX) is not in your PATH."; \
+		echo "   Add this to your shell profile (~/.zshrc or ~/.bashrc):"; \
+		echo ""; \
+		echo "     export PATH=\"$(PREFIX):\$$PATH\""; \
+		echo ""; \
+	fi
 
 uninstall:
 	@echo "Removing Vault0..."
-	sudo rm -f /usr/local/bin/vault0
-	@echo "✓ Uninstalled from /usr/local/bin"
+	rm -f $(PREFIX)/vault0
+	@echo "✓ Uninstalled from $(PREFIX)"
 	@echo ""
 
 dev:
