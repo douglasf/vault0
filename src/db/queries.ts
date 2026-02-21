@@ -200,18 +200,29 @@ export function updateTask(
 }
 
 /**
+ * Result of a status update, including any side effects.
+ */
+export interface StatusUpdateResult {
+  /** If a parent task was auto-completed because all subtasks are done. */
+  parentAutoCompleted?: { id: string; title: string }
+}
+
+/**
  * Transition a task to a new status and record the change in history.
  * When a parent task is moved, non-archived subtasks that are in the same
  * lane (status) as the parent are moved along. Subtasks already in a
  * different lane (e.g. "done") are left untouched.
+ * When a subtask is moved to "done" and all sibling subtasks are also "done",
+ * the parent task is automatically moved to "done" as well.
  * Throws if the task does not exist or is archived.
  */
-export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status) {
+export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status): StatusUpdateResult {
   const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
   if (!current) throw new Error(`Task ${taskId} not found`)
   if (current.archivedAt) throw new Error(`Cannot update status of archived task: ${taskId}`)
 
   const now = new Date()
+  const result: StatusUpdateResult = {}
 
   db.update(tasks)
     .set({ status: newStatus, updatedAt: now })
@@ -255,6 +266,45 @@ export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: 
       })
       .run()
   }
+
+  // Auto-complete parent when all sibling subtasks are done.
+  // Only triggers when a subtask moves to "done" and has a parent.
+  if (newStatus === "done" && current.parentId) {
+    const siblings = db
+      .select()
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.parentId, current.parentId),
+          isNull(tasks.archivedAt),
+        ),
+      )
+      .all()
+
+    const allDone = siblings.length > 0 && siblings.every((s) => s.status === "done")
+
+    if (allDone) {
+      const parent = db.select().from(tasks).where(eq(tasks.id, current.parentId)).get()
+      if (parent && parent.status !== "done" && parent.status !== "cancelled" && !parent.archivedAt) {
+        db.update(tasks)
+          .set({ status: "done", updatedAt: now })
+          .where(eq(tasks.id, current.parentId))
+          .run()
+
+        db.insert(taskStatusHistory)
+          .values({
+            taskId: current.parentId,
+            fromStatus: parent.status,
+            toStatus: "done",
+          })
+          .run()
+
+        result.parentAutoCompleted = { id: parent.id, title: parent.title }
+      }
+    }
+  }
+
+  return result
 }
 
 /**

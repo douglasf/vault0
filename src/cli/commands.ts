@@ -257,18 +257,23 @@ export function cmdMove(db: Vault0Database, taskId: string, flags: Record<string
   const resolvedId = resolveTaskId(db, taskId)
   const newStatus = validateStatus(flags.status)
 
-  updateTaskStatus(db, resolvedId, newStatus)
+  const { parentAutoCompleted } = updateTaskStatus(db, resolvedId, newStatus)
 
   // Fetch updated task for output
   const task = db.select().from(tasks).where(eq(tasks.id, resolvedId)).get()
 
   if (format === "json") {
-    return { success: true, message: jsonOutput(task), data: task }
+    return { success: true, message: jsonOutput({ ...task, parentAutoCompleted }), data: task }
+  }
+
+  let msg = formatSuccess(`Task [${resolvedId.slice(-8)}] moved to ${newStatus}`)
+  if (parentAutoCompleted) {
+    msg += `\n${formatSuccess(`Parent task [${parentAutoCompleted.id.slice(-8)}] ${parentAutoCompleted.title} auto-completed (all subtasks done)`)}`
   }
 
   return {
     success: true,
-    message: formatSuccess(`Task [${resolvedId.slice(-8)}] moved to ${newStatus}`),
+    message: msg,
     data: task,
   }
 }
@@ -282,17 +287,22 @@ export function cmdComplete(db: Vault0Database, taskId: string, format: OutputFo
   }
 
   const resolvedId = resolveTaskId(db, taskId)
-  updateTaskStatus(db, resolvedId, "done")
+  const { parentAutoCompleted } = updateTaskStatus(db, resolvedId, "done")
 
   const task = db.select().from(tasks).where(eq(tasks.id, resolvedId)).get()
 
   if (format === "json") {
-    return { success: true, message: jsonOutput(task), data: task }
+    return { success: true, message: jsonOutput({ ...task, parentAutoCompleted }), data: task }
+  }
+
+  let msg = formatSuccess(`Task completed: [${resolvedId.slice(-8)}] ${task?.title}`)
+  if (parentAutoCompleted) {
+    msg += `\n${formatSuccess(`Parent task [${parentAutoCompleted.id.slice(-8)}] ${parentAutoCompleted.title} auto-completed (all subtasks done)`)}`
   }
 
   return {
     success: true,
-    message: formatSuccess(`Task completed: [${resolvedId.slice(-8)}] ${task?.title}`),
+    message: msg,
     data: task,
   }
 }
