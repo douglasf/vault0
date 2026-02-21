@@ -6,10 +6,60 @@ import { initDatabase } from "./db/connection.js"
 import { seedDefaultBoard } from "./db/seed.js"
 import { runCli } from "./cli/index.js"
 import { runEmbeddedMigrations } from "./db/migrations.js"
-import { existsSync, mkdirSync, appendFileSync } from "node:fs"
+import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 
 const VERSION = "0.1.0"
+
+// ── Single Instance Lock ────────────────────────────────────────────────
+
+/**
+ * Attempt to acquire a lockfile for the TUI. Returns a release function
+ * if the lock was acquired, or null if another instance is already running.
+ * Uses PID-based stale lock detection: if the PID in the lockfile is no
+ * longer running, the lock is considered stale and can be overwritten.
+ */
+function acquireTuiLock(repoRoot: string): (() => void) | null {
+  const vault0Dir = join(repoRoot, ".vault0")
+  const lockPath = join(vault0Dir, "tui.lock")
+
+  mkdirSync(vault0Dir, { recursive: true })
+
+  // Check for existing lock
+  if (existsSync(lockPath)) {
+    try {
+      const content = readFileSync(lockPath, "utf-8").trim()
+      const pid = Number.parseInt(content, 10)
+      if (pid && !Number.isNaN(pid)) {
+        // Check if the process is still alive
+        try {
+          process.kill(pid, 0) // signal 0 = existence check, no actual signal sent
+          // Process is alive — another TUI instance is running
+          return null
+        } catch {
+          // Process is dead — stale lock, safe to overwrite
+        }
+      }
+    } catch {
+      // Can't read lock — overwrite it
+    }
+  }
+
+  // Write our PID
+  writeFileSync(lockPath, String(process.pid))
+
+  return () => {
+    try {
+      // Only remove if it's still our lock (guard against race)
+      const content = readFileSync(lockPath, "utf-8").trim()
+      if (content === String(process.pid)) {
+        unlinkSync(lockPath)
+      }
+    } catch {
+      // Silent — lock file may already be gone
+    }
+  }
+}
 
 // ── CLI Entities (subcommand routing) ───────────────────────────────────
 
@@ -141,6 +191,16 @@ async function main() {
   }
 
   try {
+    // ── Single instance guard ───────────────────────────────────────────
+    const releaseLock = acquireTuiLock(repoRoot)
+    if (!releaseLock) {
+      console.error("Error: Another Vault0 TUI instance is already running for this directory.")
+      console.error(`  Directory: ${repoRoot}`)
+      console.error("  Running multiple TUI instances against the same database can cause crashes.")
+      console.error("  Close the other instance first, or delete .vault0/tui.lock if it's stale.")
+      process.exit(1)
+    }
+
     // Initialize database
     console.error("Initializing database...")
     const { db, sqlite, dbPath } = initDatabase(repoRoot)
@@ -163,6 +223,7 @@ async function main() {
     // Cleanup on exit
     await waitUntilExit()
     console.error("\nCleaning up...")
+    releaseLock()
     sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
     sqlite.close()
     console.error("Vault0 closed. Goodbye!")
