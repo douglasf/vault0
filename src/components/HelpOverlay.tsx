@@ -34,6 +34,7 @@ const sections: ShortcutSection[] = [
       ["D (Shift+d)", "Archive all tasks in Done lane"],
       ["e", "Edit task"],
       ["c", "Copy task ID to clipboard"],
+      ["h", "Toggle show/hide all subtasks"],
     ],
   },
   {

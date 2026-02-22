@@ -83,6 +83,9 @@ export function App({ db, dbPath }: AppProps) {
   const [previewTask, setPreviewTask] = useState<Task | undefined>(undefined)
   const [previewVisible, setPreviewVisible] = useState(false)
 
+  // Global toggle: when true, all subtasks are hidden in the board view
+  const [hideSubtasks, setHideSubtasks] = useState(false)
+
   // Transient toast message (e.g. "Copied ID!") — auto-clears after a timeout
   const [toast, setToast] = useState("")
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -180,6 +183,8 @@ export function App({ db, dbPath }: AppProps) {
       }
     } else if (input === "?") {
       setState((prev) => ({ ...prev, uiMode: "help" }))
+    } else if (input === "h") {
+      setHideSubtasks((prev) => !prev)
     } else if (input === "v") {
       setPreviewVisible((prev) => !prev)
     } else if (input === "q") {
@@ -235,9 +240,10 @@ export function App({ db, dbPath }: AppProps) {
                           setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
                         }
                         onHighlightTask={handleHighlightTask}
-                        onMoveTask={handleMoveTask}
-                        inputActive={state.uiMode === "board"}
-                      />
+                         onMoveTask={handleMoveTask}
+                         inputActive={state.uiMode === "board"}
+                         hideSubtasks={hideSubtasks}
+                       />
                     </Box>
                   ) : (
                     <Box flexGrow={1}>
@@ -251,6 +257,7 @@ export function App({ db, dbPath }: AppProps) {
                         onHighlightTask={handleHighlightTask}
                         onMoveTask={handleMoveTask}
                         inputActive={state.uiMode === "board"}
+                        hideSubtasks={hideSubtasks}
                       />
                     </Box>
                   )}
@@ -270,6 +277,7 @@ export function App({ db, dbPath }: AppProps) {
                       onMoveTask={handleMoveTask}
                       inputActive={state.uiMode === "board"}
                       heightReduction={boardHeightReduction}
+                      hideSubtasks={hideSubtasks}
                     />
                   ) : (
                     <Board
@@ -283,6 +291,7 @@ export function App({ db, dbPath }: AppProps) {
                       onMoveTask={handleMoveTask}
                       inputActive={state.uiMode === "board"}
                       heightReduction={boardHeightReduction}
+                      hideSubtasks={hideSubtasks}
                     />
                   )}
                   {previewLayout === "bottom" && (

@@ -17,6 +17,8 @@ export interface ColumnProps {
   heightReduction?: number
   /** Total number of columns displayed — used to compute fixed percentage width */
   columnCount?: number
+  /** Whether subtasks are globally hidden */
+  hideSubtasks?: boolean
 }
 
 /** Compute the rendered line height of a single task card (excluding bottom margin). */
@@ -81,9 +83,34 @@ function computeVisibleWindow(
   return { visibleCount, orphanHeaderIndices, totalLinesUsed: Math.max(linesUsed, 1) }
 }
 
-export function Column({ status, tasks, selectedRow, isActive, readyIds, blockedIds, heightReduction, columnCount }: ColumnProps) {
+export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyIds, blockedIds, heightReduction, columnCount, hideSubtasks }: ColumnProps) {
+  // Filter out subtasks when globally hidden
+  const tasks = hideSubtasks
+    ? rawTasks.filter((t) => t.parentId === null)
+    : rawTasks
+  const hiddenCount = rawTasks.length - tasks.length
   const { stdout } = useStdout()
   const terminalRows = stdout?.rows || 24
+
+  // Compute orphan parent summaries when subtasks are hidden:
+  // For each parent that has subtasks in this column but is NOT itself in this column,
+  // show a header with the count of hidden subtasks.
+  const orphanParentSummaries = React.useMemo(() => {
+    if (!hideSubtasks) return []
+    const topLevelIds = new Set(rawTasks.filter((t) => t.parentId === null).map((t) => t.id))
+    const groups = new Map<string, { title: string; count: number }>()
+    for (const t of rawTasks) {
+      if (t.parentId !== null && !topLevelIds.has(t.parentId) && t.parentTitle) {
+        const existing = groups.get(t.parentId)
+        if (existing) {
+          existing.count++
+        } else {
+          groups.set(t.parentId, { title: t.parentTitle, count: 1 })
+        }
+      }
+    }
+    return Array.from(groups.entries()).map(([id, { title, count }]) => ({ id, title, count }))
+  }, [hideSubtasks, rawTasks])
 
   const [scrollOffset, setScrollOffset] = useState(0)
 
@@ -131,11 +158,11 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
       <Box justifyContent="center" marginBottom={1}>
         {isActive ? (
            <Text bold color={theme.blue} underline>
-            {STATUS_LABELS[status]} ({tasks.length})
+            {STATUS_LABELS[status]} {tasks.length}{hiddenCount > 0 ? ` (${hiddenCount})` : ""}
           </Text>
         ) : (
           <Text bold color={theme.fg_1}>
-            {STATUS_LABELS[status]} ({tasks.length})
+            {STATUS_LABELS[status]} {tasks.length}{hiddenCount > 0 ? ` (${hiddenCount})` : ""}
           </Text>
         )}
       </Box>
@@ -194,6 +221,14 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
             )}
           </Box>
         )}
+        {/* Orphan parent summaries when subtasks are hidden */}
+        {orphanParentSummaries.map((summary) => (
+          <Box key={summary.id} marginTop={tasks.length > 0 ? 1 : 0} overflow="hidden">
+            <Text color={theme.dim_0} italic wrap="truncate-end">
+              {summary.title} ({summary.count})
+            </Text>
+          </Box>
+        ))}
       </Box>
     </Box>
   )

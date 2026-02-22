@@ -6,7 +6,7 @@ import { useDb } from "../lib/db-context.js"
 import { useBoard } from "../hooks/useBoard.js"
 import { useNavigation } from "../hooks/useNavigation.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
-import type { Task, Filters, Status } from "../lib/types.js"
+import type { Task, Filters, Status, TaskCard as TaskCardType } from "../lib/types.js"
 
 export interface BoardProps {
   boardId: string
@@ -20,24 +20,32 @@ export interface BoardProps {
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
+  /** Whether subtasks are globally hidden */
+  hideSubtasks?: boolean
 }
 
-export function Board({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask }: BoardProps) {
+export function Board({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks }: BoardProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
+
+  // Helper to filter out subtasks when globally hidden
+  const filterCollapsed = (tasks: TaskCardType[]) =>
+    hideSubtasks
+      ? tasks.filter((t) => t.parentId === null)
+      : tasks
 
   // Check if board is empty (no tasks across all visible statuses)
   const totalTasks = Array.from(tasksByStatus.values()).reduce((sum, tasks) => sum + tasks.length, 0)
 
-  // Build row counts per column for navigation boundary clamping
-  const rowCounts = VISIBLE_STATUSES.map((status) => (tasksByStatus.get(status) || []).length)
+  // Build row counts per column for navigation boundary clamping (respecting collapsed state)
+  const rowCounts = VISIBLE_STATUSES.map((status) => filterCollapsed(tasksByStatus.get(status) || []).length)
 
   // Compute initial navigation position from focusTaskId (restores position after detail view)
   let initialColumn = 0
   let initialRow = 0
   if (focusTaskId) {
     for (let col = 0; col < VISIBLE_STATUSES.length; col++) {
-      const tasks = tasksByStatus.get(VISIBLE_STATUSES[col]) || []
+      const tasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[col]) || [])
       const rowIndex = tasks.findIndex((t) => t.id === focusTaskId)
       if (rowIndex >= 0) {
         initialColumn = col
@@ -55,7 +63,7 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
   })
 
   // Compute the currently highlighted task from navigation position
-  const currentColumnTasks = tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || []
+  const currentColumnTasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || [])
   const highlightedTask = currentColumnTasks[nav.selectedRow]
 
   // Report highlighted task to parent when it changes
@@ -89,7 +97,7 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
     else if (key.return) {
       const selected = nav.selectCurrent()
       if (selected) {
-        const tasks = tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || []
+        const tasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || [])
         if (tasks[selected.row]) {
           onSelectTask(tasks[selected.row])
         }
@@ -114,6 +122,7 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
           blockedIds={blockedIds}
           heightReduction={heightReduction}
           columnCount={VISIBLE_STATUSES.length}
+          hideSubtasks={hideSubtasks}
         />
       ))}
     </Box>

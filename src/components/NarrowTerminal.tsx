@@ -7,7 +7,7 @@ import { useNavigation } from "../hooks/useNavigation.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { STATUS_LABELS } from "../lib/constants.js"
 import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
-import type { Task, Filters, Status } from "../lib/types.js"
+import type { Task, Filters, Status, TaskCard as TaskCardType } from "../lib/types.js"
 
 export interface NarrowTerminalProps {
   boardId: string
@@ -21,24 +21,32 @@ export interface NarrowTerminalProps {
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
+  /** Whether subtasks are globally hidden */
+  hideSubtasks?: boolean
 }
 
 /**
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks }: NarrowTerminalProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
 
-  const rowCounts = VISIBLE_STATUSES.map((status) => (tasksByStatus.get(status) || []).length)
+  // Helper to filter out subtasks when globally hidden
+  const filterCollapsed = (tasks: TaskCardType[]) =>
+    hideSubtasks
+      ? tasks.filter((t) => t.parentId === null)
+      : tasks
+
+  const rowCounts = VISIBLE_STATUSES.map((status) => filterCollapsed(tasksByStatus.get(status) || []).length)
 
   // Compute initial navigation position from focusTaskId (restores position after detail view)
   let initialColumn = 0
   let initialRow = 0
   if (focusTaskId) {
     for (let col = 0; col < VISIBLE_STATUSES.length; col++) {
-      const tasks = tasksByStatus.get(VISIBLE_STATUSES[col]) || []
+      const tasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[col]) || [])
       const rowIndex = tasks.findIndex((t) => t.id === focusTaskId)
       if (rowIndex >= 0) {
         initialColumn = col
@@ -56,7 +64,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
   })
 
   // Compute the currently highlighted task from navigation position
-  const currentColumnTasks = tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || []
+  const currentColumnTasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || [])
   const highlightedTask = currentColumnTasks[nav.selectedRow]
 
   // Report highlighted task to parent when it changes
@@ -90,7 +98,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
     else if (key.return) {
       const selected = nav.selectCurrent()
       if (selected) {
-        const tasks = tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || []
+        const tasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || [])
         if (tasks[selected.row]) {
           onSelectTask(tasks[selected.row])
         }
@@ -125,6 +133,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
         readyIds={readyIds}
         blockedIds={blockedIds}
         heightReduction={heightReduction}
+        hideSubtasks={hideSubtasks}
       />
 
       <Box marginTop={1} justifyContent="center">
