@@ -15,6 +15,7 @@ export interface UseNavigationResult {
   navigateUp: () => void
   navigateDown: () => void
   navigateToColumn: (col: number) => void
+  navigateTo: (col: number, row: number) => void
   selectCurrent: () => { column: number; row: number } | null
 }
 
@@ -72,6 +73,15 @@ export function useNavigation(options: UseNavigationOptions): UseNavigationResul
     [options.columnCount, getMaxRow]
   )
 
+  const navigateTo = useCallback(
+    (col: number, row: number) => {
+      const newCol = Math.max(0, Math.min(options.columnCount - 1, col))
+      const maxRow = getMaxRow(newCol)
+      setPosition({ column: newCol, row: Math.min(row, maxRow) })
+    },
+    [options.columnCount, getMaxRow]
+  )
+
   const selectCurrent = useCallback(() => {
     const maxRow = getMaxRow(position.column)
     if ((options.rowCounts[position.column] ?? 0) > 0 && position.row <= maxRow) {
@@ -88,6 +98,7 @@ export function useNavigation(options: UseNavigationOptions): UseNavigationResul
     navigateUp,
     navigateDown,
     navigateToColumn,
+    navigateTo,
     selectCurrent,
   }
 }

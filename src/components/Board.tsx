@@ -1,4 +1,4 @@
-import React, { useEffect } from "react"
+import React, { useCallback, useEffect, useRef } from "react"
 import { Box, useInput } from "ink"
 import { Column } from "./Column.js"
 import { EmptyBoard } from "./EmptyBoard.js"
@@ -31,10 +31,10 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
   const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters, sortField)
 
   // Helper to filter out subtasks when globally hidden
-  const filterCollapsed = (tasks: TaskCardType[]) =>
+  const filterCollapsed = useCallback((tasks: TaskCardType[]) =>
     hideSubtasks
       ? tasks.filter((t) => t.parentId === null)
-      : tasks
+      : tasks, [hideSubtasks])
 
   // Check if board is empty (no tasks across all visible statuses)
   const totalTasks = Array.from(tasksByStatus.values()).reduce((sum, tasks) => sum + tasks.length, 0)
@@ -64,6 +64,24 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
     initialRow,
   })
 
+  // Track a task that was just moved so we can follow it with the cursor after re-render
+  const pendingFocusTaskId = useRef<string | null>(null)
+
+  // After data refreshes, resolve the pending focus task to its new position
+  useEffect(() => {
+    const taskId = pendingFocusTaskId.current
+    if (!taskId) return
+    pendingFocusTaskId.current = null
+    for (let col = 0; col < VISIBLE_STATUSES.length; col++) {
+      const tasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[col]) || [])
+      const rowIndex = tasks.findIndex((t) => t.id === taskId)
+      if (rowIndex >= 0) {
+        nav.navigateTo(col, rowIndex)
+        return
+      }
+    }
+  }, [tasksByStatus, filterCollapsed, nav])
+
   // Compute the currently highlighted task from navigation position
   const currentColumnTasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[nav.selectedColumn]) || [])
   const highlightedTask = currentColumnTasks[nav.selectedRow]
@@ -82,15 +100,15 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
       const task = currentColumnTasks[nav.selectedRow]
       if (task && nav.selectedColumn > 0) {
         const targetStatus = VISIBLE_STATUSES[nav.selectedColumn - 1]
+        pendingFocusTaskId.current = task.id
         onMoveTask?.(task, targetStatus)
-        nav.navigateLeft()
       }
     } else if (moveRight) {
       const task = currentColumnTasks[nav.selectedRow]
       if (task && nav.selectedColumn < VISIBLE_STATUSES.length - 1) {
         const targetStatus = VISIBLE_STATUSES[nav.selectedColumn + 1]
+        pendingFocusTaskId.current = task.id
         onMoveTask?.(task, targetStatus)
-        nav.navigateRight()
       }
     } else if (key.leftArrow) nav.navigateLeft()
     else if (key.rightArrow) nav.navigateRight()

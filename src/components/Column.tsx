@@ -133,6 +133,28 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
   const visibleTasks = tasks.slice(scrollOffset, scrollOffset + visibleCount)
   const needsScrollbar = tasks.length > visibleCount || scrollOffset > 0
 
+  // Clamp scrollOffset when the task list shrinks (e.g. a task was moved out).
+  // This must run for ALL columns, not just the active one, to prevent
+  // invisible tasks caused by a stale scrollOffset.
+  // Key insight: if all remaining tasks fit on screen from offset 0, reset to 0.
+  // Otherwise, ensure scrollOffset doesn't push us past the end.
+  useEffect(() => {
+    if (tasks.length === 0) {
+      setScrollOffset(0)
+    } else if (scrollOffset > 0) {
+      // Check if all tasks would fit starting from offset 0
+      const { visibleCount: countFromZero } = computeVisibleWindow(
+        tasks, 0, availableHeight, parentIdsInColumn, blockedIds,
+      )
+      if (countFromZero >= tasks.length) {
+        // All tasks fit — no need to scroll at all
+        setScrollOffset(0)
+      } else if (scrollOffset >= tasks.length) {
+        setScrollOffset(Math.max(0, tasks.length - 1))
+      }
+    }
+  }, [tasks, scrollOffset, availableHeight, parentIdsInColumn, blockedIds])
+
   // Auto-scroll to keep selected row visible when this column is active.
   // Since visible window size varies (tasks have different heights), we scroll
   // incrementally — each step triggers a re-render with a fresh visibleCount
@@ -168,7 +190,7 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
       </Box>
 
       {/* Task list with scrollbar */}
-      <Box flexDirection="column">
+      <Box flexDirection="column" flexGrow={1}>
         {tasks.length === 0 ? (
           <Text color={theme.dim_0}>No tasks</Text>
         ) : (
