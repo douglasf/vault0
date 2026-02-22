@@ -371,7 +371,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
   })
 
   // Blocked banner
-  const blockerCount = detail.dependsOn.filter((d) => d.status !== "done").length
+  const blockerCount = detail.dependsOn.filter((d) => d.status !== "done" && d.status !== "in_review").length
   if (blockerCount > 0) {
     lines.push({ type: "blank" })
     lines.push({ type: "blocked-banner", value: String(blockerCount) })

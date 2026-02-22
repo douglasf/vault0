@@ -150,7 +150,7 @@ export function formatTaskDetail(detail: TaskDetail): string {
     lines.push(`╠${"─".repeat(78)}╣`)
     lines.push(`║  Depends On (${detail.dependsOn.length}):${"".padEnd(58 - String(detail.dependsOn.length).length)}║`)
     for (const dep of detail.dependsOn) {
-      const done = dep.status === "done" ? "✓" : "○"
+      const done = dep.status === "done" || dep.status === "in_review" ? "✓" : "○"
       lines.push(`║    ${done} [${dep.id.slice(-8)}] ${truncate(dep.title, 58).padEnd(61)}║`)
     }
   }

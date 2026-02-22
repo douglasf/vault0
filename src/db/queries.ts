@@ -11,6 +11,10 @@ function isTaskDone(task?: Task): boolean {
   return task?.status === "done"
 }
 
+function isDependencySatisfied(task?: Task): boolean {
+  return task?.status === "done" || task?.status === "in_review"
+}
+
 // ── Board Queries ───────────────────────────────────────────────────
 
 export function getBoards(db: Vault0Database) {
@@ -88,7 +92,7 @@ export function getTaskCards(db: Vault0Database, boardId: string, opts?: { inclu
       const taskDeps = deps.filter((d) => d.taskId === task.id)
       const dependencyCount = taskDeps.length
       const blockerCount = taskDeps.filter(
-        (d) => !isTaskDone(taskById.get(d.dependsOn)),
+        (d) => !isDependencySatisfied(taskById.get(d.dependsOn)),
       ).length
 
       const subtaskList = allTasks.filter((st) => st.parentId === task.id)

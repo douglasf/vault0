@@ -576,6 +576,60 @@ describe("getTaskCards", () => {
     expect(cardA?.blockerCount).toBe(0)
   })
 
+  test("isBlocked is false when dependency is in_review", () => {
+    const taskA = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Task A",
+      status: "backlog",
+    })
+
+    const taskB = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Task B",
+      status: "backlog",
+    })
+
+    addDependency(testDb.db, taskA.id, taskB.id)
+
+    // Move B to in_review — should unblock A
+    updateTaskStatus(testDb.db, taskB.id, "in_review")
+
+    const cards = getTaskCards(testDb.db, testDb.boardId)
+    const cardA = cards.find((c) => c.id === taskA.id)
+
+    expect(cardA?.isBlocked).toBe(false)
+    expect(cardA?.blockerCount).toBe(0)
+  })
+
+  test("isBlocked is reinstated when dependency moves back from in_review", () => {
+    const taskA = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Task A",
+      status: "backlog",
+    })
+
+    const taskB = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Task B",
+      status: "backlog",
+    })
+
+    addDependency(testDb.db, taskA.id, taskB.id)
+
+    // Move B to in_review — unblocks A
+    updateTaskStatus(testDb.db, taskB.id, "in_review")
+    let cards = getTaskCards(testDb.db, testDb.boardId)
+    let cardA = cards.find((c) => c.id === taskA.id)
+    expect(cardA?.isBlocked).toBe(false)
+
+    // Move B back to in_progress — should re-block A
+    updateTaskStatus(testDb.db, taskB.id, "in_progress")
+    cards = getTaskCards(testDb.db, testDb.boardId)
+    cardA = cards.find((c) => c.id === taskA.id)
+    expect(cardA?.isBlocked).toBe(true)
+    expect(cardA?.blockerCount).toBe(1)
+  })
+
   test("isReady is true when no blockers AND status is backlog/todo", () => {
     const task = createTask(testDb.db, {
       boardId: testDb.boardId,

@@ -429,7 +429,7 @@ export function cmdDepList(db: Vault0Database, taskId: string, format: OutputFor
   if (detail.dependsOn.length > 0) {
     lines.push("Depends on:")
     for (const d of detail.dependsOn) {
-      const done = d.status === "done" ? "✓" : "○"
+      const done = d.status === "done" || d.status === "in_review" ? "✓" : "○"
       lines.push(`  ${done} [${d.id.slice(-8)}] ${d.title} (${d.status})`)
     }
   } else {
