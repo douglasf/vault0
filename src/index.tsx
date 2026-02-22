@@ -8,6 +8,7 @@ import { runCli } from "./cli/index.js"
 import { runEmbeddedMigrations } from "./db/migrations.js"
 import { ensureGlobalConfig, loadConfig } from "./lib/config.js"
 import { initTheme } from "./lib/theme.js"
+import { renderExitScreen } from "./lib/exit-screen.js"
 import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 
@@ -233,6 +234,8 @@ async function main() {
     //   - bun --watch (which sends SIGTERM to restart — we must not call process.exit() ourselves)
     //   - ink's exitOnCtrlC (which handles SIGINT gracefully for terminal cleanup)
     process.on("exit", () => {
+      // Ensure we always leave alternate screen (safety net for crashes/signals)
+      try { process.stdout.write("\x1b[?1049l") } catch { /* fd may be closed */ }
       releaseLock()
     })
 
@@ -242,18 +245,15 @@ async function main() {
     initTheme(_config.theme?.name)
 
     // Initialize database
-    console.error("Initializing database...")
     const { db, sqlite, dbPath } = initDatabase(repoRoot)
-
-    // Run migrations (embedded — works in both dev and compiled binary)
-    console.error("Running migrations...")
     runEmbeddedMigrations(sqlite)
-
-    // Seed default board
-    console.error("Setting up default board...")
     seedDefaultBoard(db)
 
-    console.error("Starting Vault0...\n")
+    // ── Enter alternate screen buffer ─────────────────────────────────────
+    // This gives us a clean full-screen canvas and, when we leave on exit,
+    // restores the user's previous terminal content (like vim/less/OpenCode).
+    process.stdout.write("\x1b[?1049h") // enter alternate screen
+    process.stdout.write("\x1b[H")      // move cursor to top-left
 
     // ── Periodic WAL checkpoint ───────────────────────────────────────────
     // SQLite's wal_autocheckpoint can be starved when the TUI holds read
@@ -277,10 +277,20 @@ async function main() {
     // Cleanup on exit
     await waitUntilExit()
     clearInterval(walCheckpointTimer)
-    console.error("\nCleaning up...")
+
+    // ── Leave alternate screen buffer ─────────────────────────────────────
+    // Exit alternate screen FIRST so we're back in normal terminal, then
+    // print the exit banner to stdout (persists like OpenCode's exit screen).
+    process.stdout.write("\x1b[?1049l")
+
+    try {
+      renderExitScreen()
+    } catch {
+      // Non-fatal — don't block exit if rendering fails
+    }
+
     sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
     sqlite.close()
-    console.error("Vault0 closed. Goodbye!")
   } catch (error) {
     console.error("\nError starting Vault0:")
 

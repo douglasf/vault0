@@ -4,6 +4,7 @@ import type { Status, Priority, TaskType } from "../lib/types.js"
 import { createTask, updateTask, updateTaskStatus, archiveTask, archiveDoneTasks } from "../db/queries.js"
 import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
+import { recordTaskCreated, recordStatusChange } from "../lib/session-stats.js"
 
 export interface UseTaskActionsResult {
   createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => ReturnType<typeof createTask>
@@ -17,7 +18,7 @@ export interface UseTaskActionsResult {
 export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
   const createNewTask = useCallback(
     (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => {
-      return createTask(db, {
+      const result = createTask(db, {
         boardId,
         title,
         description,
@@ -26,6 +27,8 @@ export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
         parentId,
         status,
       })
+      recordTaskCreated()
+      return result
     },
     [db],
   )
@@ -45,6 +48,7 @@ export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
   const updateStatus = useCallback(
     (taskId: string, newStatus: Status) => {
       updateTaskStatus(db, taskId, newStatus)
+      recordStatusChange(newStatus)
     },
     [db],
   )

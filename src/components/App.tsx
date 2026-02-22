@@ -1,6 +1,6 @@
 import React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
-import { Box, useInput } from "ink"
+import { Box, useInput, useApp } from "ink"
 import type { Vault0Database } from "../db/connection.js"
 import { DbContext } from "../lib/db-context.js"
 import { ErrorBoundary } from "./ErrorBoundary.js"
@@ -43,6 +43,7 @@ export interface AppState {
 }
 
 export function App({ db, dbPath }: AppProps) {
+  const { exit } = useApp()
   const [state, setState] = useState<AppState>({
     currentBoardId: "",
     uiMode: "board",
@@ -204,7 +205,7 @@ export function App({ db, dbPath }: AppProps) {
     } else if (input === "v") {
       setPreviewVisible((prev) => !prev)
     } else if (input === "q") {
-      process.exit(0)
+      exit()
     }
   }, { isActive: appInputActive })
 
