@@ -75,7 +75,7 @@ uninstall:
 
 dev:
 	@echo "Starting Vault0 in watch mode..."
-	$(BUN) --watch run src/index.tsx
+	BUN_WATCH=1 $(BUN) --watch run src/index.tsx
 
 start:
 	@echo "Starting Vault0..."

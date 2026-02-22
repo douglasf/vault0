@@ -19,7 +19,7 @@ const VERSION = "0.1.0"
  * Uses PID-based stale lock detection: if the PID in the lockfile is no
  * longer running, the lock is considered stale and can be overwritten.
  */
-function acquireTuiLock(repoRoot: string): (() => void) | null {
+function acquireTuiLock(repoRoot: string, watchMode = false): (() => void) | null {
   const vault0Dir = join(repoRoot, ".vault0")
   const lockPath = join(vault0Dir, "tui.lock")
 
@@ -31,13 +31,34 @@ function acquireTuiLock(repoRoot: string): (() => void) | null {
       const content = readFileSync(lockPath, "utf-8").trim()
       const pid = Number.parseInt(content, 10)
       if (pid && !Number.isNaN(pid)) {
-        // Check if the process is still alive
-        try {
-          process.kill(pid, 0) // signal 0 = existence check, no actual signal sent
-          // Process is alive — another TUI instance is running
-          return null
-        } catch {
-          // Process is dead — stale lock, safe to overwrite
+        // If the lock belongs to our own PID (e.g. bun --watch re-executing
+        // in the same process), just overwrite it — no need to signal ourselves.
+        if (pid === process.pid) {
+          // Same process — stale lock from previous execution cycle
+        } else {
+          // Check if the process is still alive
+          try {
+            process.kill(pid, 0) // signal 0 = existence check, no actual signal sent
+            if (watchMode) {
+              // In watch mode, the previous instance may still be shutting down.
+              // Send SIGTERM and give it a moment to exit gracefully.
+              try { process.kill(pid, "SIGTERM") } catch { /* already dying */ }
+              // Brief wait for the old process to release the lock
+              Bun.sleepSync(200)
+              // Re-check — if still alive after SIGTERM, bail out
+              try {
+                process.kill(pid, 0)
+                return null // genuinely still running
+              } catch {
+                // Dead now — proceed to overwrite
+              }
+            } else {
+              // Process is alive — another TUI instance is running
+              return null
+            }
+          } catch {
+            // Process is dead — stale lock, safe to overwrite
+          }
         }
       }
     } catch {
@@ -192,7 +213,8 @@ async function main() {
 
   try {
     // ── Single instance guard ───────────────────────────────────────────
-    const releaseLock = acquireTuiLock(repoRoot)
+    const isWatchMode = process.env.BUN_WATCH === "1"
+    const releaseLock = acquireTuiLock(repoRoot, isWatchMode)
     if (!releaseLock) {
       console.error("Error: Another Vault0 TUI instance is already running for this directory.")
       console.error(`  Directory: ${repoRoot}`)
@@ -200,6 +222,14 @@ async function main() {
       console.error("  Close the other instance first, or delete .vault0/tui.lock if it's stale.")
       process.exit(1)
     }
+
+    // Clean up the lock file when the process exits for any reason.
+    // Using the 'exit' event instead of signal handlers avoids conflicts with:
+    //   - bun --watch (which sends SIGTERM to restart — we must not call process.exit() ourselves)
+    //   - ink's exitOnCtrlC (which handles SIGINT gracefully for terminal cleanup)
+    process.on("exit", () => {
+      releaseLock()
+    })
 
     // Initialize database
     console.error("Initializing database...")
@@ -223,7 +253,6 @@ async function main() {
     // Cleanup on exit
     await waitUntilExit()
     console.error("\nCleaning up...")
-    releaseLock()
     sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
     sqlite.close()
     console.error("Vault0 closed. Goodbye!")
