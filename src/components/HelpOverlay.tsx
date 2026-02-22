@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
 import { Scrollbar } from "./Scrollbar.js"
+import { theme } from "../lib/theme.js"
 
 export interface HelpOverlayProps {
   onClose: () => void
@@ -127,10 +128,10 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
   const filteredItems = useMemo(() => filterItems(allItems, filter), [filter])
 
   // Available height for the scrollable content area.
-  // Subtract chrome: App header with border (~4), overlay border (2),
-  // overlay paddingY (2), title line + marginBottom (2), filter line (1),
-  // footer + marginTop (2). Total overhead ≈ 13 lines.
-  const contentHeight = Math.max(3, terminalRows - 13)
+  // Subtract chrome: App header (~3), overlay paddingY (2),
+  // title line + marginBottom (2), filter line (1),
+  // footer + marginTop (2). Total overhead ≈ 10 lines.
+  const contentHeight = Math.max(3, terminalRows - 10)
 
   // Clamp scroll offset to valid range
   const maxScroll = Math.max(0, filteredItems.length - 1)
@@ -205,15 +206,14 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     <Box
       flexDirection="column"
       width="100%"
-      borderStyle="round"
-      borderColor="cyan"
+      backgroundColor={theme.ui.panelBgCyan}
       paddingX={2}
       paddingY={1}
       flexGrow={1}
     >
       {/* Title bar */}
       <Box justifyContent="space-between" marginBottom={1}>
-        <Text bold color="cyan">
+        <Text bold color={theme.ui.accent}>
           Vault0 — Keyboard Shortcuts
         </Text>
         {isFiltered && (
@@ -226,8 +226,8 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
       {/* Filter input */}
       <Box>
         <Text dimColor>Filter: </Text>
-        <Text color="cyan">{filter}</Text>
-        <Text color="cyan">▎</Text>
+        <Text color={theme.ui.accent}>{filter}</Text>
+        <Text color={theme.ui.accent}>▎</Text>
       </Box>
 
       {/* Scrollable shortcut list */}
@@ -240,7 +240,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
               if (item.kind === "header") {
                 return (
                   <Box key={`h-${visibleWindow.offset + i}`} marginTop={i === 0 ? 0 : 1}>
-                    <Text bold underline color="yellow">
+                    <Text bold underline color={theme.ui.accentWarm}>
                       {item.title}
                     </Text>
                   </Box>
@@ -249,7 +249,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
               return (
                 <Box key={`s-${visibleWindow.offset + i}`}>
                   <Box width={16}>
-                    <Text bold color="green">
+                    <Text bold color={theme.ui.success}>
                       {item.key}
                     </Text>
                   </Box>

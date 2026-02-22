@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink"
 import type { Filters, Status, Priority, Source } from "../lib/types.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
 import { getStatusColor } from "../lib/theme.js"
+import { theme } from "../lib/theme.js"
 
 export interface FilterBarProps {
   filters: Filters
@@ -101,12 +102,12 @@ export function FilterBar({
   const currentSection = SECTIONS[sectionIdx]
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1}>
-      <Text bold color="cyan">⚙ Filters</Text>
+    <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1}>
+      <Text bold color={theme.ui.accent}>⚙ Filters</Text>
 
       {/* Status */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "status"} color={currentSection === "status" ? "cyan" : undefined}>
+        <Text bold underline={currentSection === "status"} color={currentSection === "status" ? theme.ui.accent : undefined}>
           Status:
         </Text>
         <Box gap={1}>
@@ -130,7 +131,7 @@ export function FilterBar({
 
       {/* Priority */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "priority"} color={currentSection === "priority" ? "cyan" : undefined}>
+        <Text bold underline={currentSection === "priority"} color={currentSection === "priority" ? theme.ui.accent : undefined}>
           Priority:
         </Text>
         <Box gap={1}>
@@ -150,7 +151,7 @@ export function FilterBar({
 
       {/* Source */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "source"} color={currentSection === "source" ? "cyan" : undefined}>
+        <Text bold underline={currentSection === "source"} color={currentSection === "source" ? theme.ui.accent : undefined}>
           Source:
         </Text>
         <Box gap={1}>
@@ -170,7 +171,7 @@ export function FilterBar({
 
       {/* Toggle Filters */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "toggles"} color={currentSection === "toggles" ? "cyan" : undefined}>
+        <Text bold underline={currentSection === "toggles"} color={currentSection === "toggles" ? theme.ui.accent : undefined}>
           Toggles:
         </Text>
         <Box gap={1}>
@@ -192,7 +193,7 @@ export function FilterBar({
       <Box marginTop={1}>
         <Text
           inverse={currentSection === "actions"}
-          color={currentSection === "actions" ? "cyan" : "gray"}
+          color={currentSection === "actions" ? theme.ui.accent : theme.ui.muted}
         >
           Clear All Filters (c)
         </Text>

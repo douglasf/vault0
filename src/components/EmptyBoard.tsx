@@ -11,7 +11,7 @@ export function EmptyBoard() {
       alignItems="center"
     >
       <Box flexDirection="column" alignItems="center">
-        <Text bold color="yellow">
+        <Text bold color="#b58900">
           No tasks yet
         </Text>
         <Box marginTop={1}>

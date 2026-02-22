@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink"
 import type { Status, Task } from "../lib/types.js"
 import { STATUS_LABELS, VISIBLE_STATUSES } from "../lib/constants.js"
 import { getStatusColor } from "../lib/theme.js"
+import { theme } from "../lib/theme.js"
 
 export interface StatusPickerProps {
   task: Task
@@ -27,8 +28,8 @@ export function StatusPicker({ task, onSelectStatus, onCancel }: StatusPickerPro
   })
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1}>
-      <Text bold color="cyan">Move Task: {task.title.substring(0, 30)}</Text>
+    <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1}>
+      <Text bold color={theme.ui.accent}>Move Task: {task.title.substring(0, 30)}</Text>
 
       {VISIBLE_STATUSES.map((status, i) => (
         <Box key={status} marginTop={i === 0 ? 1 : 0}>

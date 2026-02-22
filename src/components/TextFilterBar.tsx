@@ -47,8 +47,8 @@ export function TextFilterBar({ initialValue, onSearch, onClose }: TextFilterBar
 
   return (
     <Box paddingX={1}>
-      <Text color="cyan" bold>🔍 </Text>
-      <Text color="cyan">
+      <Text color="#2aa198" bold>🔍 </Text>
+      <Text color="#2aa198">
         {textInput.beforeCursor}
         <Text inverse>{textInput.afterCursor[0] || " "}</Text>
         {textInput.afterCursor.slice(1)}

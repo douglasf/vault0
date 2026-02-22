@@ -1,6 +1,7 @@
 import React from "react"
 import type { ErrorInfo, ReactNode } from "react"
 import { Box, Text } from "ink"
+import { theme } from "../lib/theme.js"
 
 interface Props {
   children: ReactNode
@@ -35,8 +36,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           flexDirection="column"
           paddingX={2}
           paddingY={1}
-          borderStyle="round"
-          borderColor="red"
+          backgroundColor={theme.ui.panelBgRed}
         >
           <Text bold color="red">
             Vault0 Encountered an Error

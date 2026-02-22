@@ -102,7 +102,7 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
   }
 
   return (
-    <Box flexDirection="row" flexGrow={1} width="100%">
+    <Box flexDirection="row" flexGrow={1} width="100%" columnGap={1}>
       {VISIBLE_STATUSES.map((status, colIndex) => (
         <Column
           key={status}

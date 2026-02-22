@@ -1,5 +1,6 @@
 import React from "react"
 import { Box, Text, useInput } from "ink"
+import { theme } from "../lib/theme.js"
 
 export interface ConfirmArchiveDoneProps {
   doneCount: number
@@ -17,8 +18,8 @@ export function ConfirmArchiveDone({ doneCount, onConfirm, onCancel }: ConfirmAr
   })
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={2} paddingY={1}>
-      <Text bold color="yellow">Archive Done Lane</Text>
+    <Box flexDirection="column" backgroundColor={theme.ui.panelBgYellow} paddingX={2} paddingY={1}>
+      <Text bold color={theme.ui.warning}>Archive Done Lane</Text>
 
       <Box marginTop={1} flexDirection="column">
         <Text>

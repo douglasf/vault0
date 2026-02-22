@@ -235,8 +235,8 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   const titleAdjCursor = titleInput.cursor - titleHStart
 
   return (
-    <Box flexDirection="column">
-      <Text bold color="cyan">
+    <Box flexDirection="column" paddingX={2}>
+      <Text bold color="#2aa198">
         {mode === "create" ? (parentTitle ? "Create Subtask" : "Create Task") : "Edit Task"}
       </Text>
       {parentTitle && (
@@ -244,14 +244,14 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       )}
 
       <Text> </Text>
-      <Text color={isTitleFocused ? "cyan" : "white"}>
+      <Text color={isTitleFocused ? "#2aa198" : "#839496"}>
         {isTitleFocused ? "\u25B8 " : "  "}Title: {titleVisible.slice(0, isTitleFocused ? titleAdjCursor : titleVisible.length)}
         {isTitleFocused && <Text inverse>{titleVisible[titleAdjCursor] || " "}</Text>}
         {isTitleFocused ? titleVisible.slice(titleAdjCursor + 1) : ""}
       </Text>
 
       <Text> </Text>
-      <Text color={isDescFocused ? "cyan" : "white"}>
+      <Text color={isDescFocused ? "#2aa198" : "#839496"}>
         {isDescFocused ? "\u25B8 " : "  "}Description:
       </Text>
 
@@ -261,10 +261,10 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         return (
           <>
             {descHasMoreAbove && (
-              <Text dimColor wrap="truncate">    {`↑ ${descScrollStart} more`}</Text>
+              <Text dimColor wrap="truncate">  {`↑ ${descScrollStart} more`}</Text>
             )}
             {descInput.value === "" && !isDescFocused ? (
-              <Text dimColor>    (empty)</Text>
+              <Text dimColor>  (empty)</Text>
             ) : (
               descVisibleLines.map((dl, i) => {
                 const globalIdx = descScrollStart + i
@@ -289,20 +289,20 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
                     before = before.slice(0, Math.max(0, descTextWidth - 1 - after.length))
                   }
                   return (
-                    <Text key={lineKey} wrap="truncate" color="white">
-                      {"    "}{before}<Text inverse>{cursorChar}</Text>{after}
+                    <Text key={lineKey} wrap="truncate" color="#839496">
+                      {"  "}{before}<Text inverse>{cursorChar}</Text>{after}
                     </Text>
                   )
                 }
                 return (
-                  <Text key={lineKey} wrap="truncate" color={isDescFocused ? "white" : "gray"}>
-                    {"    "}{dl.text || " "}
+                  <Text key={lineKey} wrap="truncate" color={isDescFocused ? "#839496" : "#586e75"}>
+                    {"  "}{dl.text || " "}
                   </Text>
                 )
               })
             )}
             {descHasMoreBelow && (
-              <Text dimColor wrap="truncate">    {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</Text>
+              <Text dimColor wrap="truncate">  {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</Text>
             )}
           </>
         )
@@ -310,7 +310,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
       <Text> </Text>
       <Text>
-        <Text color={focusField === "priority" ? "cyan" : "white"}>
+        <Text color={focusField === "priority" ? "#2aa198" : "#839496"}>
           {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
         </Text>
         <Text color={getPriorityColor(priority)}>
@@ -320,10 +320,10 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
       <Text> </Text>
       <Text>
-        <Text color={focusField === "type" ? "cyan" : "white"}>
+        <Text color={focusField === "type" ? "#2aa198" : "#839496"}>
           {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
         </Text>
-        <Text color={taskType ? getTaskTypeColor(taskType) : "gray"}>
+        <Text color={taskType ? getTaskTypeColor(taskType) : "#586e75"}>
           {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
         </Text>
       </Text>
@@ -332,7 +332,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         <>
           <Text> </Text>
           <Text>
-            <Text color={focusField === "status" ? "cyan" : "white"}>
+            <Text color={focusField === "status" ? "#2aa198" : "#839496"}>
               {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
             </Text>
             <Text color={getStatusColor(status)}>
@@ -344,7 +344,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
       <Text> </Text>
       <Text> </Text>
-      <Text inverse={focusField === "submit"} color={focusField === "submit" ? "cyan" : "white"}>
+      <Text inverse={focusField === "submit"} color={focusField === "submit" ? "#2aa198" : "#839496"}>
         {focusField === "submit" ? "\u25B8 " : "  "}
         [{mode === "create" ? "Create" : "Save"}]
       </Text>

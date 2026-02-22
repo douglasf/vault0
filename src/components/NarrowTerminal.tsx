@@ -6,7 +6,7 @@ import { useBoard } from "../hooks/useBoard.js"
 import { useNavigation } from "../hooks/useNavigation.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { STATUS_LABELS } from "../lib/constants.js"
-import { getStatusColor } from "../lib/theme.js"
+import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
 import type { Task, Filters, Status } from "../lib/types.js"
 
 export interface NarrowTerminalProps {
@@ -108,10 +108,11 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
           <Text
             key={status}
             bold={i === nav.selectedColumn}
-            color={i === nav.selectedColumn ? getStatusColor(status) : "gray"}
+            color={i === nav.selectedColumn ? theme.laneText.primary : theme.laneText.muted}
+            backgroundColor={i === nav.selectedColumn ? getStatusBgColor(status) : undefined}
             dimColor={i !== nav.selectedColumn}
           >
-            {i === nav.selectedColumn ? `[${STATUS_LABELS[status]}]` : STATUS_LABELS[status]}
+            {i === nav.selectedColumn ? ` ${STATUS_LABELS[status]} ` : STATUS_LABELS[status]}
           </Text>
         ))}
       </Box>

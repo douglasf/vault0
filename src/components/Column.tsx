@@ -4,7 +4,7 @@ import { TaskCard } from "./TaskCard.js"
 import { Scrollbar } from "./Scrollbar.js"
 import type { TaskCard as TaskCardType, Status } from "../lib/types.js"
 import { STATUS_LABELS } from "../lib/constants.js"
-import { getStatusColor } from "../lib/theme.js"
+import { solarized, getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
 
 export interface ColumnProps {
   status: Status
@@ -90,10 +90,10 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
   const [scrollOffset, setScrollOffset] = useState(0)
 
   // Available height in terminal lines for task content.
-  // Reserve lines for: App header with border (~4), column border top/bottom (2),
-  // column header + marginBottom (2), horizontal padding (~1), bottom breathing room (~1).
+  // Reserve lines for: App header (~3), column header + marginBottom (2),
+  // horizontal padding (~1), bottom breathing room (~1).
   // When a preview panel is visible, subtract its height too.
-  const availableHeight = Math.max(3, terminalRows - 10 - (heightReduction || 0))
+  const availableHeight = Math.max(3, terminalRows - 8 - (heightReduction || 0))
 
   // Precompute which parent IDs exist in this column
   const parentIdsInColumn = new Set(
@@ -121,25 +121,31 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
     }
   }, [selectedRow, scrollOffset, isActive, visibleCount])
 
-  const borderColor = isActive ? "cyan" : "gray"
+  const bgColor = getStatusBgColor(status)
 
   // Use fixed percentage width when columnCount is known (multi-column board layout),
   // otherwise fall back to flexGrow for single-column usage (NarrowTerminal).
   const fixedWidth = columnCount ? `${Math.floor(100 / columnCount)}%` : undefined
 
   return (
-    <Box flexDirection="column" width={fixedWidth} flexGrow={fixedWidth ? 0 : 1} borderStyle="round" borderColor={borderColor} paddingX={1} overflow="hidden">
+    <Box flexDirection="column" width={fixedWidth} flexGrow={fixedWidth ? 0 : 1} paddingX={1} overflow="hidden" backgroundColor={bgColor}>
       {/* Column header with status label and task count */}
       <Box justifyContent="center" marginBottom={1}>
-        <Text bold color={getStatusColor(status)}>
-          {STATUS_LABELS[status]} ({tasks.length})
-        </Text>
+        {isActive ? (
+          <Text bold color={solarized.cyan} underline>
+            {STATUS_LABELS[status]} ({tasks.length})
+          </Text>
+        ) : (
+          <Text bold color={theme.laneText.primary}>
+            {STATUS_LABELS[status]} ({tasks.length})
+          </Text>
+        )}
       </Box>
 
       {/* Task list with scrollbar */}
       <Box flexDirection="column">
         {tasks.length === 0 ? (
-          <Text dimColor>No tasks</Text>
+          <Text color={theme.laneText.muted}>No tasks</Text>
         ) : (
           <Box flexDirection="row">
             <Box flexDirection="column" flexGrow={1}>
@@ -163,7 +169,7 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
                     {/* Orphan group header — shown once per parent group */}
                     {showOrphanHeader && task.parentTitle && (
                       <Box overflow="hidden">
-                        <Text dimColor italic wrap="truncate-end">
+                        <Text color={theme.laneText.muted} italic wrap="truncate-end">
                           ↳ {task.parentTitle}
                         </Text>
                       </Box>

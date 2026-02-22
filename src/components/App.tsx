@@ -16,6 +16,7 @@ import { TextFilterBar } from "./TextFilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
 import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
+import { solarized } from "../lib/theme.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
@@ -210,7 +211,7 @@ export function App({ db, dbPath }: AppProps) {
   return (
     <ErrorBoundary>
       <DbContext.Provider value={db}>
-        <Box flexDirection="column" width="100%" height={terminalRows}>
+        <Box flexDirection="column" width="100%" height={terminalRows} backgroundColor={solarized.base02}>
           <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} toast={toast} />
 
           {(state.uiMode === "board" || state.uiMode === "text-filter") && (

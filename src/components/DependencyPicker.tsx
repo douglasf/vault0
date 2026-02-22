@@ -5,6 +5,7 @@ import { useDb } from "../lib/db-context.js"
 import { getTasksByStatus } from "../db/queries.js"
 import { VISIBLE_STATUSES, STATUS_LABELS } from "../lib/constants.js"
 import { getStatusColor } from "../lib/theme.js"
+import { theme } from "../lib/theme.js"
 
 export interface DependencyPickerProps {
   currentTaskId: string
@@ -68,8 +69,8 @@ export function DependencyPicker({
   })
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1}>
-      <Text bold color="cyan">Add Dependency</Text>
+    <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1}>
+      <Text bold color={theme.ui.accent}>Add Dependency</Text>
 
       <Box marginTop={1}>
         <Text dimColor>Search: </Text>

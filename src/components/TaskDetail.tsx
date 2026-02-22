@@ -5,6 +5,7 @@ import { useDb } from "../lib/db-context.js"
 import { getTaskDetail, addDependency, removeDependency } from "../db/queries.js"
 import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
+import { theme } from "../lib/theme.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { DependencyPicker } from "./DependencyPicker.js"
 
@@ -48,8 +49,8 @@ export function TaskDetail({
     detail = getTaskDetail(db, taskId)
   } catch {
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor="red" paddingX={2} paddingY={1}>
-        <Text color="red">Task not found (may have been archived)</Text>
+      <Box flexDirection="column" backgroundColor={theme.ui.panelBgRed} paddingX={2} paddingY={1}>
+        <Text color={theme.ui.danger}>Task not found (may have been archived)</Text>
         <Box marginTop={1}>
           <Text dimColor>Press Esc to go back</Text>
         </Box>
@@ -61,20 +62,20 @@ export function TaskDetail({
   // (detail is re-queried from sync DB on every render — no caching needed)
   const sections = buildSections(detail)
 
-  // Total overhead = App Header (5) + TaskDetail chrome (10) = 15 lines.
+  // Total overhead = App Header (3) + TaskDetail chrome (8) = 11 lines.
   //
-  // App Header: border(2) + content rows(2) + marginBottom(1) = 5
-  // TaskDetail: border(2) + paddingY(2) + title(1) + scroll-up(1) +
-  //             content margin(1) + scroll-down(1) + footer margin(1) + footer(1) = 10
+  // App Header: content rows(2) + marginBottom(1) = 3
+  // TaskDetail: paddingY(2) + title(1) + scroll-up(1) +
+  //             content margin(1) + scroll-down(1) + footer margin(1) + footer(1) = 8
   //
-  // IMPORTANT: maxVisible is ALWAYS rows-15, regardless of whether scrolling
+  // IMPORTANT: maxVisible is ALWAYS rows-11, regardless of whether scrolling
   // is needed. This prevents a feedback loop where showing/hiding scroll
   // indicators changes the viewport size, which changes whether indicators
   // are needed, causing content to oscillate between renders. The cost is
   // 2 unused lines when content fits without scrolling — negligible.
   const rows = process.stdout.rows || 24
   const totalLines = sections.length
-  const maxVisible = Math.max(1, rows - 15)
+  const maxVisible = Math.max(1, rows - 11)
   const clampedOffset = Math.min(scrollOffset, Math.max(0, totalLines - maxVisible))
 
   const visibleLines = sections.slice(clampedOffset, clampedOffset + maxVisible)
@@ -170,8 +171,8 @@ export function TaskDetail({
           onCancel={() => setShowDependencyPicker(false)}
         />
       ) : showDependencyRemover ? (
-        <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={2} paddingY={1}>
-          <Text bold color="yellow">Remove Dependency</Text>
+        <Box flexDirection="column" backgroundColor={theme.ui.panelBgYellow} paddingX={2} paddingY={1}>
+          <Text bold color={theme.ui.warning}>Remove Dependency</Text>
 
           <Box marginTop={1} flexDirection="column">
             {detail.dependsOn.map((dep, i) => (
@@ -192,10 +193,10 @@ export function TaskDetail({
           </Box>
         </Box>
       ) : (
-        <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1} width="100%">
+        <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1} width="100%">
           {/* Header */}
           <Box justifyContent="center">
-            <Text bold color="cyan">Task Detail</Text>
+            <Text bold color={theme.ui.accent}>Task Detail</Text>
           </Box>
 
           {/* Scroll-up indicator — always render the slot to keep constant
@@ -225,14 +226,14 @@ export function TaskDetail({
           {/* Dependency error */}
           {dependencyError && (
             <Box marginTop={1}>
-              <Text color="red">⚠ {dependencyError}</Text>
+              <Text color={theme.ui.danger}>⚠ {dependencyError}</Text>
             </Box>
           )}
 
           {/* Copy toast */}
           {copyToast && (
             <Box marginTop={dependencyError ? 0 : 1}>
-              <Text color="green" bold>✓ {copyToast}</Text>
+              <Text color={theme.ui.success} bold>✓ {copyToast}</Text>
             </Box>
           )}
 
@@ -266,7 +267,7 @@ function SectionLine({ line }: { line: LineData }) {
     case "heading":
       return (
         <Box>
-          <Text bold color="cyan">── {line.label} ──</Text>
+          <Text bold color={theme.ui.accent}>── {line.label} ──</Text>
         </Box>
       )
     case "field":
@@ -302,7 +303,7 @@ function SectionLine({ line }: { line: LineData }) {
     case "blocked-banner":
       return (
         <Box>
-          <Text color="red" bold>🔒 Blocked — waiting on {line.value} {Number(line.value) === 1 ? "dependency" : "dependencies"}</Text>
+          <Text color={theme.ui.danger} bold>🔒 Blocked — waiting on {line.value} {Number(line.value) === 1 ? "dependency" : "dependencies"}</Text>
         </Box>
       )
     case "text":

@@ -3,6 +3,7 @@ import { Box, Text } from "ink"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
+import { theme } from "../lib/theme.js"
 
 export interface TaskPreviewProps {
   task: Task | undefined
@@ -17,11 +18,10 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
     return (
       <Box
         flexDirection="column"
-        borderStyle="round"
-        borderColor="gray"
+        backgroundColor={theme.ui.panelBg}
         paddingX={1}
         {...(orientation === "bottom"
-          ? { width: "100%", height: maxHeight }
+          ? { width: "100%", height: maxHeight, marginTop: 1 }
           : { width: 40, flexShrink: 0 }
         )}
       >
@@ -40,10 +40,10 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
   const typeColor = task.type ? getTaskTypeColor(task.type) : undefined
 
   // Calculate available lines for description.
-  // Overhead within the bordered box: border top/bottom (2) + title (1) +
-  // status/priority line (1) + margin before description (1) = 5 lines of chrome.
+  // Overhead within the box: title (1) +
+  // status/priority line (1) + margin before description (1) = 3 lines of chrome.
   const descMaxLines = orientation === "bottom"
-    ? Math.max(1, (maxHeight || 8) - 5)
+    ? Math.max(1, (maxHeight || 8) - 3)
     : 5
   const descMaxWidth = orientation === "side" ? 34 : 70
 
@@ -54,11 +54,10 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
   return (
     <Box
       flexDirection="column"
-      borderStyle="round"
-      borderColor="gray"
+      backgroundColor={theme.ui.panelBg}
       paddingX={1}
       {...(orientation === "bottom"
-        ? { width: "100%", height: maxHeight }
+        ? { width: "100%", height: maxHeight, marginTop: 1 }
         : { width: 40, flexShrink: 0, flexGrow: 0 }
       )}
     >

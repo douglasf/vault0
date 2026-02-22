@@ -1,7 +1,7 @@
 import React from "react"
 import { Box, Text } from "ink"
 import type { TaskCard as TaskCardType, TaskType } from "../lib/types.js"
-import { getPriorityColor, getTaskTypeColor } from "../lib/theme.js"
+import { getPriorityColor, getTaskTypeColor, theme } from "../lib/theme.js"
 import { TASK_TYPE_INDICATORS } from "../lib/constants.js"
 
 export interface TaskCardProps {
@@ -29,23 +29,23 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
     <Box flexDirection="column" paddingLeft={isSubtask ? 1 : 0}>
       {/* Title row with priority dot — subtasks get → prefix */}
       <Box>
-        <Text color={isArchived ? "gray" : priorityColor}>{isSubtask ? "→ " : "● "}</Text>
+        <Text color={isArchived ? theme.laneText.muted : priorityColor}>{isSubtask ? "→ " : "● "}</Text>
         <Box flexGrow={1} flexShrink={1} flexBasis={0} overflow="hidden">
-          <Text wrap="truncate-end" inverse={isSelected} bold={isSelected} dimColor={isArchived} strikethrough={isArchived}>
+          <Text wrap="truncate-end" inverse={isSelected} bold={isSelected} color={isArchived ? theme.laneText.muted : theme.laneText.primary} strikethrough={isArchived}>
             {task.title}
           </Text>
         </Box>
         <Box flexShrink={0}>
-          {isArchived && <Text dimColor> ⌫</Text>}
-          {typeIndicator !== "" && <Text dimColor color={typeColor}> {typeIndicator}</Text>}
-          {subtaskBadge !== "" && <Text dimColor> {subtaskBadge}</Text>}
+          {isArchived && <Text color={theme.laneText.muted}> ⌫</Text>}
+          {typeIndicator !== "" && <Text color={typeColor}> {typeIndicator}</Text>}
+          {subtaskBadge !== "" && <Text color={theme.laneText.secondary}> {subtaskBadge}</Text>}
         </Box>
       </Box>
 
       {/* Parent reference for subtasks (only when not grouped by Column) */}
       {showParentRef && isSubtask && task.parentTitle && (
         <Box paddingLeft={2} overflow="hidden">
-          <Text dimColor italic wrap="truncate-end">
+          <Text color={theme.laneText.muted} italic wrap="truncate-end">
             ↳ {task.parentTitle}
           </Text>
         </Box>
@@ -54,7 +54,7 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
       {/* Dependency badge */}
       {depsBadge !== "" && (
         <Box paddingLeft={2}>
-          <Text dimColor>
+          <Text color={theme.laneText.secondary}>
             {depsBadge}
           </Text>
         </Box>
@@ -63,7 +63,7 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
       {/* Blocked indicator */}
       {statusLine && (
         <Box paddingLeft={2}>
-          <Text color="red">{statusLine}</Text>
+          <Text color={theme.ui.danger} bold>{statusLine}</Text>
         </Box>
       )}
     </Box>

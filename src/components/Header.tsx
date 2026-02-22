@@ -2,6 +2,7 @@ import React from "react"
 import { Box, Text } from "ink"
 import type { Filters } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
+import { theme } from "../lib/theme.js"
 import { getBoard } from "../db/queries.js"
 
 export interface HeaderProps {
@@ -29,26 +30,26 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
   }
 
   return (
-    <Box flexDirection="column" width="100%" marginBottom={1} borderStyle="round" borderColor="gray">
-      <Box justifyContent="center">
+    <Box flexDirection="column" width="100%" marginBottom={1} backgroundColor={theme.ui.headerBg}>
+      <Box justifyContent="space-between" paddingX={1}>
         <Text bold>Vault0</Text>
+        <Box>
+          {toast && (
+            <Text color={theme.ui.success} bold> ✓ {toast} </Text>
+          )}
+          {searchTerm && (
+            <Text color={theme.ui.accent}> 🔍 {searchTerm} </Text>
+          )}
+          {filters.showArchived && (
+            <Text color={theme.ui.warning} bold> ⌫ archived </Text>
+          )}
+          {activeFilterCount > 0 && (
+            <Text color={theme.ui.accent} bold> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </Text>
+          )}
+        </Box>
       </Box>
       <Box justifyContent="space-between" paddingX={1}>
         <Text dimColor>{boardName}</Text>
-        <Box>
-          {toast && (
-            <Text color="green" bold> ✓ {toast} </Text>
-          )}
-          {searchTerm && (
-            <Text color="cyan"> 🔍 {searchTerm} </Text>
-          )}
-          {filters.showArchived && (
-            <Text color="yellow" bold> ⌫ archived </Text>
-          )}
-          {activeFilterCount > 0 && (
-            <Text color="cyan" bold> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </Text>
-          )}
-        </Box>
         <Text dimColor>f search | F filter | r ready | b blocked | v preview | ? help | q quit</Text>
       </Box>
     </Box>
