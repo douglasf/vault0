@@ -36,7 +36,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           flexDirection="column"
           paddingX={2}
           paddingY={1}
-          backgroundColor={theme.ui.panelBgRed}
+          backgroundColor={theme.bg_1}
         >
           <Text bold color="red">
             Vault0 Encountered an Error
@@ -45,7 +45,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <Text>{this.state.error?.message || "Unknown error"}</Text>
           </Box>
           <Box marginTop={1}>
-            <Text dimColor>
+            <Text color={theme.dim_0}>
               Press Ctrl+C to exit. Check stderr output for details.
             </Text>
           </Box>

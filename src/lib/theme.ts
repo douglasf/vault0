@@ -1,151 +1,271 @@
-// ── Solarized Color Palette ─────────────────────────────────────────
-// https://ethanschoonover.com/solarized/
-//
-// The UI targets dark mode (base03 background) with Solarized accents.
-// A light mode variant is defined but not yet wired up.
+// ── Theme Definition ────────────────────────────────────────────────
+// Selenized palette structure:
+//   bg_0, bg_1, bg_2: background shades (darkest to lightest for dark themes)
+//   dim_0:            dim/muted content
+//   fg_0, fg_1:       foreground shades (secondary, primary)
+//   red, orange, yellow, green, cyan, blue, violet, magenta: accent colors
 
-export const solarized = {
-  // Base tones (dark bg → light fg)
-  base03:  "#002b36", // darkest background
-  base02:  "#073642", // dark background highlights
-  base01:  "#586e75", // optional emphasized content (comments)
-  base00:  "#657b83", // light mode body text
-  base0:   "#839496", // dark mode body text
-  base1:   "#93a1a1", // optional emphasized content
-  base2:   "#eee8d5", // light background highlights
-  base3:   "#fdf6e3", // lightest background
+export interface ThemeDefinition {
+  /** Human-readable theme name */
+  name: string
+  /** Base theme to extend from (e.g. "solarized-dark") — loads that theme file and merges overrides */
+  extends?: string
 
-  // Accent colors
-  yellow:  "#b58900",
-  orange:  "#cb4b16",
-  red:     "#dc322f",
-  magenta: "#d33682",
-  violet:  "#6c71c4",
-  blue:    "#268bd2",
-  cyan:    "#2aa198",
-  green:   "#859900",
-} as const
+  // ── Background & foreground shades ────────────────────────────────
+  bg_0: string    // Default background
+  bg_1: string    // Lighter background (status bar, panels)
+  bg_2: string    // Selection background / muted text
+  dim_0: string   // Comments / dim content
+  fg_0: string    // Secondary foreground
+  fg_1: string    // Primary foreground
 
-// ── Dark Mode Theme (default) ───────────────────────────────────────
-
-export const theme = {
-  // Priority colors
-  priority: {
-    critical: solarized.red,
-    high: solarized.yellow,
-    normal: solarized.base0,
-    low: solarized.base01,
-  },
-
-  // Status colors (column headers, status labels)
-  status: {
-    backlog: solarized.base01,
-    todo: solarized.blue,
-    in_progress: solarized.yellow,
-    in_review: solarized.violet,
-    done: solarized.green,
-    cancelled: solarized.red,
-  },
-
-  // Lane background colors — uniform Solarized base03 for all lanes.
-  // Lane differentiation comes exclusively from title/header accent colors.
-  statusBg: {
-    backlog:     solarized.base03,
-    todo:        solarized.base03,
-    in_progress: solarized.base03,
-    in_review:   solarized.base03,
-    done:        solarized.base03,
-    cancelled:   solarized.base03,
-  } as Record<string, string>,
-
-  // Text color for content rendered on colored lane backgrounds
-  laneText: {
-    primary: solarized.base1,          // high-contrast body text
-    secondary: solarized.base0,        // secondary info
-    muted: solarized.base01,           // dimmed / de-emphasized
-  },
-
-  // Task type colors
-  taskType: {
-    feature: solarized.green,
-    bug: solarized.red,
-    analysis: solarized.cyan,
-  },
-
-  // UI element colors
-  ui: {
-    selected: "inverse",               // Ink's inverse style
-    ready: solarized.green,
-    blocked: solarized.red,
-    header: "bold",
-    muted: solarized.base01,
-    // Panel/overlay backgrounds
-    panelBg: solarized.base03,
-    panelBgCyan: solarized.base02,     // info panels (detail, help, filters)
-    panelBgRed: "#1a0f0f",            // destructive action panels
-    panelBgYellow: "#1a1500",          // warning panels
-    headerBg: solarized.base03,
-    scrollbar: {
-      track: solarized.base01,
-      thumb: solarized.base1,
-      thumbActive: solarized.cyan,
-    },
-    // Accent colors for specific UI elements
-    accent: solarized.cyan,            // focused fields, active sections
-    accentWarm: solarized.yellow,      // section headings in help
-    success: solarized.green,          // toast confirmations
-    danger: solarized.red,             // errors, blocked state
-    warning: solarized.yellow,         // archive/remove overlays
-    info: solarized.blue,              // info badges
-  },
+  // ── Accent colors ────────────────────────────────────────────────
+  red: string     // Danger, critical, bugs, cancelled, blocked
+  orange: string  // (available for future use)
+  yellow: string  // Warning, high priority, in-progress
+  green: string   // Success, done, features, ready
+  cyan: string    // Accent, analysis, forms
+  blue: string    // Info, todo
+  violet: string  // In-review
+  magenta: string // (available for future use)
 }
 
-// ── Light Mode Theme (for future use) ───────────────────────────────
+// Palette key type for iteration
+type PaletteKey = "bg_0" | "bg_1" | "bg_2" | "dim_0" | "fg_0" | "fg_1" | "red" | "orange" | "yellow" | "green" | "cyan" | "blue" | "violet" | "magenta"
 
-export const themeLight = {
-  priority: {
-    critical: solarized.red,
-    high: solarized.yellow,
-    normal: solarized.base00,
-    low: solarized.base1,
-  },
-  status: {
-    backlog: solarized.base1,
-    todo: solarized.blue,
-    in_progress: solarized.yellow,
-    in_review: solarized.violet,
-    done: solarized.green,
-    cancelled: solarized.red,
-  },
-  statusBg: {
-    backlog:     solarized.base3,
-    todo:        solarized.base3,
-    in_progress: solarized.base3,
-    in_review:   solarized.base3,
-    done:        solarized.base3,
-    cancelled:   solarized.base3,
-  } as Record<string, string>,
-  laneText: {
-    primary: solarized.base00,
-    secondary: solarized.base01,
-    muted: solarized.base1,
-  },
+const PALETTE_KEYS: PaletteKey[] = [
+  "bg_0", "bg_1", "bg_2", "dim_0", "fg_0", "fg_1",
+  "red", "orange", "yellow", "green", "cyan", "blue", "violet", "magenta",
+]
+
+// ── Built-in Theme Defaults ─────────────────────────────────────────
+// These are the code-level defaults. The app works standalone without
+// any external theme files. Filesystem theme files (installed or user-
+// created) are loaded first and deep-merged onto these defaults.
+
+const SELENIZED_DARK_THEME: ThemeDefinition = {
+  name: "Selenized Dark",
+  bg_0: "#053d48",
+  bg_1: "#0e4956",
+  bg_2: "#275b69",
+  dim_0: "#718b90",
+  fg_0: "#adbcbc",
+  fg_1: "#c8d7d8",
+  red: "#fd564e",
+  orange: "#f38649",
+  yellow: "#e3b230",
+  green: "#80b83c",
+  cyan: "#39c7b9",
+  blue: "#0096f5",
+  violet: "#a58cec",
+  magenta: "#f176bd",
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────
+const SELENIZED_LIGHT_THEME: ThemeDefinition = {
+  name: "Selenized Light",
+  bg_0: "#fef3da",
+  bg_1: "#f0e4cc",
+  bg_2: "#d6cbb4",
+  dim_0: "#8f9894",
+  fg_0: "#52666d",
+  fg_1: "#384c52",
+  red: "#d4212b",
+  orange: "#c75d20",
+  yellow: "#b38800",
+  green: "#539100",
+  cyan: "#009c8f",
+  blue: "#0073d2",
+  violet: "#7d64c5",
+  magenta: "#cb4c99",
+}
+
+/** Built-in themes keyed by slug. These are the code-level defaults. */
+const BUILTIN_THEMES: Record<string, ThemeDefinition> = {
+  "selenized-dark": SELENIZED_DARK_THEME,
+  "selenized-light": SELENIZED_LIGHT_THEME,
+}
+
+const DEFAULT_THEME_NAME = "selenized-dark"
+
+// ── Active Theme (mutable module state) ─────────────────────────────
+
+let activeTheme: ThemeDefinition = SELENIZED_DARK_THEME
+
+/**
+ * The current active theme. All components should read colors from this object.
+ * Call `initTheme()` at startup to load the configured theme.
+ */
+export const theme: ThemeDefinition = new Proxy({} as ThemeDefinition, {
+  get(_target, prop, receiver) {
+    return Reflect.get(activeTheme, prop, receiver)
+  },
+  set(_target, prop, value, receiver) {
+    return Reflect.set(activeTheme, prop, value, receiver)
+  },
+})
+
+// ── Theme Loading ───────────────────────────────────────────────────
+
+import { existsSync, readFileSync, readdirSync } from "node:fs"
+import { join } from "node:path"
+import { homedir } from "node:os"
+
+/** Directory for theme files: ~/.config/vault0/themes/ */
+export function getThemesDir(): string {
+  return join(homedir(), ".config", "vault0", "themes")
+}
+
+/**
+ * Deep-merge a partial theme override into a base theme.
+ * Only known keys are merged — unknown keys are ignored.
+ */
+function deepMergeTheme(base: ThemeDefinition, override: Partial<ThemeDefinition>): ThemeDefinition {
+  const result = { ...base }
+
+  if (override.name) result.name = override.name
+
+  // Merge all palette keys
+  for (const key of PALETTE_KEYS) {
+    const val = override[key]
+    if (val) result[key] = val
+  }
+
+  return result
+}
+
+/**
+ * Load a theme file from the themes directory.
+ * Returns the raw parsed JSON (partial), or null if the file doesn't exist.
+ */
+function loadThemeFile(name: string): Partial<ThemeDefinition> | null {
+  const themesDir = getThemesDir()
+  const filePath = join(themesDir, `${name}.json`)
+
+  try {
+    if (!existsSync(filePath)) return null
+    const raw = readFileSync(filePath, "utf-8").trim()
+    if (!raw) return null
+    return JSON.parse(raw) as Partial<ThemeDefinition>
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve a theme by name.
+ *
+ * Loading strategy:
+ * 1. Check filesystem (~/.config/vault0/themes/<name>.json)
+ * 2. If found, deep-merge the file contents onto the built-in base theme
+ *    - If the file specifies `extends`, that named theme is resolved first as the base
+ *    - Otherwise the built-in theme with the same name is used as base (if it exists)
+ *    - If no built-in exists for this name, selenized-dark is the base
+ * 3. If no file found, use the built-in theme directly (if it exists)
+ * 4. Final fallback: selenized-dark built-in
+ */
+function resolveTheme(name: string): ThemeDefinition {
+  const fileData = loadThemeFile(name)
+
+  if (fileData) {
+    // Determine the base theme to merge onto
+    let base: ThemeDefinition
+    if (fileData.extends) {
+      // Recursively resolve the extended theme
+      base = resolveTheme(fileData.extends)
+    } else if (BUILTIN_THEMES[name]) {
+      base = BUILTIN_THEMES[name]
+    } else {
+      base = SELENIZED_DARK_THEME
+    }
+    return deepMergeTheme(base, fileData)
+  }
+
+  // No file — use built-in if available
+  if (BUILTIN_THEMES[name]) return BUILTIN_THEMES[name]
+
+  // Unknown theme name with no file — fall back to default
+  if (name !== DEFAULT_THEME_NAME) {
+    return resolveTheme(DEFAULT_THEME_NAME)
+  }
+
+  return SELENIZED_DARK_THEME
+}
+
+/**
+ * Initialize the theme system. Call once at startup after loading config.
+ *
+ * @param themeName - Theme name from config (e.g. "selenized-dark", "solarized-light", or a custom theme file name)
+ */
+export function initTheme(themeName?: string): void {
+  activeTheme = resolveTheme(themeName || DEFAULT_THEME_NAME)
+}
+
+/**
+ * List available themes — combines built-in themes with any filesystem themes.
+ * Filesystem themes that share a name with a built-in are listed as "file" source.
+ */
+export function listThemes(): { name: string; source: "builtin" | "file" }[] {
+  const themes = new Map<string, "builtin" | "file">()
+
+  // Add built-in themes first
+  for (const name of Object.keys(BUILTIN_THEMES)) {
+    themes.set(name, "builtin")
+  }
+
+  // Overlay with filesystem themes
+  const dir = getThemesDir()
+  if (existsSync(dir)) {
+    try {
+      const files = readdirSync(dir)
+      for (const file of files) {
+        if (file.endsWith(".json")) {
+          const name = file.replace(/\.json$/, "")
+          themes.set(name, "file")
+        }
+      }
+    } catch {
+      // Silent — directory may not be readable
+    }
+  }
+
+  return Array.from(themes.entries()).map(([name, source]) => ({ name, source }))
+}
+
+// ── Semantic Color Helpers ──────────────────────────────────────────
+// These map domain concepts to palette entries so components don't
+// need to know the palette mapping.
 
 export function getPriorityColor(priority: string): string {
-  return theme.priority[priority as keyof typeof theme.priority] || solarized.base0
+  switch (priority) {
+    case "critical": return activeTheme.red
+    case "high":     return activeTheme.yellow
+    case "normal":   return activeTheme.fg_0
+    case "low":      return activeTheme.dim_0
+    default:         return activeTheme.fg_0
+  }
 }
 
 export function getStatusColor(status: string): string {
-  return theme.status[status as keyof typeof theme.status] || solarized.base0
+  switch (status) {
+    case "backlog":     return activeTheme.dim_0
+    case "todo":        return activeTheme.blue
+    case "in_progress": return activeTheme.yellow
+    case "in_review":   return activeTheme.violet
+    case "done":        return activeTheme.green
+    case "cancelled":   return activeTheme.red
+    default:            return activeTheme.fg_0
+  }
 }
 
 export function getTaskTypeColor(type: string): string {
-  return theme.taskType[type as keyof typeof theme.taskType] || solarized.base01
+  switch (type) {
+    case "feature":  return activeTheme.green
+    case "bug":      return activeTheme.red
+    case "analysis": return activeTheme.cyan
+    default:         return activeTheme.dim_0
+  }
 }
 
-export function getStatusBgColor(status: string): string {
-  return theme.statusBg[status] || theme.ui.panelBg
+export function getStatusBgColor(_status: string): string {
+  return activeTheme.bg_0
 }

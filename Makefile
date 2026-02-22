@@ -55,6 +55,11 @@ install: build
 	xattr -cr $(PREFIX)/vault0
 	codesign --sign - --force $(PREFIX)/vault0
 	@rm vault0
+	@echo "🎨 Installing theme files..."
+	@mkdir -p $(HOME)/.config/vault0/themes
+	@for f in themes/*.json; do \
+		cp "$$f" $(HOME)/.config/vault0/themes/; \
+	done
 	@echo ""
 	@echo "✓ Vault0 installed and signed at $(PREFIX)/vault0"
 	@echo "  Run 'vault0' from any directory to start"

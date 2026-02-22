@@ -6,6 +6,8 @@ import { initDatabase } from "./db/connection.js"
 import { seedDefaultBoard } from "./db/seed.js"
 import { runCli } from "./cli/index.js"
 import { runEmbeddedMigrations } from "./db/migrations.js"
+import { ensureGlobalConfig, loadConfig } from "./lib/config.js"
+import { initTheme } from "./lib/theme.js"
 import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 
@@ -149,8 +151,11 @@ async function main() {
       cliArgs.splice(pathIdx, 2)
     }
 
-    // Initialize database (no TUI, minimal output)
+    // Initialize config and database
     try {
+      ensureGlobalConfig()
+      const _config = loadConfig(repoRoot)
+      initTheme(_config.theme?.name)
       const { db, sqlite } = initDatabase(repoRoot)
       runEmbeddedMigrations(sqlite)
       seedDefaultBoard(db)
@@ -230,6 +235,11 @@ async function main() {
     process.on("exit", () => {
       releaseLock()
     })
+
+    // Initialize config
+    ensureGlobalConfig()
+    const _config = loadConfig(repoRoot)
+    initTheme(_config.theme?.name)
 
     // Initialize database
     console.error("Initializing database...")

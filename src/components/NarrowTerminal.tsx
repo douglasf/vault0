@@ -108,9 +108,8 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
           <Text
             key={status}
             bold={i === nav.selectedColumn}
-            color={i === nav.selectedColumn ? theme.laneText.primary : theme.laneText.muted}
+            color={i === nav.selectedColumn ? theme.fg_1 : theme.dim_0}
             backgroundColor={i === nav.selectedColumn ? getStatusBgColor(status) : undefined}
-            dimColor={i !== nav.selectedColumn}
           >
             {i === nav.selectedColumn ? ` ${STATUS_LABELS[status]} ` : STATUS_LABELS[status]}
           </Text>
@@ -129,7 +128,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
       />
 
       <Box marginTop={1} justifyContent="center">
-        <Text dimColor>
+        <Text color={theme.dim_0}>
           {"<"}/{">"}  switch columns {"  "}
           Up/Down navigate {"  "}
           ? help

@@ -49,10 +49,10 @@ export function TaskDetail({
     detail = getTaskDetail(db, taskId)
   } catch {
     return (
-      <Box flexDirection="column" backgroundColor={theme.ui.panelBgRed} paddingX={2} paddingY={1}>
-        <Text color={theme.ui.danger}>Task not found (may have been archived)</Text>
+      <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+        <Text color={theme.red}>Task not found (may have been archived)</Text>
         <Box marginTop={1}>
-          <Text dimColor>Press Esc to go back</Text>
+          <Text color={theme.dim_0}>Press Esc to go back</Text>
         </Box>
       </Box>
     )
@@ -171,8 +171,8 @@ export function TaskDetail({
           onCancel={() => setShowDependencyPicker(false)}
         />
       ) : showDependencyRemover ? (
-        <Box flexDirection="column" backgroundColor={theme.ui.panelBgYellow} paddingX={2} paddingY={1}>
-          <Text bold color={theme.ui.warning}>Remove Dependency</Text>
+        <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+          <Text bold color={theme.yellow}>Remove Dependency</Text>
 
           <Box marginTop={1} flexDirection="column">
             {detail.dependsOn.map((dep, i) => (
@@ -189,21 +189,21 @@ export function TaskDetail({
           </Box>
 
           <Box marginTop={1}>
-            <Text dimColor>↑/↓: navigate  Enter: remove  Esc: cancel</Text>
+            <Text color={theme.dim_0}>↑/↓: navigate  Enter: remove  Esc: cancel</Text>
           </Box>
         </Box>
       ) : (
-        <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1} width="100%">
+        <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1} width="100%">
           {/* Header */}
           <Box justifyContent="center">
-            <Text bold color={theme.ui.accent}>Task Detail</Text>
+            <Text bold color={theme.blue}>Task Detail</Text>
           </Box>
 
           {/* Scroll-up indicator — always render the slot to keep constant
               output height and prevent React reconciliation churn */}
           <Box justifyContent="flex-end">
             {hasMore && clampedOffset > 0
-              ? <Text dimColor>↑ {clampedOffset} more</Text>
+              ? <Text color={theme.dim_0}>↑ {clampedOffset} more</Text>
               : <Text> </Text>}
           </Box>
 
@@ -219,27 +219,27 @@ export function TaskDetail({
               output height and prevent React reconciliation churn */}
           <Box justifyContent="flex-end">
             {hasMore && clampedOffset + maxVisible < totalLines
-              ? <Text dimColor>↓ {totalLines - clampedOffset - maxVisible} more</Text>
+              ? <Text color={theme.dim_0}>↓ {totalLines - clampedOffset - maxVisible} more</Text>
               : <Text> </Text>}
           </Box>
 
           {/* Dependency error */}
           {dependencyError && (
             <Box marginTop={1}>
-              <Text color={theme.ui.danger}>⚠ {dependencyError}</Text>
+              <Text color={theme.red}>⚠ {dependencyError}</Text>
             </Box>
           )}
 
           {/* Copy toast */}
           {copyToast && (
             <Box marginTop={dependencyError ? 0 : 1}>
-              <Text color={theme.ui.success} bold>✓ {copyToast}</Text>
+              <Text color={theme.green} bold>✓ {copyToast}</Text>
             </Box>
           )}
 
           {/* Footer shortcuts */}
           <Box marginTop={1} justifyContent="center">
-            <Text dimColor>
+            <Text color={theme.dim_0}>
               [e]dit  [s]tatus  [p]riority  [d]elete  {!detail.parentId && "[A]dd subtask  "}[c]opy id  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
             </Text>
           </Box>
@@ -257,7 +257,7 @@ interface LineData {
   value?: string
   color?: string
   bold?: boolean
-  dimColor?: boolean
+  dimmed?: boolean
   status?: string
   done?: boolean
 }
@@ -267,49 +267,49 @@ function SectionLine({ line }: { line: LineData }) {
     case "heading":
       return (
         <Box>
-          <Text bold color={theme.ui.accent}>── {line.label} ──</Text>
+          <Text bold color={theme.blue}>── {line.label} ──</Text>
         </Box>
       )
     case "field":
       return (
         <Box>
-          <Text dimColor>{line.label}: </Text>
-          <Text color={line.color} bold={line.bold}>{line.value}</Text>
+          <Text color={theme.dim_0}>{line.label}: </Text>
+          <Text color={line.color ?? theme.fg_1} bold={line.bold}>{line.value}</Text>
         </Box>
       )
     case "dep":
       return (
         <Box>
-          <Text>{line.label === "depends_on" ? "  → " : "  ← "}</Text>
-          <Text>{line.value}</Text>
-          <Text dimColor> </Text>
+          <Text color={theme.fg_1}>{line.label === "depends_on" ? "  → " : "  ← "}</Text>
+          <Text color={theme.fg_1}>{line.value}</Text>
+          <Text color={theme.dim_0}> </Text>
           <Text color={getStatusColor(line.status || "")}>[{STATUS_LABELS[line.status as Status] || line.status}]</Text>
         </Box>
       )
     case "subtask":
       return (
         <Box>
-          <Text>  {line.done ? "[x]" : "[ ]"} </Text>
-          <Text dimColor={line.done}>{line.value}</Text>
+          <Text color={theme.fg_1}>  {line.done ? "[x]" : "[ ]"} </Text>
+          <Text color={line.done ? theme.dim_0 : theme.fg_1}>{line.value}</Text>
         </Box>
       )
     case "history":
       return (
         <Box>
-          <Text dimColor>  {line.label}  </Text>
-          <Text>{line.value}</Text>
+          <Text color={theme.dim_0}>  {line.label}  </Text>
+          <Text color={theme.fg_1}>{line.value}</Text>
         </Box>
       )
     case "blocked-banner":
       return (
         <Box>
-          <Text color={theme.ui.danger} bold>🔒 Blocked — waiting on {line.value} {Number(line.value) === 1 ? "dependency" : "dependencies"}</Text>
+          <Text color={theme.red} bold>🔒 Blocked — waiting on {line.value} {Number(line.value) === 1 ? "dependency" : "dependencies"}</Text>
         </Box>
       )
     case "text":
       return (
         <Box>
-          <Text color={line.color} dimColor={line.dimColor}>{line.value}</Text>
+          <Text color={line.dimmed ? theme.dim_0 : (line.color ?? theme.fg_1)}>{line.value}</Text>
         </Box>
       )
     case "blank":
@@ -326,7 +326,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
 
   // Basic info
   lines.push({ type: "field", label: "Title", value: detail.title, bold: true })
-  lines.push({ type: "field", label: "ID", value: detail.id, dimColor: true })
+  lines.push({ type: "field", label: "ID", value: detail.id, dimmed: true })
   lines.push({
     type: "field",
     label: "Status",
@@ -361,13 +361,13 @@ function buildSections(detail: TaskDetailType): LineData[] {
     type: "field",
     label: "Created",
     value: formatDate(detail.createdAt),
-    dimColor: true,
+    dimmed: true,
   })
   lines.push({
     type: "field",
     label: "Updated",
     value: formatDate(detail.updatedAt),
-    dimColor: true,
+    dimmed: true,
   })
 
   // Blocked banner

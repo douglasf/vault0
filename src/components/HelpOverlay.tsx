@@ -206,18 +206,18 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     <Box
       flexDirection="column"
       width="100%"
-      backgroundColor={theme.ui.panelBgCyan}
+      backgroundColor={theme.bg_1}
       paddingX={2}
       paddingY={1}
       flexGrow={1}
     >
       {/* Title bar */}
       <Box justifyContent="space-between" marginBottom={1}>
-        <Text bold color={theme.ui.accent}>
+        <Text bold color={theme.fg_1}>
           Vault0 — Keyboard Shortcuts
         </Text>
         {isFiltered && (
-          <Text dimColor>
+          <Text color={theme.fg_0}>
             {matchCount}/{totalCount} matches
           </Text>
         )}
@@ -225,22 +225,22 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
 
       {/* Filter input */}
       <Box>
-        <Text dimColor>Filter: </Text>
-        <Text color={theme.ui.accent}>{filter}</Text>
-        <Text color={theme.ui.accent}>▎</Text>
+        <Text color={theme.fg_0}>Filter: </Text>
+        <Text color={theme.fg_1}>{filter}</Text>
+        <Text color={theme.fg_1}>▎</Text>
       </Box>
 
       {/* Scrollable shortcut list */}
       <Box flexDirection="row" flexGrow={1} marginTop={1}>
         <Box flexDirection="column" flexGrow={1}>
           {visible.length === 0 ? (
-            <Text dimColor italic>No matching shortcuts</Text>
+            <Text color={theme.fg_0} italic>No matching shortcuts</Text>
           ) : (
             visible.map((item, i) => {
               if (item.kind === "header") {
                 return (
                   <Box key={`h-${visibleWindow.offset + i}`} marginTop={i === 0 ? 0 : 1}>
-                    <Text bold underline color={theme.ui.accentWarm}>
+                    <Text bold underline color={theme.fg_1}>
                       {item.title}
                     </Text>
                   </Box>
@@ -249,11 +249,11 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
               return (
                 <Box key={`s-${visibleWindow.offset + i}`}>
                   <Box width={16}>
-                    <Text bold color={theme.ui.success}>
+                    <Text bold color={theme.fg_1}>
                       {item.key}
                     </Text>
                   </Box>
-                  <Text>{item.desc}</Text>
+                  <Text color={theme.fg_0}>{item.desc}</Text>
                 </Box>
               )
             })
@@ -272,7 +272,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
 
       {/* Footer */}
       <Box marginTop={1}>
-        <Text dimColor>
+        <Text color={theme.fg_0}>
           Type to filter · ↑/↓ scroll · ? or Esc to close
         </Text>
       </Box>

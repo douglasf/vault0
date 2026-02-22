@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react"
 import { Box, Text, useInput } from "ink"
 import { useTextInput } from "../hooks/useTextInput.js"
+import { theme } from "../lib/theme.js"
 
 export interface TextFilterBarProps {
   /** Current search value (so the input starts with existing filter text) */
@@ -47,13 +48,13 @@ export function TextFilterBar({ initialValue, onSearch, onClose }: TextFilterBar
 
   return (
     <Box paddingX={1}>
-      <Text color="#2aa198" bold>🔍 </Text>
-      <Text color="#2aa198">
+      <Text color={theme.cyan} bold>🔍 </Text>
+      <Text color={theme.cyan}>
         {textInput.beforeCursor}
         <Text inverse>{textInput.afterCursor[0] || " "}</Text>
         {textInput.afterCursor.slice(1)}
       </Text>
-      <Text dimColor>  Enter keep · Esc clear</Text>
+      <Text color={theme.dim_0}>  Enter keep · Esc clear</Text>
     </Box>
   )
 }

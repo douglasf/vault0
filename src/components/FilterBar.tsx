@@ -102,12 +102,12 @@ export function FilterBar({
   const currentSection = SECTIONS[sectionIdx]
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1}>
-      <Text bold color={theme.ui.accent}>⚙ Filters</Text>
+    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+      <Text bold color={theme.fg_1}>⚙ Filters</Text>
 
       {/* Status */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "status"} color={currentSection === "status" ? theme.ui.accent : undefined}>
+        <Text bold color={currentSection === "status" ? theme.blue : theme.fg_0}>
           Status:
         </Text>
         <Box gap={1}>
@@ -131,7 +131,7 @@ export function FilterBar({
 
       {/* Priority */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "priority"} color={currentSection === "priority" ? theme.ui.accent : undefined}>
+        <Text bold color={currentSection === "priority" ? theme.blue : theme.fg_0}>
           Priority:
         </Text>
         <Box gap={1}>
@@ -140,7 +140,7 @@ export function FilterBar({
             const isCursor = currentSection === "priority" && itemIdx === idx
             return (
               <Box key={priority}>
-                <Text inverse={isCursor} bold={isSelected}>
+                <Text inverse={isCursor} bold={isSelected} color={theme.fg_0}>
                   {isSelected ? "●" : "○"} {PRIORITY_LABELS[priority]}
                 </Text>
               </Box>
@@ -151,7 +151,7 @@ export function FilterBar({
 
       {/* Source */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "source"} color={currentSection === "source" ? theme.ui.accent : undefined}>
+        <Text bold color={currentSection === "source" ? theme.blue : theme.fg_0}>
           Source:
         </Text>
         <Box gap={1}>
@@ -160,7 +160,7 @@ export function FilterBar({
             const isCursor = currentSection === "source" && itemIdx === idx
             return (
               <Box key={source}>
-                <Text inverse={isCursor} bold={isSelected}>
+                <Text inverse={isCursor} bold={isSelected} color={theme.fg_0}>
                   {isSelected ? "●" : "○"} {source}
                 </Text>
               </Box>
@@ -171,7 +171,7 @@ export function FilterBar({
 
       {/* Toggle Filters */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold underline={currentSection === "toggles"} color={currentSection === "toggles" ? theme.ui.accent : undefined}>
+        <Text bold color={currentSection === "toggles" ? theme.blue : theme.fg_0}>
           Toggles:
         </Text>
         <Box gap={1}>
@@ -180,7 +180,7 @@ export function FilterBar({
             const isCursor = currentSection === "toggles" && itemIdx === idx
             return (
               <Box key={toggleKey}>
-                <Text inverse={isCursor} bold={isSelected}>
+                <Text inverse={isCursor} bold={isSelected} color={theme.fg_0}>
                   {isSelected ? "●" : "○"} {TOGGLE_LABELS[toggleKey]}
                 </Text>
               </Box>
@@ -193,7 +193,7 @@ export function FilterBar({
       <Box marginTop={1}>
         <Text
           inverse={currentSection === "actions"}
-          color={currentSection === "actions" ? theme.ui.accent : theme.ui.muted}
+          color={currentSection === "actions" ? theme.fg_1 : theme.fg_0}
         >
           Clear All Filters (c)
         </Text>
@@ -201,7 +201,7 @@ export function FilterBar({
 
       {/* Help */}
       <Box marginTop={1}>
-        <Text dimColor>↑/↓ section  ←/→ item  Enter toggle  c clear  Esc close</Text>
+        <Text color={theme.fg_0}>↑/↓ section  ←/→ item  Enter toggle  c clear  Esc close</Text>
       </Box>
     </Box>
   )

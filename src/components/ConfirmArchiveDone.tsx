@@ -18,20 +18,20 @@ export function ConfirmArchiveDone({ doneCount, onConfirm, onCancel }: ConfirmAr
   })
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.ui.panelBgYellow} paddingX={2} paddingY={1}>
-      <Text bold color={theme.ui.warning}>Archive Done Lane</Text>
+    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+      <Text bold color={theme.yellow}>Archive Done Lane</Text>
 
       <Box marginTop={1} flexDirection="column">
         <Text>
           Archive all {doneCount} task{doneCount !== 1 ? "s" : ""} in the Done column?
         </Text>
         <Box marginTop={1}>
-          <Text dimColor>Archived tasks can be viewed using the "Show Archived" filter (f).</Text>
+          <Text color={theme.dim_0}>Archived tasks can be viewed using the "Show Archived" filter (f).</Text>
         </Box>
       </Box>
 
       <Box marginTop={1}>
-        <Text dimColor>[y]es  [n]o / Esc: cancel</Text>
+        <Text color={theme.dim_0}>[y]es  [n]o / Esc: cancel</Text>
       </Box>
     </Box>
   )

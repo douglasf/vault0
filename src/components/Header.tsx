@@ -30,27 +30,27 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
   }
 
   return (
-    <Box flexDirection="column" width="100%" marginBottom={1} backgroundColor={theme.ui.headerBg}>
+    <Box flexDirection="column" width="100%" marginBottom={1} backgroundColor={theme.bg_0}>
       <Box justifyContent="space-between" paddingX={1}>
-        <Text bold>Vault0</Text>
+        <Text bold color={theme.fg_1}>Vault0</Text>
         <Box>
           {toast && (
-            <Text color={theme.ui.success} bold> ✓ {toast} </Text>
+            <Text color={theme.green} bold> ✓ {toast} </Text>
           )}
           {searchTerm && (
-            <Text color={theme.ui.accent}> 🔍 {searchTerm} </Text>
+            <Text color={theme.cyan}> 🔍 {searchTerm} </Text>
           )}
           {filters.showArchived && (
-            <Text color={theme.ui.warning} bold> ⌫ archived </Text>
+            <Text color={theme.yellow} bold> ⌫ archived </Text>
           )}
           {activeFilterCount > 0 && (
-            <Text color={theme.ui.accent} bold> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </Text>
+            <Text color={theme.cyan} bold> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </Text>
           )}
         </Box>
       </Box>
       <Box justifyContent="space-between" paddingX={1}>
-        <Text dimColor>{boardName}</Text>
-        <Text dimColor>f search | F filter | r ready | b blocked | v preview | ? help | q quit</Text>
+        <Text color={theme.dim_0}>{boardName}</Text>
+        <Text color={theme.dim_0}>f search | F filter | r ready | b blocked | v preview | ? help | q quit</Text>
       </Box>
     </Box>
   )

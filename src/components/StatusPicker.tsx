@@ -28,8 +28,8 @@ export function StatusPicker({ task, onSelectStatus, onCancel }: StatusPickerPro
   })
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1}>
-      <Text bold color={theme.ui.accent}>Move Task: {task.title.substring(0, 30)}</Text>
+    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+      <Text bold color={theme.cyan}>Move Task: {task.title.substring(0, 30)}</Text>
 
       {VISIBLE_STATUSES.map((status, i) => (
         <Box key={status} marginTop={i === 0 ? 1 : 0}>
@@ -46,7 +46,7 @@ export function StatusPicker({ task, onSelectStatus, onCancel }: StatusPickerPro
       ))}
 
       <Box marginTop={1}>
-        <Text dimColor>↑/↓: navigate  Enter: select  Esc: cancel</Text>
+        <Text color={theme.dim_0}>↑/↓: navigate  Enter: select  Esc: cancel</Text>
       </Box>
     </Box>
   )

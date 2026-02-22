@@ -33,8 +33,8 @@ export function Scrollbar({
   const scrollRatio = maxOffset > 0 ? scrollOffset / maxOffset : 0
   const thumbStart = Math.round(scrollRatio * (trackHeight - thumbSize))
 
-  const thumbColor = isActive ? theme.laneText.primary : theme.laneText.secondary
-  const trackColor = theme.laneText.muted
+  const thumbColor = isActive ? theme.fg_1 : theme.fg_0
+  const trackColor = theme.bg_2
 
   const lines: React.ReactNode[] = []
   for (let i = 0; i < trackHeight; i++) {

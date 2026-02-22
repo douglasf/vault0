@@ -4,7 +4,7 @@ import { TaskCard } from "./TaskCard.js"
 import { Scrollbar } from "./Scrollbar.js"
 import type { TaskCard as TaskCardType, Status } from "../lib/types.js"
 import { STATUS_LABELS } from "../lib/constants.js"
-import { solarized, getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
+import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
 
 export interface ColumnProps {
   status: Status
@@ -132,11 +132,11 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
       {/* Column header with status label and task count */}
       <Box justifyContent="center" marginBottom={1}>
         {isActive ? (
-          <Text bold color={solarized.cyan} underline>
+           <Text bold color={theme.blue} underline>
             {STATUS_LABELS[status]} ({tasks.length})
           </Text>
         ) : (
-          <Text bold color={theme.laneText.primary}>
+          <Text bold color={theme.fg_1}>
             {STATUS_LABELS[status]} ({tasks.length})
           </Text>
         )}
@@ -145,7 +145,7 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
       {/* Task list with scrollbar */}
       <Box flexDirection="column">
         {tasks.length === 0 ? (
-          <Text color={theme.laneText.muted}>No tasks</Text>
+          <Text color={theme.dim_0}>No tasks</Text>
         ) : (
           <Box flexDirection="row">
             <Box flexDirection="column" flexGrow={1}>
@@ -169,7 +169,7 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
                     {/* Orphan group header — shown once per parent group */}
                     {showOrphanHeader && task.parentTitle && (
                       <Box overflow="hidden">
-                        <Text color={theme.laneText.muted} italic wrap="truncate-end">
+                        <Text color={theme.dim_0} italic wrap="truncate-end">
                           ↳ {task.parentTitle}
                         </Text>
                       </Box>

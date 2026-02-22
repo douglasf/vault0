@@ -18,7 +18,7 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
     return (
       <Box
         flexDirection="column"
-        backgroundColor={theme.ui.panelBg}
+        backgroundColor={theme.bg_0}
         paddingX={1}
         {...(orientation === "bottom"
           ? { width: "100%", height: maxHeight, marginTop: 1 }
@@ -26,7 +26,7 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
         )}
       >
         <Box justifyContent="center" flexGrow={1} alignItems="center">
-          <Text dimColor italic>No task selected</Text>
+          <Text color={theme.fg_0} italic>No task selected</Text>
         </Box>
       </Box>
     )
@@ -54,7 +54,7 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
   return (
     <Box
       flexDirection="column"
-      backgroundColor={theme.ui.panelBg}
+      backgroundColor={theme.bg_0}
       paddingX={1}
       {...(orientation === "bottom"
         ? { width: "100%", height: maxHeight, marginTop: 1 }
@@ -62,18 +62,18 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
       )}
     >
       {/* Title */}
-      <Text bold wrap="truncate">
+      <Text bold wrap="truncate" color={theme.fg_1}>
         {task.title}
       </Text>
 
       {/* Status + Priority + Type on a single compact line */}
       <Box gap={1}>
         <Text color={statusColor}>{statusLabel}</Text>
-        <Text dimColor>│</Text>
+        <Text color={theme.fg_0}>│</Text>
         <Text color={priorityColor}>{priorityLabel}</Text>
         {typeLabel && (
           <>
-            <Text dimColor>│</Text>
+            <Text color={theme.fg_0}>│</Text>
             <Text color={typeColor}>{typeLabel}</Text>
           </>
         )}
@@ -85,12 +85,12 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
           {descriptionLines.map((line) => {
             // Use content hash as key — lines won't reorder within a preview
             const lineKey = `${line.length}-${line.substring(0, 30)}`
-            return <Text key={lineKey} dimColor wrap="truncate">{line}</Text>
+            return <Text key={lineKey} color={theme.fg_0} wrap="truncate">{line}</Text>
           })}
         </Box>
       ) : (
         <Box marginTop={1}>
-          <Text dimColor italic>No description</Text>
+          <Text color={theme.fg_0} italic>No description</Text>
         </Box>
       )}
     </Box>

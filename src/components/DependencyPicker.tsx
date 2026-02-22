@@ -69,21 +69,21 @@ export function DependencyPicker({
   })
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.ui.panelBgCyan} paddingX={2} paddingY={1}>
-      <Text bold color={theme.ui.accent}>Add Dependency</Text>
+    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+      <Text bold color={theme.cyan}>Add Dependency</Text>
 
       <Box marginTop={1}>
-        <Text dimColor>Search: </Text>
+        <Text color={theme.dim_0}>Search: </Text>
         {searchFilter ? (
           <Text>{searchFilter}</Text>
         ) : (
-          <Text dimColor>(type to filter)</Text>
+          <Text color={theme.dim_0}>(type to filter)</Text>
         )}
       </Box>
 
       <Box marginTop={1} flexDirection="column">
         {availableTasks.length === 0 ? (
-          <Text dimColor>No matching tasks</Text>
+          <Text color={theme.dim_0}>No matching tasks</Text>
         ) : (
           visibleTasks.map((task, i) => {
             const globalIndex = scrollStart + i
@@ -105,14 +105,14 @@ export function DependencyPicker({
 
       {availableTasks.length > maxVisible && (
         <Box marginTop={1}>
-          <Text dimColor>
+          <Text color={theme.dim_0}>
             {scrollStart + 1}–{Math.min(scrollStart + maxVisible, availableTasks.length)} of {availableTasks.length}
           </Text>
         </Box>
       )}
 
       <Box marginTop={1}>
-        <Text dimColor>↑/↓: navigate  Enter: add  Esc: cancel</Text>
+        <Text color={theme.dim_0}>↑/↓: navigate  Enter: add  Esc: cancel</Text>
       </Box>
     </Box>
   )

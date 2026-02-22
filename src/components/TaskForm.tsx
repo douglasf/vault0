@@ -2,7 +2,7 @@ import React, { useState } from "react"
 import { Box, Text, useInput } from "ink"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, TASK_TYPE_LABELS, TASK_TYPES } from "../lib/constants.js"
-import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
+import { getPriorityColor, getStatusColor, getTaskTypeColor, theme } from "../lib/theme.js"
 import { useTextInput } from "../hooks/useTextInput.js"
 
 export interface TaskFormProps {
@@ -236,22 +236,22 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
   return (
     <Box flexDirection="column" paddingX={2}>
-      <Text bold color="#2aa198">
+      <Text bold color={theme.blue}>
         {mode === "create" ? (parentTitle ? "Create Subtask" : "Create Task") : "Edit Task"}
       </Text>
       {parentTitle && (
-        <Text dimColor>Parent: {parentTitle}</Text>
+        <Text color={theme.dim_0}>Parent: {parentTitle}</Text>
       )}
 
       <Text> </Text>
-      <Text color={isTitleFocused ? "#2aa198" : "#839496"}>
+      <Text color={isTitleFocused ? theme.blue : theme.fg_0}>
         {isTitleFocused ? "\u25B8 " : "  "}Title: {titleVisible.slice(0, isTitleFocused ? titleAdjCursor : titleVisible.length)}
         {isTitleFocused && <Text inverse>{titleVisible[titleAdjCursor] || " "}</Text>}
         {isTitleFocused ? titleVisible.slice(titleAdjCursor + 1) : ""}
       </Text>
 
       <Text> </Text>
-      <Text color={isDescFocused ? "#2aa198" : "#839496"}>
+      <Text color={isDescFocused ? theme.blue : theme.fg_0}>
         {isDescFocused ? "\u25B8 " : "  "}Description:
       </Text>
 
@@ -261,10 +261,10 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         return (
           <>
             {descHasMoreAbove && (
-              <Text dimColor wrap="truncate">  {`↑ ${descScrollStart} more`}</Text>
+              <Text color={theme.dim_0} wrap="truncate">  {`↑ ${descScrollStart} more`}</Text>
             )}
             {descInput.value === "" && !isDescFocused ? (
-              <Text dimColor>  (empty)</Text>
+              <Text color={theme.dim_0}>  (empty)</Text>
             ) : (
               descVisibleLines.map((dl, i) => {
                 const globalIdx = descScrollStart + i
@@ -273,7 +273,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
                 // Paste placeholder lines: always dim, never have cursor
                 if (dl.isPaste) {
                   return (
-                    <Text key={lineKey} dimColor wrap="truncate">
+                    <Text key={lineKey} color={theme.dim_0} wrap="truncate">
                       {"    "}{dl.text}
                     </Text>
                   )
@@ -289,20 +289,20 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
                     before = before.slice(0, Math.max(0, descTextWidth - 1 - after.length))
                   }
                   return (
-                    <Text key={lineKey} wrap="truncate" color="#839496">
+                    <Text key={lineKey} wrap="truncate" color={theme.fg_0}>
                       {"  "}{before}<Text inverse>{cursorChar}</Text>{after}
                     </Text>
                   )
                 }
                 return (
-                  <Text key={lineKey} wrap="truncate" color={isDescFocused ? "#839496" : "#586e75"}>
+                  <Text key={lineKey} wrap="truncate" color={isDescFocused ? theme.fg_0 : theme.dim_0}>
                     {"  "}{dl.text || " "}
                   </Text>
                 )
               })
             )}
             {descHasMoreBelow && (
-              <Text dimColor wrap="truncate">  {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</Text>
+              <Text color={theme.dim_0} wrap="truncate">  {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</Text>
             )}
           </>
         )
@@ -310,7 +310,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
       <Text> </Text>
       <Text>
-        <Text color={focusField === "priority" ? "#2aa198" : "#839496"}>
+        <Text color={focusField === "priority" ? theme.blue : theme.fg_0}>
           {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
         </Text>
         <Text color={getPriorityColor(priority)}>
@@ -320,10 +320,10 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
       <Text> </Text>
       <Text>
-        <Text color={focusField === "type" ? "#2aa198" : "#839496"}>
+        <Text color={focusField === "type" ? theme.blue : theme.fg_0}>
           {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
         </Text>
-        <Text color={taskType ? getTaskTypeColor(taskType) : "#586e75"}>
+        <Text color={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
           {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
         </Text>
       </Text>
@@ -332,7 +332,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         <>
           <Text> </Text>
           <Text>
-            <Text color={focusField === "status" ? "#2aa198" : "#839496"}>
+            <Text color={focusField === "status" ? theme.blue : theme.fg_0}>
               {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
             </Text>
             <Text color={getStatusColor(status)}>
@@ -344,14 +344,14 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
       <Text> </Text>
       <Text> </Text>
-      <Text inverse={focusField === "submit"} color={focusField === "submit" ? "#2aa198" : "#839496"}>
+      <Text inverse={focusField === "submit"} color={focusField === "submit" ? theme.blue : theme.fg_0}>
         {focusField === "submit" ? "\u25B8 " : "  "}
         [{mode === "create" ? "Create" : "Save"}]
       </Text>
 
       <Text> </Text>
-      <Text dimColor>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</Text>
-      <Text dimColor>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</Text>
+      <Text color={theme.dim_0}>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</Text>
+      <Text color={theme.dim_0}>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</Text>
     </Box>
   )
 }
