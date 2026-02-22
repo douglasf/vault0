@@ -25,10 +25,8 @@ function computeTaskLineHeight(
   isBlocked: boolean,
   hasOrphanHeader: boolean,
 ): number {
-  let lines = 1 // title line is always present
+  let lines = 1 // title line is always present (blocked icon is inline)
   if (hasOrphanHeader) lines += 1
-  if (task.dependencyCount > 0) lines += 1
-  if (isBlocked) lines += 1
   return lines
 }
 

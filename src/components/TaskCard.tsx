@@ -14,9 +14,7 @@ export interface TaskCardProps {
 
 export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef = true }: TaskCardProps) {
   const priorityColor = getPriorityColor(task.priority)
-  const depsBadge = task.dependencyCount > 0 ? `⚑ ${task.dependencyCount} ` : ""
   const subtaskBadge = task.subtaskTotal > 0 ? `◫ ${task.subtaskDone}/${task.subtaskTotal}` : ""
-  const statusLine = isBlocked ? "🔒 blocked" : ""
   const isSubtask = task.parentId !== null
   const isArchived = task.archivedAt !== null
 
@@ -37,6 +35,7 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
         </Box>
         <Box flexShrink={0}>
           {isArchived && <Text color={theme.dim_0}> ⌫</Text>}
+          {isBlocked && <Text color={theme.red}> 🔒</Text>}
           {typeIndicator !== "" && <Text color={typeColor}> {typeIndicator}</Text>}
           {subtaskBadge !== "" && <Text color={theme.fg_0}> {subtaskBadge}</Text>}
         </Box>
@@ -48,22 +47,6 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
           <Text color={theme.dim_0} italic wrap="truncate-end">
             ↳ {task.parentTitle}
           </Text>
-        </Box>
-      )}
-
-      {/* Dependency badge */}
-      {depsBadge !== "" && (
-        <Box paddingLeft={2}>
-          <Text color={theme.fg_0}>
-            {depsBadge}
-          </Text>
-        </Box>
-      )}
-
-      {/* Blocked indicator */}
-      {statusLine && (
-        <Box paddingLeft={2}>
-          <Text color={theme.red} bold>{statusLine}</Text>
         </Box>
       )}
     </Box>
