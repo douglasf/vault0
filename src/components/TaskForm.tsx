@@ -152,132 +152,254 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
     }
   })
 
-  // Description viewport: scroll to keep cursor visible
-  const descLines = descInput.lines
-  const descTotalLines = descLines.length
   const isTitleFocused = focusField === "title"
   const isDescFocused = focusField === "description"
 
+  // Terminal-aware width for description to prevent container overflow.
+  // RADICAL SIMPLIFICATION: No outer box, no padding, no border, no margin.
+  // Only overhead is the 4-char indent prefix ("    ") added inline.
+  const termCols = process.stdout.columns || 80
+  const descTextWidth = Math.max(10, termCols - 4)
+
+  // Build display lines from tokens: text tokens get word-wrapped,
+  // paste tokens render as a single placeholder line.
+  const descDisplayLines: Array<{ text: string; isPaste: boolean }> = []
+  let cursorDisplayIdx = 0
+  let cursorDisplayCol = 0
+
+  const descTokens = descInput.tokens
+  for (let ti = 0; ti < descTokens.length; ti++) {
+    const token = descTokens[ti]
+
+    if (token.type === "paste") {
+      // The entire paste content becomes one placeholder — no extraction,
+      // no popping display lines, no special newline handling.
+      const lineCount = token.content.split("\n").length
+      descDisplayLines.push({
+        text: `[Pasted ~${lineCount} line${lineCount === 1 ? "" : "s"}]`,
+        isPaste: true,
+      })
+      continue
+    }
+
+    // Text token — skip empty non-cursor tokens to avoid visual noise
+    if (token.content === "" && ti !== descInput.cursorTokenIndex) {
+      continue
+    }
+
+    const logicalLines = token.content.split("\n")
+    for (let li = 0; li < logicalLines.length; li++) {
+      const line = logicalLines[li]
+      const wrapped = wrapWithOffsets(line, descTextWidth)
+      for (let wi = 0; wi < wrapped.length; wi++) {
+        const part = wrapped[wi]
+        const globalIdx = descDisplayLines.length
+        descDisplayLines.push({
+          text: part.text,
+          isPaste: false,
+        })
+        // Map cursor position: match token index + logical line + wrapped segment
+        if (ti === descInput.cursorTokenIndex && li === descInput.tokenCursorLine) {
+          const nextOffset = wi < wrapped.length - 1 ? wrapped[wi + 1].offset : line.length + 1
+          if (descInput.tokenCursorCol >= part.offset && descInput.tokenCursorCol < nextOffset) {
+            cursorDisplayIdx = globalIdx
+            cursorDisplayCol = descInput.tokenCursorCol - part.offset
+          }
+        }
+      }
+    }
+  }
+
+  // Description viewport: scroll to keep cursor visible (in display-line space)
+  const descTotalDisplayLines = descDisplayLines.length
   let descScrollStart = 0
-  if (isDescFocused && descTotalLines > DESC_VIEWPORT) {
+  if (isDescFocused && descTotalDisplayLines > DESC_VIEWPORT) {
     descScrollStart = Math.max(0, Math.min(
-      descInput.cursorLine - Math.floor(DESC_VIEWPORT / 2),
-      descTotalLines - DESC_VIEWPORT,
+      cursorDisplayIdx - Math.floor(DESC_VIEWPORT / 2),
+      descTotalDisplayLines - DESC_VIEWPORT,
     ))
   }
-  const descVisibleLines = descLines.slice(descScrollStart, descScrollStart + DESC_VIEWPORT)
+  const descVisibleLines = descDisplayLines.slice(descScrollStart, descScrollStart + DESC_VIEWPORT)
   const descHasMoreAbove = descScrollStart > 0
-  const descHasMoreBelow = descScrollStart + DESC_VIEWPORT < descTotalLines
+  const descHasMoreBelow = descScrollStart + DESC_VIEWPORT < descTotalDisplayLines
+
+  // Title field: no outer box overhead, just prefix "▸ Title: " (9 chars)
+  const titleTextWidth = Math.max(10, termCols - 9)
+
+  let titleHStart = 0
+  if (isTitleFocused && titleInput.value.length > titleTextWidth) {
+    titleHStart = Math.max(0, titleInput.cursor - Math.floor(titleTextWidth * 0.7))
+    titleHStart = Math.min(titleHStart, Math.max(0, titleInput.value.length - titleTextWidth))
+  }
+  const titleVisible = titleInput.value.slice(titleHStart, titleHStart + titleTextWidth)
+  const titleAdjCursor = titleInput.cursor - titleHStart
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1}>
+    <Box flexDirection="column">
       <Text bold color="cyan">
         {mode === "create" ? (parentTitle ? "Create Subtask" : "Create Task") : "Edit Task"}
       </Text>
       {parentTitle && (
-        <Text dimColor>  Parent: {parentTitle}</Text>
+        <Text dimColor>Parent: {parentTitle}</Text>
       )}
 
-      {/* Title Field — single-line with inverse-video cursor */}
-      <Box marginTop={1}>
-        <Text color={isTitleFocused ? "cyan" : "white"}>
-          {isTitleFocused ? "\u25B8 " : "  "}Title: {titleInput.beforeCursor}
-          {isTitleFocused && <Text inverse>{titleInput.afterCursor[0] || " "}</Text>}
-          {isTitleFocused ? titleInput.afterCursor.slice(1) : titleInput.afterCursor}
-        </Text>
-      </Box>
+      <Text> </Text>
+      <Text color={isTitleFocused ? "cyan" : "white"}>
+        {isTitleFocused ? "\u25B8 " : "  "}Title: {titleVisible.slice(0, isTitleFocused ? titleAdjCursor : titleVisible.length)}
+        {isTitleFocused && <Text inverse>{titleVisible[titleAdjCursor] || " "}</Text>}
+        {isTitleFocused ? titleVisible.slice(titleAdjCursor + 1) : ""}
+      </Text>
 
-      {/* Description Field — label */}
-      <Box marginTop={1}>
-        <Text color={isDescFocused ? "cyan" : "white"}>
-          {isDescFocused ? "\u25B8 " : "  "}Description:
-        </Text>
-      </Box>
+      <Text> </Text>
+      <Text color={isDescFocused ? "cyan" : "white"}>
+        {isDescFocused ? "\u25B8 " : "  "}Description:
+      </Text>
 
-      {/* Description Field — multi-line textarea with cursor and scroll */}
-      <Box
-        marginLeft={4}
-        borderStyle={isDescFocused ? "round" : "single"}
-        borderColor={isDescFocused ? "cyan" : "gray"}
-        paddingX={1}
-        minHeight={3}
-        flexDirection="column"
-      >
-        {descHasMoreAbove && (
-          <Text dimColor>{`\u2191 ${descScrollStart} more`}</Text>
-        )}
-        {descInput.value === "" && !isDescFocused ? (
-          <Text dimColor>(empty)</Text>
-        ) : (
-          descVisibleLines.map((line, i) => {
-            const globalLineIdx = descScrollStart + i
-            const lineKey = `line-${globalLineIdx}`
-            const isActiveLine = isDescFocused && globalLineIdx === descInput.cursorLine
-            if (isActiveLine) {
-              const before = line.slice(0, descInput.cursorCol)
-              const after = line.slice(descInput.cursorCol)
-              return (
-                <Text key={lineKey} color="white">
-                  {before}<Text inverse>{after[0] || " "}</Text>{after.slice(1)}
-                </Text>
-              )
-            }
-            return (
-              <Text key={lineKey} color={isDescFocused ? "white" : "gray"}>
-                {line || " "}
-              </Text>
-            )
-          })
-        )}
-        {descHasMoreBelow && (
-          <Text dimColor>{`\u2193 ${descTotalLines - descScrollStart - DESC_VIEWPORT} more`}</Text>
-        )}
-      </Box>
+      {(() => {
+        // Token-based rendering: text tokens are editable, paste tokens show placeholders.
+        // All display lines (from both text and paste tokens) are in a single flat array.
+        return (
+          <>
+            {descHasMoreAbove && (
+              <Text dimColor wrap="truncate">    {`↑ ${descScrollStart} more`}</Text>
+            )}
+            {descInput.value === "" && !isDescFocused ? (
+              <Text dimColor>    (empty)</Text>
+            ) : (
+              descVisibleLines.map((dl, i) => {
+                const globalIdx = descScrollStart + i
+                const lineKey = `dline-${globalIdx}`
 
-      {/* Priority Field */}
-      <Box marginTop={1}>
+                // Paste placeholder lines: always dim, never have cursor
+                if (dl.isPaste) {
+                  return (
+                    <Text key={lineKey} dimColor wrap="truncate">
+                      {"    "}{dl.text}
+                    </Text>
+                  )
+                }
+
+                // Text display lines: may have cursor highlight
+                const isActiveLine = isDescFocused && globalIdx === cursorDisplayIdx
+                if (isActiveLine) {
+                  let before = dl.text.slice(0, cursorDisplayCol)
+                  const cursorChar = dl.text[cursorDisplayCol] || " "
+                  const after = dl.text.slice(cursorDisplayCol + 1)
+                  if (before.length + 1 + after.length > descTextWidth) {
+                    before = before.slice(0, Math.max(0, descTextWidth - 1 - after.length))
+                  }
+                  return (
+                    <Text key={lineKey} wrap="truncate" color="white">
+                      {"    "}{before}<Text inverse>{cursorChar}</Text>{after}
+                    </Text>
+                  )
+                }
+                return (
+                  <Text key={lineKey} wrap="truncate" color={isDescFocused ? "white" : "gray"}>
+                    {"    "}{dl.text || " "}
+                  </Text>
+                )
+              })
+            )}
+            {descHasMoreBelow && (
+              <Text dimColor wrap="truncate">    {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</Text>
+            )}
+          </>
+        )
+      })()}
+
+      <Text> </Text>
+      <Text>
         <Text color={focusField === "priority" ? "cyan" : "white"}>
           {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
         </Text>
         <Text color={getPriorityColor(priority)}>
           {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
         </Text>
-      </Box>
+      </Text>
 
-      {/* Type Field */}
-      <Box marginTop={1}>
+      <Text> </Text>
+      <Text>
         <Text color={focusField === "type" ? "cyan" : "white"}>
           {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
         </Text>
         <Text color={taskType ? getTaskTypeColor(taskType) : "gray"}>
           {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
         </Text>
-      </Box>
+      </Text>
 
-      {/* Status Field (create only) */}
       {mode === "create" && (
-        <Box marginTop={1}>
-          <Text color={focusField === "status" ? "cyan" : "white"}>
-            {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
+        <>
+          <Text> </Text>
+          <Text>
+            <Text color={focusField === "status" ? "cyan" : "white"}>
+              {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
+            </Text>
+            <Text color={getStatusColor(status)}>
+              {"\u25C0 "}{STATUS_DISPLAY[status] || status}{" \u25B6"}
+            </Text>
           </Text>
-          <Text color={getStatusColor(status)}>
-            {"\u25C0 "}{STATUS_DISPLAY[status] || status}{" \u25B6"}
-          </Text>
-        </Box>
+        </>
       )}
 
-      {/* Submit Button */}
-      <Box marginTop={2}>
-        <Text inverse={focusField === "submit"} color={focusField === "submit" ? "cyan" : "white"}>
-          {focusField === "submit" ? "\u25B8 " : "  "}
-          [{mode === "create" ? "Create" : "Save"}]
-        </Text>
-      </Box>
+      <Text> </Text>
+      <Text> </Text>
+      <Text inverse={focusField === "submit"} color={focusField === "submit" ? "cyan" : "white"}>
+        {focusField === "submit" ? "\u25B8 " : "  "}
+        [{mode === "create" ? "Create" : "Save"}]
+      </Text>
 
-      <Box marginTop={1} flexDirection="column">
-        <Text dimColor>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</Text>
-        <Text dimColor>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</Text>
-      </Box>
+      <Text> </Text>
+      <Text dimColor>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</Text>
+      <Text dimColor>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</Text>
     </Box>
   )
+}
+
+// ── Utility functions ───────────────────────────────────────────────
+
+/**
+ * Word-wrap a single line of text, tracking the character offset where each
+ * display line starts in the original text. This enables mapping cursor
+ * position from logical line coordinates to display line coordinates.
+ *
+ * Breaks at word boundaries (spaces) when possible; falls back to hard breaks
+ * for words longer than maxWidth.
+ */
+function wrapWithOffsets(text: string, maxWidth: number): Array<{ text: string; offset: number }> {
+  if (text.length <= maxWidth) {
+    return [{ text, offset: 0 }]
+  }
+
+  const result: Array<{ text: string; offset: number }> = []
+  let pos = 0
+
+  while (pos < text.length) {
+    const remaining = text.length - pos
+    if (remaining <= maxWidth) {
+      result.push({ text: text.slice(pos), offset: pos })
+      break
+    }
+
+    // Scan backward from pos+maxWidth to find the last space for a clean break
+    let breakIdx = -1
+    for (let i = pos + maxWidth; i > pos; i--) {
+      if (text[i] === " ") {
+        breakIdx = i
+        break
+      }
+    }
+
+    if (breakIdx <= pos) {
+      // No space found within the window — hard break at maxWidth
+      result.push({ text: text.slice(pos, pos + maxWidth), offset: pos })
+      pos += maxWidth
+    } else {
+      // Break at the space (the space itself is consumed, not displayed)
+      result.push({ text: text.slice(pos, breakIdx), offset: pos })
+      pos = breakIdx + 1
+    }
+  }
+
+  return result.length > 0 ? result : [{ text: "", offset: 0 }]
 }
