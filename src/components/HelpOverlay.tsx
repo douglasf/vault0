@@ -12,6 +12,50 @@ interface ShortcutSection {
   shortcuts: [string, string][]
 }
 
+// ── Legend data with actual theme color references ───────────────────
+
+interface LegendEntry {
+  label: string
+  desc: string
+  color: () => string
+  bgColor?: () => string
+}
+
+interface LegendSection {
+  title: string
+  entries: LegendEntry[]
+}
+
+const legendSections: LegendSection[] = [
+  {
+    title: "Priority Indicators",
+    entries: [
+      { label: "●", desc: "Critical", color: () => theme.red },
+      { label: "●", desc: "High", color: () => theme.yellow },
+      { label: "●", desc: "Normal", color: () => theme.fg_0 },
+      { label: "●", desc: "Low", color: () => theme.dim_0 },
+    ],
+  },
+  {
+    title: "Task Type Badges",
+    entries: [
+      { label: "✦", desc: "Feature", color: () => theme.green },
+      { label: "▪", desc: "Bug", color: () => theme.red },
+      { label: "◇", desc: "Analysis", color: () => theme.cyan },
+    ],
+  },
+  {
+    title: "Status & Icons",
+    entries: [
+      { label: "🔒", desc: "Blocked — has unfinished dependencies", color: () => theme.red },
+      { label: "◫ 2/5", desc: "Subtask progress (done/total)", color: () => theme.fg_0 },
+      { label: "→", desc: "Subtask — indented child task", color: () => theme.dim_0 },
+      { label: "↳ Parent", desc: "Shows parent task", color: () => theme.dim_0 },
+      { label: "⌫", desc: "Archived task", color: () => theme.dim_0 },
+    ],
+  },
+]
+
 const sections: ShortcutSection[] = [
   {
     title: "Board Navigation",
@@ -67,7 +111,7 @@ const sections: ShortcutSection[] = [
 
 /**
  * Flatten sections into renderable items for display.
- * Each item is either a section header or a shortcut row.
+ * Each item is a section header, a shortcut row, a legend entry, or a divider.
  */
 interface HeaderItem {
   kind: "header"
@@ -78,14 +122,34 @@ interface ShortcutItem {
   key: string
   desc: string
 }
-type RenderItem = HeaderItem | ShortcutItem
+interface LegendItem {
+  kind: "legend"
+  entry: LegendEntry
+}
+interface DividerItem {
+  kind: "divider"
+  label: string
+}
+type RenderItem = HeaderItem | ShortcutItem | LegendItem | DividerItem
 
 function buildItems(): RenderItem[] {
   const items: RenderItem[] = []
+
+  // Keyboard Shortcuts super-header
+  items.push({ kind: "divider", label: "⌨  Keyboard Shortcuts" })
   for (const section of sections) {
     items.push({ kind: "header", title: section.title })
     for (const [key, desc] of section.shortcuts) {
       items.push({ kind: "shortcut", key, desc })
+    }
+  }
+
+  // Legend super-header
+  items.push({ kind: "divider", label: "🎨  Legend" })
+  for (const section of legendSections) {
+    items.push({ kind: "header", title: section.title })
+    for (const entry of section.entries) {
+      items.push({ kind: "legend", entry })
     }
   }
   return items
@@ -102,13 +166,16 @@ function filterItems(items: RenderItem[], query: string): RenderItem[] {
   if (!query) return items
   const lower = query.toLowerCase()
   const result: RenderItem[] = []
-  let pendingHeader: HeaderItem | null = null
+  let pendingHeader: (HeaderItem | DividerItem) | null = null
 
   for (const item of items) {
-    if (item.kind === "header") {
+    if (item.kind === "header" || item.kind === "divider") {
       pendingHeader = item
     } else {
-      if (item.desc.toLowerCase().includes(lower) || item.key.toLowerCase().includes(lower)) {
+      const searchText = item.kind === "shortcut"
+        ? `${item.key} ${item.desc}`
+        : `${item.entry.label} ${item.entry.desc}`
+      if (searchText.toLowerCase().includes(lower)) {
         if (pendingHeader) {
           result.push(pendingHeader)
           pendingHeader = null
@@ -146,8 +213,9 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     let count = 0
     for (let i = offset; i < filteredItems.length; i++) {
       let itemLines = 1
-      // Section headers (not at the top of the window) have a margin line above
-      if (filteredItems[i].kind === "header" && i > offset) {
+      // Section headers and dividers (not at the top of the window) have a margin line above
+      const k = filteredItems[i].kind
+      if ((k === "header" || k === "divider") && i > offset) {
         itemLines += 1
       }
       if (linesUsed + itemLines > contentHeight && count > 0) break
@@ -200,8 +268,8 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     }
   })
 
-  const matchCount = filteredItems.filter((i) => i.kind === "shortcut").length
-  const totalCount = allItems.filter((i) => i.kind === "shortcut").length
+  const matchCount = filteredItems.filter((i) => i.kind === "shortcut" || i.kind === "legend").length
+  const totalCount = allItems.filter((i) => i.kind === "shortcut" || i.kind === "legend").length
   const isFiltered = filter.length > 0
 
   return (
@@ -216,7 +284,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
       {/* Title bar */}
       <Box justifyContent="space-between" marginBottom={1}>
         <Text bold color={theme.fg_1}>
-          Vault0 — Keyboard Shortcuts
+          Vault0 — Help
         </Text>
         {isFiltered && (
           <Text color={theme.fg_0}>
@@ -239,17 +307,45 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
             <Text color={theme.fg_0} italic>No matching shortcuts</Text>
           ) : (
             visible.map((item, i) => {
+              const k = `${item.kind}-${visibleWindow.offset + i}`
+              if (item.kind === "divider") {
+                return (
+                  <Box key={k} marginTop={i === 0 ? 0 : 1} marginBottom={0}>
+                    <Text bold color={theme.cyan}>
+                      {item.label}
+                    </Text>
+                  </Box>
+                )
+              }
               if (item.kind === "header") {
                 return (
-                  <Box key={`h-${visibleWindow.offset + i}`} marginTop={i === 0 ? 0 : 1}>
+                  <Box key={k} marginTop={i === 0 ? 0 : 1}>
                     <Text bold underline color={theme.fg_1}>
                       {item.title}
                     </Text>
                   </Box>
                 )
               }
+              if (item.kind === "legend") {
+                const { entry } = item
+                return (
+                  <Box key={k}>
+                    <Box width={16}>
+                      <Text
+                        color={entry.color()}
+                        backgroundColor={entry.bgColor?.()}
+                        bold
+                      >
+                        {entry.label}
+                      </Text>
+                    </Box>
+                    {entry.desc ? <Text color={theme.fg_0}>{entry.desc}</Text> : null}
+                  </Box>
+                )
+              }
+              // shortcut
               return (
-                <Box key={`s-${visibleWindow.offset + i}`}>
+                <Box key={k}>
                   <Box width={16}>
                     <Text bold color={theme.fg_1}>
                       {item.key}
