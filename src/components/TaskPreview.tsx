@@ -119,6 +119,17 @@ function wordWrapLines(text: string, maxWidth: number, maxLines: number): string
     let current = ""
     for (const word of words) {
       if (lines.length >= maxLines) break
+      // Force-break words that are longer than maxWidth
+      if (word.length > maxWidth) {
+        if (current) {
+          lines.push(current)
+          current = ""
+        }
+        for (let i = 0; i < word.length && lines.length < maxLines; i += maxWidth) {
+          lines.push(word.slice(i, i + maxWidth))
+        }
+        continue
+      }
       if (current.length + word.length + 1 > maxWidth) {
         lines.push(current)
         current = word

@@ -365,7 +365,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
     const wrapWidth = Math.max(20, (process.stdout.columns || 80) - 10)
     const wrapped = wordWrap(detail.description, wrapWidth)
     for (const wl of wrapped) {
-      lines.push({ type: "text", value: `  ${wl}` })
+      lines.push({ type: "text", value: wl })
     }
   }
 
@@ -459,6 +459,17 @@ function wordWrap(text: string, maxWidth: number): string[] {
     const words = para.split(" ")
     let current = ""
     for (const word of words) {
+      // Force-break words that are longer than maxWidth
+      if (word.length > maxWidth) {
+        if (current) {
+          lines.push(current)
+          current = ""
+        }
+        for (let i = 0; i < word.length; i += maxWidth) {
+          lines.push(word.slice(i, i + maxWidth))
+        }
+        continue
+      }
       if (current.length + word.length + 1 > maxWidth) {
         lines.push(current)
         current = word
