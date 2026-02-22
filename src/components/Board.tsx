@@ -113,6 +113,7 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
           readyIds={readyIds}
           blockedIds={blockedIds}
           heightReduction={heightReduction}
+          columnCount={VISIBLE_STATUSES.length}
         />
       ))}
     </Box>

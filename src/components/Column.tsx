@@ -15,6 +15,8 @@ export interface ColumnProps {
   blockedIds: Set<string>
   /** Extra lines to subtract from available height (e.g. preview panel) */
   heightReduction?: number
+  /** Total number of columns displayed — used to compute fixed percentage width */
+  columnCount?: number
 }
 
 /** Compute the rendered line height of a single task card (excluding bottom margin). */
@@ -81,7 +83,7 @@ function computeVisibleWindow(
   return { visibleCount, orphanHeaderIndices, totalLinesUsed: Math.max(linesUsed, 1) }
 }
 
-export function Column({ status, tasks, selectedRow, isActive, readyIds, blockedIds, heightReduction }: ColumnProps) {
+export function Column({ status, tasks, selectedRow, isActive, readyIds, blockedIds, heightReduction, columnCount }: ColumnProps) {
   const { stdout } = useStdout()
   const terminalRows = stdout?.rows || 24
 
@@ -121,8 +123,12 @@ export function Column({ status, tasks, selectedRow, isActive, readyIds, blocked
 
   const borderColor = isActive ? "cyan" : "gray"
 
+  // Use fixed percentage width when columnCount is known (multi-column board layout),
+  // otherwise fall back to flexGrow for single-column usage (NarrowTerminal).
+  const fixedWidth = columnCount ? `${Math.floor(100 / columnCount)}%` : undefined
+
   return (
-    <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={borderColor} paddingX={1}>
+    <Box flexDirection="column" width={fixedWidth} flexGrow={fixedWidth ? 0 : 1} borderStyle="round" borderColor={borderColor} paddingX={1} overflow="hidden">
       {/* Column header with status label and task count */}
       <Box justifyContent="center" marginBottom={1}>
         <Text bold color={getStatusColor(status)}>

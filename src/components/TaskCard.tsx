@@ -30,14 +30,16 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
       {/* Title row with priority dot — subtasks get → prefix */}
       <Box>
         <Text color={isArchived ? "gray" : priorityColor}>{isSubtask ? "→ " : "● "}</Text>
-        <Box flexGrow={1} flexShrink={1} overflow="hidden">
+        <Box flexGrow={1} flexShrink={1} flexBasis={0} overflow="hidden">
           <Text wrap="truncate-end" inverse={isSelected} bold={isSelected} dimColor={isArchived} strikethrough={isArchived}>
             {task.title}
           </Text>
         </Box>
-        {isArchived && <Text dimColor> ⌫</Text>}
-        {typeIndicator !== "" && <Text dimColor color={typeColor}> {typeIndicator}</Text>}
-        {subtaskBadge !== "" && <Text dimColor> {subtaskBadge}</Text>}
+        <Box flexShrink={0}>
+          {isArchived && <Text dimColor> ⌫</Text>}
+          {typeIndicator !== "" && <Text dimColor color={typeColor}> {typeIndicator}</Text>}
+          {subtaskBadge !== "" && <Text dimColor> {subtaskBadge}</Text>}
+        </Box>
       </Box>
 
       {/* Parent reference for subtasks (only when not grouped by Column) */}
