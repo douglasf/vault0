@@ -96,6 +96,13 @@ export function App({ db, dbPath }: AppProps) {
     toastTimerRef.current = setTimeout(() => setToast(""), durationMs)
   }, [])
 
+  // Clean up toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
+
   const handleHighlightTask = useCallback((task: Task | undefined) => {
     highlightedTaskRef.current = task
     // Only trigger re-render when task ID changes (prevents infinite loop)

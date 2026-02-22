@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react"
+import React, { useState, useRef, useCallback, useEffect } from "react"
 import { Box, Text, useInput } from "ink"
 import type { Task, Status, Priority, TaskType, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
@@ -41,6 +41,13 @@ export function TaskDetail({
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
     setCopyToast(message)
     copyTimerRef.current = setTimeout(() => setCopyToast(""), 2000)
+  }, [])
+
+  // Clean up dangling timer on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    }
   }, [])
 
   // Fetch fresh detail data on every render (sync DB, no caching needed)
