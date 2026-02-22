@@ -255,6 +255,20 @@ async function main() {
 
     console.error("Starting Vault0...\n")
 
+    // ── Periodic WAL checkpoint ───────────────────────────────────────────
+    // SQLite's wal_autocheckpoint can be starved when the TUI holds read
+    // transactions during render cycles.  Force a PASSIVE checkpoint every
+    // 5 minutes so the WAL file never grows unboundedly (root cause of the
+    // 10 GB peak-memory segfault after multi-day uptime).
+    const WAL_CHECKPOINT_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+    const walCheckpointTimer = setInterval(() => {
+      try {
+        sqlite.exec("PRAGMA wal_checkpoint(PASSIVE)")
+      } catch {
+        // Checkpoint failure is non-fatal — will retry next interval
+      }
+    }, WAL_CHECKPOINT_INTERVAL_MS)
+
     // Launch TUI
     const { waitUntilExit } = render(<App db={db} dbPath={dbPath} />, {
       exitOnCtrlC: true,
@@ -262,6 +276,7 @@ async function main() {
 
     // Cleanup on exit
     await waitUntilExit()
+    clearInterval(walCheckpointTimer)
     console.error("\nCleaning up...")
     sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
     sqlite.close()
