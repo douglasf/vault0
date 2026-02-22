@@ -21,6 +21,7 @@ import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import type { Task, Status } from "../lib/types.js"
 import { getBoards, getTaskCards } from "../db/queries.js"
+import { copyToClipboard } from "../lib/clipboard.js"
 
 export interface AppProps {
   db: Vault0Database
@@ -80,6 +81,16 @@ export function App({ db, dbPath }: AppProps) {
   // Only updates when the task ID actually changes, breaking the render loop.
   const [previewTask, setPreviewTask] = useState<Task | undefined>(undefined)
   const [previewVisible, setPreviewVisible] = useState(false)
+
+  // Transient toast message (e.g. "Copied ID!") — auto-clears after a timeout
+  const [toast, setToast] = useState("")
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = useCallback((message: string, durationMs = 2000) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast(message)
+    toastTimerRef.current = setTimeout(() => setToast(""), durationMs)
+  }, [])
 
   const handleHighlightTask = useCallback((task: Task | undefined) => {
     highlightedTaskRef.current = task
@@ -160,6 +171,12 @@ export function App({ db, dbPath }: AppProps) {
       filterHook.toggleReady()
     } else if (input === "b") {
       filterHook.toggleBlocked()
+    } else if (input === "c") {
+      const task = highlightedTaskRef.current
+      if (task) {
+        const ok = copyToClipboard(task.id)
+        showToast(ok ? `Copied: ${task.id}` : "Copy failed")
+      }
     } else if (input === "?") {
       setState((prev) => ({ ...prev, uiMode: "help" }))
     } else if (input === "v") {
@@ -194,7 +211,7 @@ export function App({ db, dbPath }: AppProps) {
     <ErrorBoundary>
       <DbContext.Provider value={db}>
         <Box flexDirection="column" width="100%" height={terminalRows}>
-          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} />
+          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} toast={toast} />
 
           {(state.uiMode === "board" || state.uiMode === "text-filter") && (
             <>

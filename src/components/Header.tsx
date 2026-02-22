@@ -10,9 +10,11 @@ export interface HeaderProps {
   activeFilterCount?: number
   /** Current text search term to display in the header */
   searchTerm?: string
+  /** Transient toast message (e.g. "Copied ID!") */
+  toast?: string
 }
 
-export function Header({ boardId, filters, activeFilterCount = 0, searchTerm }: HeaderProps) {
+export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, toast }: HeaderProps) {
   const db = useDb()
 
   // Resolve board name from ID (sync DB lookup — fast)
@@ -34,6 +36,9 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm }: 
       <Box justifyContent="space-between" paddingX={1}>
         <Text dimColor>{boardName}</Text>
         <Box>
+          {toast && (
+            <Text color="green" bold> ✓ {toast} </Text>
+          )}
           {searchTerm && (
             <Text color="cyan"> 🔍 {searchTerm} </Text>
           )}

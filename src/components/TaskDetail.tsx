@@ -1,10 +1,11 @@
-import React, { useState } from "react"
+import React, { useState, useRef, useCallback } from "react"
 import { Box, Text, useInput } from "ink"
 import type { Task, Status, Priority, TaskType, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTaskDetail, addDependency, removeDependency } from "../db/queries.js"
 import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
+import { copyToClipboard } from "../lib/clipboard.js"
 import { DependencyPicker } from "./DependencyPicker.js"
 
 export interface TaskDetailProps {
@@ -32,6 +33,14 @@ export function TaskDetail({
   const [showDependencyRemover, setShowDependencyRemover] = useState(false)
   const [dependencyError, setDependencyError] = useState("")
   const [removeDepIndex, setRemoveDepIndex] = useState(0)
+  const [copyToast, setCopyToast] = useState("")
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showCopyToast = useCallback((message: string) => {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    setCopyToast(message)
+    copyTimerRef.current = setTimeout(() => setCopyToast(""), 2000)
+  }, [])
 
   // Fetch fresh detail data on every render (sync DB, no caching needed)
   let detail: TaskDetailType
@@ -87,6 +96,9 @@ export function TaskDetail({
       if (!detail.parentId) {
         onCreateSubtask(detail)
       }
+    } else if (input === "c") {
+      const ok = copyToClipboard(detail.id)
+      showCopyToast(ok ? `Copied: ${detail.id}` : "Copy failed")
     } else if (input === "+") {
       setShowDependencyPicker(true)
       setDependencyError("")
@@ -217,10 +229,17 @@ export function TaskDetail({
             </Box>
           )}
 
+          {/* Copy toast */}
+          {copyToast && (
+            <Box marginTop={dependencyError ? 0 : 1}>
+              <Text color="green" bold>✓ {copyToast}</Text>
+            </Box>
+          )}
+
           {/* Footer shortcuts */}
           <Box marginTop={1} justifyContent="center">
             <Text dimColor>
-              [e]dit  [s]tatus  [p]riority  [d]elete  {!detail.parentId && "[A]dd subtask  "}[+]dep  [-]dep  [Esc]back  ↑↓ scroll
+              [e]dit  [s]tatus  [p]riority  [d]elete  {!detail.parentId && "[A]dd subtask  "}[c]opy id  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
             </Text>
           </Box>
         </Box>
