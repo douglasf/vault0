@@ -35,6 +35,7 @@ const sections: ShortcutSection[] = [
       ["e", "Edit task"],
       ["c", "Copy task ID to clipboard"],
       ["h", "Toggle show/hide all subtasks"],
+      ["S (Shift+s)", "Cycle sort order (priority → created → updated → title → priority)"],
     ],
   },
   {

@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react"
 import type { Vault0Database } from "../db/connection.js"
-import type { Filters, Status, TaskCard } from "../lib/types.js"
+import type { Filters, Status, SortField, TaskCard, Priority } from "../lib/types.js"
 import { getTaskCards } from "../db/queries.js"
-import { VISIBLE_STATUSES } from "../lib/constants.js"
+import { VISIBLE_STATUSES, PRIORITY_ORDER, TASK_TYPE_ORDER, TASK_TYPE_ORDER_NONE } from "../lib/constants.js"
 
 export interface UseBoardResult {
   tasksByStatus: Map<Status, TaskCard[]>
@@ -13,11 +13,53 @@ export interface UseBoardResult {
 }
 
 /**
- * Sort cards so parent tasks appear first, followed by their subtasks.
- * Within each group (parent + children), sortOrder is respected.
- * Orphan subtasks (parent in a different status column) sort by their own sortOrder.
+ * Compare two TaskCards by a given sort field.
+ * Returns a negative number if a should come before b, etc.
  */
-function groupByParent(cards: TaskCard[]): TaskCard[] {
+function compareBySortField(a: TaskCard, b: TaskCard, sortField: SortField): number {
+  switch (sortField) {
+    case "created":
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    case "updated":
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    case "title":
+      return a.title.localeCompare(b.title)
+    case "priority":
+      return (PRIORITY_ORDER[a.priority as Priority] ?? 99) - (PRIORITY_ORDER[b.priority as Priority] ?? 99)
+    default:
+      return a.sortOrder - b.sortOrder
+  }
+}
+
+/**
+ * Secondary sort by task type within a sort group.
+ * Order: bug (0) > feature (1) > analysis (2) > none (3)
+ */
+function compareByType(a: TaskCard, b: TaskCard): number {
+  const aOrder = a.type ? (TASK_TYPE_ORDER[a.type] ?? TASK_TYPE_ORDER_NONE) : TASK_TYPE_ORDER_NONE
+  const bOrder = b.type ? (TASK_TYPE_ORDER[b.type] ?? TASK_TYPE_ORDER_NONE) : TASK_TYPE_ORDER_NONE
+  return aOrder - bOrder
+}
+
+/**
+ * Combined comparator: primary sort by field, secondary by type.
+ */
+function makeComparator(sortField: SortField) {
+  return (a: TaskCard, b: TaskCard): number => {
+    const primary = compareBySortField(a, b, sortField)
+    if (primary !== 0) return primary
+    return compareByType(a, b)
+  }
+}
+
+/**
+ * Sort cards so parent tasks appear first (sorted by the chosen field),
+ * followed by their subtasks (also sorted by the same field within their parent).
+ * Orphan subtasks (parent in a different status column) are grouped by parent
+ * and sorted within each group.
+ */
+function groupByParent(cards: TaskCard[], sortField?: SortField): TaskCard[] {
+  const cmp = sortField ? makeComparator(sortField) : (a: TaskCard, b: TaskCard) => a.sortOrder - b.sortOrder
   const parents = cards.filter((c) => c.parentId === null)
   const subtasks = cards.filter((c) => c.parentId !== null)
 
@@ -33,17 +75,16 @@ function groupByParent(cards: TaskCard[]): TaskCard[] {
       list.push(st)
       subtasksByParent.set(pid, list)
     } else {
-      // Parent is in a different column — subtask appears independently
       orphanSubtasks.push(st)
     }
   }
 
   // Build result: parent followed by its subtasks, then orphan subtasks grouped by parent
   const result: TaskCard[] = []
-  for (const parent of parents.sort((a, b) => a.sortOrder - b.sortOrder)) {
+  for (const parent of parents.sort(cmp)) {
     result.push(parent)
     const children = subtasksByParent.get(parent.id) || []
-    result.push(...children.sort((a, b) => a.sortOrder - b.sortOrder))
+    result.push(...children.sort(cmp))
   }
 
   // Group orphan subtasks by parent so siblings appear together
@@ -55,13 +96,13 @@ function groupByParent(cards: TaskCard[]): TaskCard[] {
     orphansByParent.set(pid, list)
   }
   for (const group of orphansByParent.values()) {
-    result.push(...group.sort((a, b) => a.sortOrder - b.sortOrder))
+    result.push(...group.sort(cmp))
   }
 
   return result
 }
 
-export function useBoard(db: Vault0Database, boardId: string, filters?: Filters): UseBoardResult {
+export function useBoard(db: Vault0Database, boardId: string, filters?: Filters, sortField?: SortField): UseBoardResult {
   const [version, setVersion] = useState(0)
 
   const tasksByStatus = new Map<Status, TaskCard[]>()
@@ -99,7 +140,7 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters)
       // Group cards by status, with parent-child grouping within each column
       for (const status of VISIBLE_STATUSES) {
         const columnCards = cards.filter((c) => c.status === status)
-        tasksByStatus.set(status, groupByParent(columnCards))
+        tasksByStatus.set(status, groupByParent(columnCards, sortField))
       }
 
       // Collect ready and blocked IDs for badge rendering

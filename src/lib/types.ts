@@ -12,6 +12,7 @@ export type Status = "backlog" | "todo" | "in_progress" | "in_review" | "done" |
 export type Priority = "critical" | "high" | "normal" | "low"
 export type TaskType = "feature" | "bug" | "analysis"
 export type Source = "manual" | "todo_md" | "opencode" | "opencode-plan" | "import"
+export type SortField = "created" | "updated" | "title" | "priority"
 
 export type TaskCard = Task & {
   dependencyCount: number

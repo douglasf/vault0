@@ -1,9 +1,10 @@
 import React from "react"
 import { Box, Text } from "ink"
-import type { Filters } from "../lib/types.js"
+import type { Filters, SortField } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { theme } from "../lib/theme.js"
 import { getBoard } from "../db/queries.js"
+import { SORT_FIELD_LABELS } from "../lib/constants.js"
 
 export interface HeaderProps {
   boardId: string
@@ -13,9 +14,11 @@ export interface HeaderProps {
   searchTerm?: string
   /** Transient toast message (e.g. "Copied ID!") */
   toast?: string
+  /** Current sort field */
+  sortField: SortField
 }
 
-export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, toast }: HeaderProps) {
+export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, toast, sortField }: HeaderProps) {
   const db = useDb()
 
   // Resolve board name from ID (sync DB lookup — fast)
@@ -49,8 +52,12 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
         </Box>
       </Box>
       <Box justifyContent="space-between" paddingX={1}>
-        <Text color={theme.dim_0}>{boardName}</Text>
-        <Text color={theme.dim_0}>f search | F filter | r ready | b blocked | v preview | ? help | q quit</Text>
+        <Box>
+          <Text color={theme.cyan}>↕ {SORT_FIELD_LABELS[sortField]}</Text>
+          <Text> | </Text>
+          <Text color={theme.dim_0}>{boardName}</Text>
+        </Box>
+        <Text color={theme.dim_0}>f search | F filter | S sort | v preview | ? help | q quit</Text>
       </Box>
     </Box>
   )

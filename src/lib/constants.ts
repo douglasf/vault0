@@ -1,4 +1,4 @@
-import type { Status, Priority, TaskType } from "./types.js"
+import type { Status, Priority, TaskType, SortField } from "./types.js"
 
 export const VISIBLE_STATUSES: Status[] = ["backlog", "todo", "in_progress", "in_review", "done"]
 
@@ -38,6 +38,23 @@ export const TASK_TYPE_INDICATORS: Record<TaskType, string> = {
   feature: "✦",
   bug: "▪",
   analysis: "◇",
+}
+
+/** Sort order for task types within a sort group (lower = higher priority) */
+export const TASK_TYPE_ORDER: Record<string, number> = {
+  bug: 0,
+  feature: 1,
+  analysis: 2,
+}
+export const TASK_TYPE_ORDER_NONE = 3
+
+export const SORT_FIELDS: SortField[] = ["priority", "created", "updated", "title"]
+
+export const SORT_FIELD_LABELS: Record<SortField, string> = {
+  created: "Created",
+  updated: "Updated",
+  title: "Title",
+  priority: "Priority",
 }
 
 // Column configuration

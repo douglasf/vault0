@@ -20,9 +20,10 @@ import { theme } from "../lib/theme.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
-import type { Task, Status } from "../lib/types.js"
+import type { Task, Status, SortField } from "../lib/types.js"
 import { getBoards, getTaskCards } from "../db/queries.js"
 import { copyToClipboard } from "../lib/clipboard.js"
+import { SORT_FIELDS, SORT_FIELD_LABELS } from "../lib/constants.js"
 
 export interface AppProps {
   db: Vault0Database
@@ -85,6 +86,9 @@ export function App({ db, dbPath }: AppProps) {
 
   // Global toggle: when true, all subtasks are hidden in the board view
   const [hideSubtasks, setHideSubtasks] = useState(false)
+
+  // Sort field for lane ordering (defaults to priority)
+  const [sortField, setSortField] = useState<SortField>("priority")
 
   // Transient toast message (e.g. "Copied ID!") — auto-clears after a timeout
   const [toast, setToast] = useState("")
@@ -192,6 +196,11 @@ export function App({ db, dbPath }: AppProps) {
       setState((prev) => ({ ...prev, uiMode: "help" }))
     } else if (input === "h") {
       setHideSubtasks((prev) => !prev)
+    } else if (input === "S") {
+      setSortField((prev) => {
+        const idx = SORT_FIELDS.indexOf(prev)
+        return SORT_FIELDS[(idx + 1) % SORT_FIELDS.length]
+      })
     } else if (input === "v") {
       setPreviewVisible((prev) => !prev)
     } else if (input === "q") {
@@ -224,7 +233,7 @@ export function App({ db, dbPath }: AppProps) {
     <ErrorBoundary>
       <DbContext.Provider value={db}>
         <Box flexDirection="column" width="100%" height={terminalRows} backgroundColor={theme.bg_1}>
-          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} toast={toast} />
+          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} toast={toast} sortField={sortField} />
 
           {(state.uiMode === "board" || state.uiMode === "text-filter") && (
             <>
@@ -249,7 +258,8 @@ export function App({ db, dbPath }: AppProps) {
                         onHighlightTask={handleHighlightTask}
                          onMoveTask={handleMoveTask}
                          inputActive={state.uiMode === "board"}
-                         hideSubtasks={hideSubtasks}
+hideSubtasks={hideSubtasks}
+                         sortField={sortField}
                        />
                     </Box>
                   ) : (
@@ -265,6 +275,7 @@ export function App({ db, dbPath }: AppProps) {
                         onMoveTask={handleMoveTask}
                         inputActive={state.uiMode === "board"}
                         hideSubtasks={hideSubtasks}
+                        sortField={sortField}
                       />
                     </Box>
                   )}
@@ -285,6 +296,7 @@ export function App({ db, dbPath }: AppProps) {
                       inputActive={state.uiMode === "board"}
                       heightReduction={boardHeightReduction}
                       hideSubtasks={hideSubtasks}
+                      sortField={sortField}
                     />
                   ) : (
                     <Board
@@ -299,6 +311,7 @@ export function App({ db, dbPath }: AppProps) {
                       inputActive={state.uiMode === "board"}
                       heightReduction={boardHeightReduction}
                       hideSubtasks={hideSubtasks}
+                      sortField={sortField}
                     />
                   )}
                   {previewLayout === "bottom" && (

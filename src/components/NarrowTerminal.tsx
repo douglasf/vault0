@@ -7,7 +7,7 @@ import { useNavigation } from "../hooks/useNavigation.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { STATUS_LABELS } from "../lib/constants.js"
 import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
-import type { Task, Filters, Status, TaskCard as TaskCardType } from "../lib/types.js"
+import type { Task, Filters, Status, SortField, TaskCard as TaskCardType } from "../lib/types.js"
 
 export interface NarrowTerminalProps {
   boardId: string
@@ -23,15 +23,17 @@ export interface NarrowTerminalProps {
   onMoveTask?: (task: Task, targetStatus: Status) => void
   /** Whether subtasks are globally hidden */
   hideSubtasks?: boolean
+  /** Sort field for lane ordering */
+  sortField?: SortField
 }
 
 /**
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks, sortField }: NarrowTerminalProps) {
   const db = useDb()
-  const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters)
+  const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters, sortField)
 
   // Helper to filter out subtasks when globally hidden
   const filterCollapsed = (tasks: TaskCardType[]) =>
