@@ -1,13 +1,12 @@
-import React, { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
+import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { Task, Status, Priority, TaskType, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTaskDetail, addDependency, removeDependency } from "../db/queries.js"
 import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
-import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
-import { theme } from "../lib/theme.js"
+import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { DependencyPicker } from "./DependencyPicker.js"
@@ -23,6 +22,14 @@ export interface TaskDetailProps {
   onCreateSubtask: (parent: Task) => void
 }
 
+/**
+ * Full-screen detail view for a single task.
+ *
+ * Displays all task metadata (status, priority, type, tags, dates), a markdown-rendered
+ * description, dependency graph, subtask checklist, and status history inside a scrollable
+ * container. Supports keyboard shortcuts for editing, status changes, dependency management,
+ * and clipboard operations.
+ */
 export function TaskDetail({
   taskId,
   onBack,
@@ -38,7 +45,6 @@ export function TaskDetail({
   const [showDependencyPicker, setShowDependencyPicker] = useState(false)
   const [showDependencyRemover, setShowDependencyRemover] = useState(false)
   const [dependencyError, setDependencyError] = useState("")
-  const [removeDepIndex, setRemoveDepIndex] = useState(0)
   const [copyToast, setCopyToast] = useState("")
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -108,7 +114,6 @@ export function TaskDetail({
       setDependencyError("")
     } else if (event.raw === "-" && !event.ctrl && !event.meta && detail.dependsOn.length > 0) {
       setShowDependencyRemover(true)
-      setRemoveDepIndex(0)
       setDependencyError("")
     } else if (event.name === "up") {
       scrollRef.current?.scrollBy(-1)
@@ -121,24 +126,9 @@ export function TaskDetail({
     }
   }, !showDependencyPicker && !showDependencyRemover)
 
-  // Dependency removal overlay input handler
+  // Escape handler for dependency removal overlay
   useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "up") {
-      setRemoveDepIndex((i) => Math.max(0, i - 1))
-    } else if (event.name === "down") {
-      setRemoveDepIndex((i) => Math.min(detail.dependsOn.length - 1, i + 1))
-    } else if (event.name === "return") {
-      const dep = detail.dependsOn[removeDepIndex]
-      if (dep) {
-        try {
-          removeDependency(db, detail.id, dep.id)
-          setDependencyError("")
-        } catch (error) {
-          setDependencyError(error instanceof Error ? error.message : "Failed to remove dependency")
-        }
-      }
-      setShowDependencyRemover(false)
-    } else if (event.name === "escape") {
+    if (event.name === "escape") {
       setShowDependencyRemover(false)
     }
   }, showDependencyRemover)
@@ -165,19 +155,33 @@ export function TaskDetail({
         <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
           <text attributes={TextAttributes.BOLD} fg={theme.yellow}>Remove Dependency</text>
 
-          <box marginTop={1} flexDirection="column">
-            {detail.dependsOn.map((dep, i) => (
-              <box key={dep.id}>
-                <text
-                  fg={i === removeDepIndex ? theme.bg_1 : getStatusColor(dep.status)}
-                  bg={i === removeDepIndex ? getStatusColor(dep.status) : undefined}
-                >
-                  {i === removeDepIndex ? "▸ " : "  "}
-                  {dep.title.substring(0, 45)} [{STATUS_LABELS[dep.status as Status] || dep.status}]
-                </text>
-              </box>
-            ))}
-          </box>
+          <select
+            marginTop={1}
+            focused={true}
+            width={55}
+            height={Math.min(detail.dependsOn.length * 2, 16)}
+            showDescription={false}
+            options={detail.dependsOn.map((dep) => ({
+              name: `${dep.title.substring(0, 45)} [${STATUS_LABELS[dep.status as Status] || dep.status}]`,
+              description: "",
+              value: dep.id,
+            }))}
+            selectedBackgroundColor={theme.yellow}
+            selectedTextColor={theme.bg_1}
+            textColor={theme.fg_1}
+            backgroundColor={theme.bg_1}
+            onSelect={(_index: number, option: SelectOption | null) => {
+              if (option?.value) {
+                try {
+                  removeDependency(db, detail.id, option.value)
+                  setDependencyError("")
+                } catch (error) {
+                  setDependencyError(error instanceof Error ? error.message : "Failed to remove dependency")
+                }
+              }
+              setShowDependencyRemover(false)
+            }}
+          />
 
           <box marginTop={1}>
             <text fg={theme.dim_0}>↑/↓: navigate  Enter: remove  Esc: cancel</text>
@@ -214,7 +218,7 @@ export function TaskDetail({
           {/* Footer shortcuts */}
           <box marginTop={1} justifyContent="center">
             <text fg={theme.dim_0}>
-              [e]dit  [s]tatus  [p]riority  [d]elete  {!detail.parentId && "[A]dd subtask  "}[c]opy id  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
+              [e]dit  [s]tatus  [p]riority  [d]elete  {detail.archivedAt !== null && "[u]narchive  "}{!detail.parentId && "[A]dd subtask  "}[c]opy id  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
             </text>
           </box>
         </box>
@@ -226,7 +230,7 @@ export function TaskDetail({
 // ── Section line types ──────────────────────────────────────────────
 
 interface LineData {
-  type: "heading" | "field" | "dep" | "subtask" | "history" | "blank" | "text" | "blocked-banner"
+  type: "heading" | "field" | "dep" | "subtask" | "history" | "blank" | "text" | "blocked-banner" | "markdown"
   label?: string
   value?: string
   color?: string
@@ -236,6 +240,10 @@ interface LineData {
   done?: boolean
 }
 
+/**
+ * Renders a single line/section within the scrollable task detail content.
+ * Each line type maps to a distinct visual treatment (heading, field, dependency arrow, etc.).
+ */
 function SectionLine({ line }: { line: LineData }) {
   switch (line.type) {
     case "heading":
@@ -286,6 +294,10 @@ function SectionLine({ line }: { line: LineData }) {
           <text fg={line.dimmed ? theme.dim_0 : (line.color ?? theme.fg_1)}>{line.value}</text>
         </box>
       )
+    case "markdown":
+      return (
+        <markdown content={line.value ?? ""} syntaxStyle={getMarkdownSyntaxStyle()} conceal={true} />
+      )
     case "blank":
       return <box><text> </text></box>
     default:
@@ -295,6 +307,7 @@ function SectionLine({ line }: { line: LineData }) {
 
 // ── Build section data ──────────────────────────────────────────────
 
+/** Assembles all display sections for a task into a flat list of renderable lines. */
 function buildSections(detail: TaskDetailType): LineData[] {
   const lines: LineData[] = []
 
@@ -355,12 +368,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
   if (detail.description) {
     lines.push({ type: "blank" })
     lines.push({ type: "heading", label: "Description" })
-    // Word-wrap long descriptions to fit terminal width
-    const wrapWidth = Math.max(20, (process.stdout.columns || 80) - 10)
-    const wrapped = wordWrap(detail.description, wrapWidth)
-    for (const wl of wrapped) {
-      lines.push({ type: "text", value: wl })
-    }
+    lines.push({ type: "markdown", value: detail.description })
   }
 
   // Dependencies
@@ -440,39 +448,4 @@ function formatDateTime(date: Date | string | number | null | undefined): string
     hour: "2-digit",
     minute: "2-digit",
   })
-}
-
-function wordWrap(text: string, maxWidth: number): string[] {
-  const lines: string[] = []
-  // Replace tab characters with spaces — tabs render as garbled boxes
-  const paragraphs = text.replace(/\t/g, "    ").split("\n")
-  for (const para of paragraphs) {
-    if (para.length <= maxWidth) {
-      lines.push(para)
-      continue
-    }
-    const words = para.split(" ")
-    let current = ""
-    for (const word of words) {
-      // Force-break words that are longer than maxWidth
-      if (word.length > maxWidth) {
-        if (current) {
-          lines.push(current)
-          current = ""
-        }
-        for (let i = 0; i < word.length; i += maxWidth) {
-          lines.push(word.slice(i, i + maxWidth))
-        }
-        continue
-      }
-      if (current.length + word.length + 1 > maxWidth) {
-        lines.push(current)
-        current = word
-      } else {
-        current = current ? `${current} ${word}` : word
-      }
-    }
-    if (current) lines.push(current)
-  }
-  return lines
 }
