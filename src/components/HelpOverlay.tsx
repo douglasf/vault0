@@ -1,7 +1,8 @@
-import { useState, useMemo, useRef } from "react"
-import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
+import { useState, useMemo, useRef, useCallback } from "react"
+import type { InputRenderable, KeyEvent, ScrollBoxRenderable } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
-import { useKeyboard, useTerminalDimensions } from "@opentui/react"
+import { useTerminalDimensions } from "@opentui/react"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { theme } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
 
@@ -9,17 +10,19 @@ export interface HelpOverlayProps {
   onClose: () => void
 }
 
+// ── Data types ──────────────────────────────────────────────────────
+
 interface ShortcutSection {
   title: string
-  shortcuts: [string, string][]
+  shortcuts: readonly [key: string, desc: string][]
 }
-
-// ── Legend data with actual theme color references ───────────────────
 
 interface LegendEntry {
   label: string
   desc: string
+  /** Foreground color accessor (thunk to support runtime theme changes). */
   color: () => string
+  /** Optional background color accessor. */
   bgColor?: () => string
 }
 
@@ -28,7 +31,9 @@ interface LegendSection {
   entries: LegendEntry[]
 }
 
-const legendSections: LegendSection[] = [
+// ── Static data ─────────────────────────────────────────────────────
+
+const legendSections: readonly LegendSection[] = [
   {
     title: "Priority Indicators",
     entries: [
@@ -58,7 +63,7 @@ const legendSections: LegendSection[] = [
   },
 ]
 
-const sections: ShortcutSection[] = [
+const shortcutSections: readonly ShortcutSection[] = [
   {
     title: "Board Navigation",
     shortcuts: [
@@ -112,33 +117,37 @@ const sections: ShortcutSection[] = [
   },
 ]
 
-/**
- * Flatten sections into renderable items for display.
- */
+// ── Flattened render items ──────────────────────────────────────────
+
 interface HeaderItem {
   kind: "header"
   title: string
 }
+
 interface ShortcutItem {
   kind: "shortcut"
   key: string
   desc: string
 }
+
 interface LegendItem {
   kind: "legend"
   entry: LegendEntry
 }
+
 interface DividerItem {
   kind: "divider"
   label: string
 }
+
 type RenderItem = HeaderItem | ShortcutItem | LegendItem | DividerItem
 
+/** Flatten section data into a flat list of renderable items. */
 function buildItems(): RenderItem[] {
   const items: RenderItem[] = []
 
   items.push({ kind: "divider", label: "⌨  Keyboard Shortcuts" })
-  for (const section of sections) {
+  for (const section of shortcutSections) {
     items.push({ kind: "header", title: section.title })
     for (const [key, desc] of section.shortcuts) {
       items.push({ kind: "shortcut", key, desc })
@@ -155,21 +164,32 @@ function buildItems(): RenderItem[] {
   return items
 }
 
+/** Pre-built list of all help items (static, computed once at module load). */
 const allItems = buildItems()
 
-function filterItems(items: RenderItem[], query: string): RenderItem[] {
-  if (!query) return items
+/** Total number of content items (excluding headers/dividers). */
+const totalContentCount = allItems.filter(
+  (i) => i.kind === "shortcut" || i.kind === "legend",
+).length
+
+/**
+ * Filter items by a search query, preserving section headers when they contain
+ * at least one matching child item.
+ */
+function filterItems(items: readonly RenderItem[], query: string): RenderItem[] {
+  if (!query) return items as RenderItem[]
   const lower = query.toLowerCase()
   const result: RenderItem[] = []
-  let pendingHeader: (HeaderItem | DividerItem) | null = null
+  let pendingHeader: HeaderItem | DividerItem | null = null
 
   for (const item of items) {
     if (item.kind === "header" || item.kind === "divider") {
       pendingHeader = item
     } else {
-      const searchText = item.kind === "shortcut"
-        ? `${item.key} ${item.desc}`
-        : `${item.entry.label} ${item.entry.desc}`
+      const searchText =
+        item.kind === "shortcut"
+          ? `${item.key} ${item.desc}`
+          : `${item.entry.label} ${item.entry.desc}`
       if (searchText.toLowerCase().includes(lower)) {
         if (pendingHeader) {
           result.push(pendingHeader)
@@ -182,25 +202,53 @@ function filterItems(items: RenderItem[], query: string): RenderItem[] {
   return result
 }
 
+/**
+ * Generate a stable React key for a render item.
+ * Uses item content rather than array index for stability across filter changes.
+ */
+function itemKey(item: RenderItem): string {
+  switch (item.kind) {
+    case "divider":
+      return `div-${item.label}`
+    case "header":
+      return `hdr-${item.title}`
+    case "shortcut":
+      return `key-${item.key}`
+    case "legend":
+      return `leg-${item.entry.label}-${item.entry.desc}`
+  }
+}
+
+// ── Component ───────────────────────────────────────────────────────
+
+/**
+ * Full-screen help overlay displaying keyboard shortcuts and a UI legend.
+ *
+ * Features:
+ * - Native `<input>` for live filtering of shortcuts/legend entries
+ * - `<scrollbox>` for scrollable content when the list exceeds viewport
+ * - Section headers are preserved when they contain matching items
+ * - `?` or `Esc` closes the overlay
+ */
 export function HelpOverlay({ onClose }: HelpOverlayProps) {
   const { height: terminalRows } = useTerminalDimensions()
   const scrollRef = useRef<ScrollBoxRenderable>(null)
+  const inputRef = useRef<InputRenderable>(null)
 
   const [filter, setFilter] = useState("")
 
   const filteredItems = useMemo(() => filterItems(allItems, filter), [filter])
 
-  // Available height for scrollable content inside the modal.
-  // Use ~60% of terminal height as content area.
+  // Use ~60% of terminal height as scrollable content area.
   const contentHeight = Math.max(3, Math.floor(terminalRows * 0.6))
 
-  const resetScroll = () => {
+  const resetScroll = useCallback(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
-  }
+  }, [])
 
-  useKeyboard((event: KeyEvent) => {
-    // Close overlay
-    if ((event.raw === "?") || event.name === "escape") {
+  useActiveKeyboard((event: KeyEvent) => {
+    // Close overlay on `?` toggle
+    if (event.raw === "?") {
       onClose()
       return
     }
@@ -222,25 +270,11 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
       scrollRef.current?.scrollBy(-contentHeight)
       return
     }
-
-    // Backspace — remove last character from filter
-    if (event.name === "backspace") {
-      setFilter((prev) => prev.slice(0, -1))
-      resetScroll()
-      return
-    }
-
-    // Regular character input — append to filter
-    const input = event.raw || ""
-    if (input && input.length === 1 && !event.ctrl && !event.meta) {
-      setFilter((prev) => prev + input)
-      resetScroll()
-      return
-    }
   })
 
-  const matchCount = filteredItems.filter((i) => i.kind === "shortcut" || i.kind === "legend").length
-  const totalCount = allItems.filter((i) => i.kind === "shortcut" || i.kind === "legend").length
+  const matchCount = filteredItems.filter(
+    (i) => i.kind === "shortcut" || i.kind === "legend",
+  ).length
   const isFiltered = filter.length > 0
 
   return (
@@ -252,25 +286,36 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
         </text>
         {isFiltered && (
           <text fg={theme.fg_0}>
-            {matchCount}/{totalCount} matches
+            {matchCount}/{totalContentCount} matches
           </text>
         )}
       </box>
 
       {/* Filter input */}
-      <box>
+      <box flexDirection="row">
         <text fg={theme.fg_0}>Filter: </text>
-        <text fg={theme.fg_1}>{filter}</text>
-        <text fg={theme.fg_1}>▎</text>
+        <input
+          ref={inputRef}
+          focused
+          value={filter}
+          placeholder="type to filter…"
+          textColor={theme.fg_1}
+          onInput={(value: string) => {
+            setFilter(value)
+            resetScroll()
+          }}
+        />
       </box>
 
       {/* Scrollable shortcut list */}
       <scrollbox ref={scrollRef} scrollY flexGrow={1} marginTop={1} height={contentHeight}>
         {filteredItems.length === 0 ? (
-          <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>No matching shortcuts</text>
+          <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>
+            No matching shortcuts
+          </text>
         ) : (
           filteredItems.map((item, i) => {
-            const k = `${item.kind}-${i}`
+            const k = itemKey(item)
             if (item.kind === "divider") {
               return (
                 <box key={k} marginTop={i === 0 ? 0 : 1} marginBottom={0}>
