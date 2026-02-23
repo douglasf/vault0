@@ -527,7 +527,7 @@ export function getTaskDetail(db: Vault0Database, taskId: string): TaskDetail {
   const subtaskList = db
     .select()
     .from(tasks)
-    .where(eq(tasks.parentId, taskId))
+    .where(and(eq(tasks.parentId, taskId), isNull(tasks.archivedAt)))
     .all()
 
   const deps = db
