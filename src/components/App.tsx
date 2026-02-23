@@ -26,7 +26,7 @@ import type { Task, Status, SortField } from "../lib/types.js"
 import type { DbError } from "../hooks/useBoard.js"
 import { getBoards, getTaskCards } from "../db/queries.js"
 import { copyToClipboard } from "../lib/clipboard.js"
-import { SORT_FIELDS, SORT_FIELD_LABELS } from "../lib/constants.js"
+import { SORT_FIELDS } from "../lib/constants.js"
 
 export interface AppProps {
   db: Vault0Database
@@ -34,6 +34,14 @@ export interface AppProps {
 }
 
 export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done"
+
+/** Modal overlay modes — board stays mounted but input is routed to the overlay */
+const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker"])
+
+// Layout thresholds
+const MIN_COLS_NARROW = 80
+const MIN_ROWS_BOTTOM_PREVIEW = 28
+const MIN_COLS_SIDE_PREVIEW = 120
 
 export interface AppState {
   currentBoardId: string
@@ -130,8 +138,6 @@ export function App({ db, dbPath }: AppProps) {
     initializeBoard()
   }, [initializeBoard])
 
-  // Modal overlay modes — board stays mounted but input is disabled
-  const MODAL_OVERLAY_MODES: Set<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker"])
   const isModalOverlay = MODAL_OVERLAY_MODES.has(state.uiMode)
 
   // Board-like modes where the board/narrow terminal is visible
@@ -218,23 +224,47 @@ export function App({ db, dbPath }: AppProps) {
     }
   }, appInputActive)
 
-  // ── Preview panel layout computation ──────────────────────────────────
-  // Bottom panel: terminal tall enough (>= 28 rows)
-  // Side panel: terminal wide enough (>= 120 cols) but too short for bottom
-  // Hidden: neither condition met (toggle state preserved for when terminal resizes)
-  const MIN_ROWS_BOTTOM = 28
-  const MIN_COLS_SIDE = 120
+  // ── Shared board/narrow-terminal props and renderer ────────────────────
+  const isNarrow = terminalColumns < MIN_COLS_NARROW
 
+  const onSelectTask = useCallback((task: Task) => {
+    setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
+  }, [])
+
+  const renderBoardView = (heightReduction = 0) => {
+    const sharedProps = {
+      boardId: state.currentBoardId,
+      filters: filterHook.filters,
+      focusTaskId: state.selectedTask?.id,
+      onSelectTask,
+      onHighlightTask: handleHighlightTask,
+      onMoveTask: handleMoveTask,
+      inputActive: boardInputActive,
+      hideSubtasks,
+      sortField,
+      onDbError: handleDbError,
+    } as const
+
+    if (isNarrow) {
+      return <NarrowTerminal {...sharedProps} heightReduction={heightReduction} />
+    }
+    return <Board {...sharedProps} heightReduction={heightReduction} />
+  }
+
+  // ── Preview panel layout computation ──────────────────────────────────
+  // Bottom panel: terminal tall enough (>= MIN_ROWS_BOTTOM_PREVIEW rows)
+  // Side panel: terminal wide enough (>= MIN_COLS_SIDE_PREVIEW cols) but too short for bottom
+  // Hidden: neither condition met (toggle state preserved for when terminal resizes)
   let previewLayout: "bottom" | "side" | "hidden" = "hidden"
   let previewHeight = 0
   let boardHeightReduction = 0
 
   if (previewVisible) {
-    if (terminalRows >= MIN_ROWS_BOTTOM) {
+    if (terminalRows >= MIN_ROWS_BOTTOM_PREVIEW) {
       previewLayout = "bottom"
       previewHeight = Math.min(12, Math.max(7, Math.floor(terminalRows / 3)))
       boardHeightReduction = previewHeight
-    } else if (terminalColumns >= MIN_COLS_SIDE) {
+    } else if (terminalColumns >= MIN_COLS_SIDE_PREVIEW) {
       previewLayout = "side"
     }
   }
@@ -281,78 +311,14 @@ export function App({ db, dbPath }: AppProps) {
               )}
               {previewLayout === "side" ? (
                 <box flexDirection="row" flexGrow={1}>
-                  {terminalColumns < 80 ? (
-                    <box flexGrow={1}>
-                      <NarrowTerminal
-                        boardId={state.currentBoardId}
-                        filters={filterHook.filters}
-                        focusTaskId={state.selectedTask?.id}
-                        onSelectTask={(task) =>
-                          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                        }
-                        onHighlightTask={handleHighlightTask}
-                        onMoveTask={handleMoveTask}
-                        inputActive={boardInputActive}
-                        hideSubtasks={hideSubtasks}
-                        sortField={sortField}
-                        onDbError={handleDbError}
-                      />
-                    </box>
-                  ) : (
-                    <box flexGrow={1}>
-                      <Board
-                        boardId={state.currentBoardId}
-                        filters={filterHook.filters}
-                        focusTaskId={state.selectedTask?.id}
-                        onSelectTask={(task) =>
-                          setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                        }
-                        onHighlightTask={handleHighlightTask}
-                        onMoveTask={handleMoveTask}
-                        inputActive={boardInputActive}
-                        hideSubtasks={hideSubtasks}
-                        sortField={sortField}
-                        onDbError={handleDbError}
-                      />
-                    </box>
-                  )}
+                  <box flexGrow={1}>
+                    {renderBoardView()}
+                  </box>
                   <TaskPreview task={previewTask} orientation="side" />
                 </box>
               ) : (
                 <>
-                  {terminalColumns < 80 ? (
-                    <NarrowTerminal
-                      boardId={state.currentBoardId}
-                      filters={filterHook.filters}
-                      focusTaskId={state.selectedTask?.id}
-                      onSelectTask={(task) =>
-                        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                      }
-                      onHighlightTask={handleHighlightTask}
-                      onMoveTask={handleMoveTask}
-                      inputActive={boardInputActive}
-                      heightReduction={boardHeightReduction}
-                      hideSubtasks={hideSubtasks}
-                      sortField={sortField}
-                      onDbError={handleDbError}
-                    />
-                  ) : (
-                    <Board
-                      boardId={state.currentBoardId}
-                      filters={filterHook.filters}
-                      focusTaskId={state.selectedTask?.id}
-                      onSelectTask={(task) =>
-                        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
-                      }
-                      onHighlightTask={handleHighlightTask}
-                      onMoveTask={handleMoveTask}
-                      inputActive={boardInputActive}
-                      heightReduction={boardHeightReduction}
-                      hideSubtasks={hideSubtasks}
-                      sortField={sortField}
-                      onDbError={handleDbError}
-                    />
-                  )}
+                  {renderBoardView(boardHeightReduction)}
                   {previewLayout === "bottom" && (
                     <TaskPreview task={previewTask} orientation="bottom" maxHeight={previewHeight} />
                   )}

@@ -1,40 +1,59 @@
-import React, { useState, useRef, useCallback } from "react"
+import type React from "react"
+import { useState, useRef, useCallback } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
 import type { InputRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
-import { PRIORITY_LABELS, TASK_TYPE_LABELS, TASK_TYPES } from "../lib/constants.js"
+import { PRIORITY_LABELS, STATUS_LABELS, TASK_TYPE_LABELS, TASK_TYPES, VISIBLE_STATUSES } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme } from "../lib/theme.js"
+
+/** Form data submitted on create or edit */
+export interface TaskFormData {
+  title: string
+  description: string
+  priority: Priority
+  status: Status
+  type: TaskType | null
+}
 
 export interface TaskFormProps {
   mode: "create" | "edit"
   task?: Task
   /** When creating a subtask, the parent task's title (for display) */
   parentTitle?: string
-  onSubmit: (data: { title: string; description: string; priority: Priority; status: Status; type: TaskType | null }) => void
+  onSubmit: (data: TaskFormData) => void
   onCancel: () => void
 }
 
 type FormField = "title" | "description" | "priority" | "type" | "status" | "submit"
 
 const PRIORITIES: Priority[] = ["low", "normal", "high", "critical"]
-const STATUSES: Status[] = ["backlog", "todo", "in_progress", "in_review", "done"]
 
-/** Type options include null (no type) plus the three types */
+/** Type options include null (no type) plus the defined types */
 const TYPE_OPTIONS: (TaskType | null)[] = [null, ...TASK_TYPES]
-
-const STATUS_DISPLAY: Record<string, string> = {
-  backlog: "Backlog",
-  todo: "To Do",
-  in_progress: "In Progress",
-  in_review: "In Review",
-  done: "Done",
-}
 
 /** Max visible lines in the description viewport before scrolling kicks in */
 const DESC_VIEWPORT = 8
 
+/**
+ * Cycle through an array of options, wrapping around at boundaries.
+ * @param options  The ordered list of values to cycle through
+ * @param current  The currently selected value
+ * @param delta    +1 for forward, -1 for backward
+ */
+function cycleOption<T>(options: readonly T[], current: T, delta: 1 | -1): T {
+  const idx = options.indexOf(current)
+  return options[(idx + delta + options.length) % options.length]
+}
+
+/**
+ * Modal form for creating or editing a task.
+ *
+ * Renders text inputs for title and description, plus arrow-key cyclers
+ * for priority, type, and (in create mode) status. Tab/Shift+Tab navigates
+ * between fields; Enter advances or submits.
+ */
 export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFormProps) {
   const titleRef = useRef<InputRenderable>(null)
   const descRef = useRef<TextareaRenderable>(null)
@@ -55,7 +74,6 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   }, [focusField, fields])
 
   const handleTitleSubmit = useCallback(() => {
-    // Enter on title → advance to next field
     advanceField("title")
   }, [advanceField])
 
@@ -66,6 +84,31 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       onSubmit({ title: titleValue, description: descValue, priority, status, type: taskType })
     }
   }, [onSubmit, priority, status, taskType])
+
+  /**
+   * Handle arrow-key cycling for a selector field (priority, type, status).
+   * Returns true if the event was consumed, false otherwise.
+   */
+  const handleCyclerKeys = useCallback(<T,>(
+    event: KeyEvent,
+    options: readonly T[],
+    current: T,
+    setter: React.Dispatch<React.SetStateAction<T>>,
+  ): boolean => {
+    if (event.name === "left" || event.name === "up") {
+      setter(cycleOption(options, current, -1))
+      return true
+    }
+    if (event.name === "right" || event.name === "down") {
+      setter(cycleOption(options, current, 1))
+      return true
+    }
+    if (event.name === "return") {
+      advanceField()
+      return true
+    }
+    return false
+  }, [advanceField])
 
   useKeyboard((event: KeyEvent) => {
     if (event.name === "escape") {
@@ -89,57 +132,17 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       return
     }
 
-    // Priority cycling with arrow keys
+    // Arrow-key cycling for selector fields
     if (focusField === "priority") {
-      if (event.name === "left" || event.name === "up") {
-        setPriority((prev) => {
-          const idx = PRIORITIES.indexOf(prev)
-          return PRIORITIES[(idx - 1 + PRIORITIES.length) % PRIORITIES.length]
-        })
-      } else if (event.name === "right" || event.name === "down") {
-        setPriority((prev) => {
-          const idx = PRIORITIES.indexOf(prev)
-          return PRIORITIES[(idx + 1) % PRIORITIES.length]
-        })
-      } else if (event.name === "return") {
-        advanceField()
-      }
+      handleCyclerKeys(event, PRIORITIES, priority, setPriority)
       return
     }
-
-    // Task type cycling with arrow keys
     if (focusField === "type") {
-      if (event.name === "left" || event.name === "up") {
-        setTaskType((prev) => {
-          const idx = TYPE_OPTIONS.indexOf(prev)
-          return TYPE_OPTIONS[(idx - 1 + TYPE_OPTIONS.length) % TYPE_OPTIONS.length]
-        })
-      } else if (event.name === "right" || event.name === "down") {
-        setTaskType((prev) => {
-          const idx = TYPE_OPTIONS.indexOf(prev)
-          return TYPE_OPTIONS[(idx + 1) % TYPE_OPTIONS.length]
-        })
-      } else if (event.name === "return") {
-        advanceField()
-      }
+      handleCyclerKeys(event, TYPE_OPTIONS, taskType, setTaskType)
       return
     }
-
-    // Status cycling with arrow keys (create mode only)
     if (focusField === "status") {
-      if (event.name === "left" || event.name === "up") {
-        setStatus((prev) => {
-          const idx = STATUSES.indexOf(prev)
-          return STATUSES[(idx - 1 + STATUSES.length) % STATUSES.length]
-        })
-      } else if (event.name === "right" || event.name === "down") {
-        setStatus((prev) => {
-          const idx = STATUSES.indexOf(prev)
-          return STATUSES[(idx + 1) % STATUSES.length]
-        })
-      } else if (event.name === "return") {
-        advanceField()
-      }
+      handleCyclerKeys(event, VISIBLE_STATUSES, status, setStatus)
       return
     }
   })
@@ -210,12 +213,12 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       {mode === "create" && (
         <>
           <text> </text>
-           <text>
+          <text>
             <span fg={focusField === "status" ? theme.blue : theme.fg_0}>
               {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
             </span>
             <span fg={getStatusColor(status)}>
-              {"\u25C0 "}{STATUS_DISPLAY[status] || status}{" \u25B6"}
+              {"\u25C0 "}{STATUS_LABELS[status]}{" \u25B6"}
             </span>
           </text>
         </>

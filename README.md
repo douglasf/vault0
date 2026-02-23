@@ -144,7 +144,6 @@ vault0/
       App.tsx                # Root component — mode routing & global keys
       Board.tsx              # 5-column kanban board layout
       Column.tsx             # Single column with scroll & task cards
-      Scrollbar.tsx          # Visual scrollbar indicator
       TaskCard.tsx           # Compact task card (priority, deps, subtasks)
       TaskDetail.tsx         # Full task detail view with scrolling
       TaskForm.tsx           # Create/edit form with field navigation

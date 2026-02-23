@@ -1,2 +1,4 @@
-// This file is deprecated — ScrollBox from @opentui/core replaces custom scrollbar rendering.
-// Kept as empty placeholder; safe to delete.
+// @deprecated — Removed. Use ScrollBox from @opentui/core instead.
+// This file is safe to delete. No remaining imports reference it.
+// See: https://opentui.com/docs/getting-started/
+export {};
