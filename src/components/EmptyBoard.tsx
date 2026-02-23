@@ -1,6 +1,7 @@
 import React from "react"
 import { Box, Text } from "ink"
 import { theme } from "../lib/theme.js"
+import { LOGO_LINES } from "../lib/logo.js"
 
 export function EmptyBoard() {
   return (
@@ -12,6 +13,13 @@ export function EmptyBoard() {
       alignItems="center"
     >
       <Box flexDirection="column" alignItems="center">
+        <Box flexDirection="column" marginBottom={1}>
+          {LOGO_LINES.map((line) => (
+            <Text key={line} color={theme.fg_0}>
+              {line}
+            </Text>
+          ))}
+        </Box>
         <Text bold color={theme.yellow}>
           No tasks yet
         </Text>

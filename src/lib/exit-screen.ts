@@ -4,6 +4,7 @@
 // in the terminal like OpenCode's exit screen.
 
 import { getSessionStats } from "./session-stats.js"
+import { LOGO_LINES } from "./logo.js"
 
 // ── ANSI helpers ────────────────────────────────────────────────────
 
@@ -20,11 +21,7 @@ const FG = `${ESC}38;2;200;215;216m`
 
 // ── ASCII Art Banner ────────────────────────────────────────────────
 
-const BANNER = `${FG}
-        ▄▄     █  █  ▄▀▀▄
- ──█─█─▄▄█─█─█─█──█▀─█▀─█────────
-    ▀  ▀ ▀ ▀▀▀ ▀▀ ▀▀  ▀▀
-${RESET}`
+const BANNER = `${FG}\n${LOGO_LINES.join("\n")}\n${RESET}`
 
 // ── Main render function ────────────────────────────────────────────
 
