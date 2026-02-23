@@ -1,7 +1,10 @@
-import React from "react"
-import { Box, Text, useInput } from "ink"
+import { useState } from "react"
+import type { KeyEvent } from "@opentui/core"
+import { TextAttributes } from "@opentui/core"
+import { useKeyboard } from "@opentui/react"
 import type { Task } from "../lib/types.js"
 import { theme } from "../lib/theme.js"
+import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface ConfirmDeleteProps {
   task: Task
@@ -10,10 +13,11 @@ export interface ConfirmDeleteProps {
 }
 
 export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps) {
-  useInput((input, key) => {
+  useKeyboard((event: KeyEvent) => {
+    const input = event.raw || ""
     if (input === "y" || input === "Y") {
       onConfirm()
-    } else if (input === "n" || input === "N" || key.escape) {
+    } else if (input === "n" || input === "N") {
       onCancel()
     }
   })
@@ -25,27 +29,27 @@ export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps)
   const isHardDelete = task.archivedAt !== null
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <Text bold color={theme.red}>{isHardDelete ? "Permanently Delete Task" : "Archive Task"}</Text>
+    <ModalOverlay onClose={onCancel} size="small">
+      <text fg={theme.red} attributes={TextAttributes.BOLD}>{isHardDelete ? "Permanently Delete Task" : "Archive Task"}</text>
 
-      <Box marginTop={1} flexDirection="column">
+      <box marginTop={1} flexDirection="column">
         {isHardDelete ? (
           <>
-            <Text color={theme.fg_1}>Do you want to permanently delete this task?</Text>
-            <Text color={theme.red} bold>This action is irreversible.</Text>
+            <text fg={theme.fg_1}>Do you want to permanently delete this task?</text>
+            <text fg={theme.red} attributes={TextAttributes.BOLD}>This action is irreversible.</text>
           </>
         ) : (
-          <Text color={theme.fg_1}>Are you sure you want to archive this task?</Text>
+          <text fg={theme.fg_1}>Are you sure you want to archive this task?</text>
         )}
-        <Box marginTop={1}>
-          <Text color={theme.dim_0}>Task: </Text>
-          <Text color={theme.fg_1} bold>{truncatedTitle}</Text>
-        </Box>
-      </Box>
+        <box marginTop={1}>
+          <text fg={theme.dim_0}>Task: </text>
+          <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>{truncatedTitle}</text>
+        </box>
+      </box>
 
-      <Box marginTop={1}>
-        <Text color={theme.fg_1}>[y]es  [n]o / Esc: cancel</Text>
-      </Box>
-    </Box>
+      <box marginTop={1}>
+        <text fg={theme.fg_1}>[y]es  [n]o / Esc: cancel</text>
+      </box>
+    </ModalOverlay>
   )
 }

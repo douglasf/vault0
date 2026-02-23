@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useRef } from "react"
-import { Box, useInput } from "ink"
+import { useCallback, useEffect, useRef } from "react"
+import type { KeyEvent } from "@opentui/core"
 import { Column } from "./Column.js"
 import { EmptyBoard } from "./EmptyBoard.js"
 import { useDb } from "../lib/db-context.js"
 import { useBoard } from "../hooks/useBoard.js"
 import { useNavigation } from "../hooks/useNavigation.js"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import type { Task, Filters, Status, SortField, TaskCard as TaskCardType } from "../lib/types.js"
 import type { DbError } from "../hooks/useBoard.js"
@@ -100,7 +101,8 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
   }, [highlightedTask, onHighlightTask])
 
   // Keyboard handler for board navigation (disabled when board is empty)
-  useInput((input, key) => {
+  useActiveKeyboard((event: KeyEvent) => {
+    const input = event.raw || ""
     const moveLeft = input === "<"
     const moveRight = input === ">"
 
@@ -118,11 +120,11 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
         pendingFocusTaskId.current = task.id
         onMoveTask?.(task, targetStatus)
       }
-    } else if (key.leftArrow) nav.navigateLeft()
-    else if (key.rightArrow) nav.navigateRight()
-    else if (key.upArrow) nav.navigateUp()
-    else if (key.downArrow) nav.navigateDown()
-    else if (key.return) {
+    } else if (event.name === "left") nav.navigateLeft()
+    else if (event.name === "right") nav.navigateRight()
+    else if (event.name === "up") nav.navigateUp()
+    else if (event.name === "down") nav.navigateDown()
+    else if (event.name === "return") {
       const selected = nav.selectCurrent()
       if (selected) {
         const tasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || [])
@@ -131,14 +133,14 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
         }
       }
     }
-  }, { isActive: totalTasks > 0 && inputActive !== false })
+  }, totalTasks > 0 && inputActive !== false)
 
   if (totalTasks === 0) {
     return <EmptyBoard />
   }
 
   return (
-    <Box flexDirection="row" flexGrow={1} width="100%" columnGap={1}>
+    <box flexDirection="row" flexGrow={1} width="100%" columnGap={1}>
       {VISIBLE_STATUSES.map((status, colIndex) => (
         <Column
           key={status}
@@ -153,6 +155,6 @@ export function Board({ boardId, filters, focusTaskId, inputActive, heightReduct
           hideSubtasks={hideSubtasks}
         />
       ))}
-    </Box>
+    </box>
   )
 }

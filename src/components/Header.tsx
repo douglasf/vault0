@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, Text } from "ink"
+import { TextAttributes } from "@opentui/core"
 import type { Filters, SortField } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { theme } from "../lib/theme.js"
@@ -33,32 +33,32 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
   }
 
   return (
-    <Box flexDirection="column" width="100%" marginBottom={1} backgroundColor={theme.bg_0}>
-      <Box justifyContent="space-between" paddingX={1}>
-        <Text bold color={theme.fg_1}>Vault0</Text>
-        <Box>
+    <box flexDirection="column" width="100%" marginBottom={1} backgroundColor={theme.bg_0}>
+      <box justifyContent="space-between" paddingX={1}>
+        <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>Vault0</text>
+        <box>
           {toast && (
-            <Text color={theme.green} bold> ✓ {toast} </Text>
+            <text fg={theme.green} attributes={TextAttributes.BOLD}> ✓ {toast} </text>
           )}
           {searchTerm && (
-            <Text color={theme.cyan}> 🔍 {searchTerm} </Text>
+            <text fg={theme.cyan}> 🔍 {searchTerm} </text>
           )}
           {filters.showArchived && (
-            <Text color={theme.yellow} bold> ⌫ archived </Text>
+            <text fg={theme.yellow} attributes={TextAttributes.BOLD}> ⌫ archived </text>
           )}
           {activeFilterCount > 0 && (
-            <Text color={theme.cyan} bold> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </Text>
+            <text fg={theme.cyan} attributes={TextAttributes.BOLD}> {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active </text>
           )}
-        </Box>
-      </Box>
-      <Box justifyContent="space-between" paddingX={1}>
-        <Box>
-          <Text color={theme.cyan}>↕ {SORT_FIELD_LABELS[sortField]}</Text>
-          <Text> | </Text>
-          <Text color={theme.dim_0}>{boardName}</Text>
-        </Box>
-        <Text color={theme.dim_0}>f search | F filter | S sort | v preview | ? help | q quit</Text>
-      </Box>
-    </Box>
+        </box>
+      </box>
+      <box justifyContent="space-between" paddingX={1}>
+        <box>
+          <text fg={theme.cyan}>↕ {SORT_FIELD_LABELS[sortField]}</text>
+          <text> | </text>
+          <text fg={theme.dim_0}>{boardName}</text>
+        </box>
+        <text fg={theme.dim_0}>f search | F filter | S sort | v preview | ? help | q quit</text>
+      </box>
+    </box>
   )
 }

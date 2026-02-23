@@ -1,5 +1,4 @@
-import React from "react"
-import { Box, Text } from "ink"
+import { TextAttributes } from "@opentui/core"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
@@ -16,7 +15,7 @@ export interface TaskPreviewProps {
 export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) {
   if (!task) {
     return (
-      <Box
+      <box
         flexDirection="column"
         backgroundColor={theme.bg_0}
         paddingX={1}
@@ -25,10 +24,10 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
           : { width: 40, flexShrink: 0 }
         )}
       >
-        <Box justifyContent="center" flexGrow={1} alignItems="center">
-          <Text color={theme.fg_0} italic>No task selected</Text>
-        </Box>
-      </Box>
+        <box justifyContent="center" flexGrow={1} alignItems="center">
+          <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>No task selected</text>
+        </box>
+      </box>
     )
   }
 
@@ -52,7 +51,7 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
     : []
 
   return (
-    <Box
+    <box
       flexDirection="column"
       backgroundColor={theme.bg_0}
       paddingX={1}
@@ -62,38 +61,38 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
       )}
     >
       {/* Title */}
-      <Text bold wrap="truncate" color={theme.fg_1}>
+      <text attributes={TextAttributes.BOLD} truncate={true} fg={theme.fg_1}>
         {task.title}
-      </Text>
+      </text>
 
       {/* Status + Priority + Type on a single compact line */}
-      <Box gap={1}>
-        <Text color={statusColor}>{statusLabel}</Text>
-        <Text color={theme.fg_0}>│</Text>
-        <Text color={priorityColor}>{priorityLabel}</Text>
+      <box gap={1}>
+        <text fg={statusColor}>{statusLabel}</text>
+        <text fg={theme.fg_0}>│</text>
+        <text fg={priorityColor}>{priorityLabel}</text>
         {typeLabel && (
           <>
-            <Text color={theme.fg_0}>│</Text>
-            <Text color={typeColor}>{typeLabel}</Text>
+            <text fg={theme.fg_0}>│</text>
+            <text fg={typeColor}>{typeLabel}</text>
           </>
         )}
-      </Box>
+      </box>
 
       {/* Description */}
       {descriptionLines.length > 0 ? (
-        <Box flexDirection="column" marginTop={1}>
+        <box flexDirection="column" marginTop={1}>
           {descriptionLines.map((line) => {
             // Use content hash as key — lines won't reorder within a preview
             const lineKey = `${line.length}-${line.substring(0, 30)}`
-            return <Text key={lineKey} color={theme.fg_0} wrap="truncate">{line}</Text>
+            return <text key={lineKey} fg={theme.fg_0} truncate={true}>{line}</text>
           })}
-        </Box>
+        </box>
       ) : (
-        <Box marginTop={1}>
-          <Text color={theme.fg_0} italic>No description</Text>
-        </Box>
+        <box marginTop={1}>
+          <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>No description</text>
+        </box>
       )}
-    </Box>
+    </box>
   )
 }
 
@@ -102,7 +101,7 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
 /** Word-wrap text to maxWidth, returning at most maxLines lines. Appends "…" when truncated. */
 function wordWrapLines(text: string, maxWidth: number, maxLines: number): string[] {
   const lines: string[] = []
-  // Replace tab characters with spaces — tabs render as garbled boxes in Ink
+  // Replace tab characters with spaces — tabs render as garbled boxes
   const paragraphs = text.replace(/\t/g, "    ").split("\n")
 
   for (const para of paragraphs) {

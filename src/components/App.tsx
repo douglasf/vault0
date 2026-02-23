@@ -1,6 +1,6 @@
-import React from "react"
 import { useState, useCallback, useEffect, useRef } from "react"
-import { Box, useInput, useApp } from "ink"
+import { useRenderer, useTerminalDimensions } from "@opentui/react"
+import type { KeyEvent } from "@opentui/core"
 import type { Vault0Database } from "../db/connection.js"
 import { DbContext } from "../lib/db-context.js"
 import { ErrorBoundary } from "./ErrorBoundary.js"
@@ -21,6 +21,7 @@ import { theme } from "../lib/theme.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { Task, Status, SortField } from "../lib/types.js"
 import type { DbError } from "../hooks/useBoard.js"
 import { getBoards, getTaskCards } from "../db/queries.js"
@@ -45,7 +46,8 @@ export interface AppState {
 }
 
 export function App({ db, dbPath }: AppProps) {
-  const { exit } = useApp()
+  const renderer = useRenderer()
+  const { width: terminalColumns, height: terminalRows } = useTerminalDimensions()
   const [state, setState] = useState<AppState>({
     currentBoardId: "",
     uiMode: "board",
@@ -61,22 +63,6 @@ export function App({ db, dbPath }: AppProps) {
   }, [])
 
   useDbWatcher(dbPath, forceRefresh)
-
-  // Track terminal dimensions for responsive layout (narrow terminal fallback + fullscreen height)
-  const [terminalColumns, setTerminalColumns] = useState(process.stdout.columns || 80)
-  const [terminalRows, setTerminalRows] = useState(process.stdout.rows || 24)
-
-  useEffect(() => {
-    const handleResize = () => {
-      setTerminalColumns(process.stdout.columns || 80)
-      setTerminalRows(process.stdout.rows || 24)
-    }
-
-    process.stdout.on("resize", handleResize)
-    return () => {
-      process.stdout.off("resize", handleResize)
-    }
-  }, [])
 
   // Track the currently highlighted task in board view via a ref
   // (avoids re-render loops — Board updates this after every render)
@@ -144,13 +130,21 @@ export function App({ db, dbPath }: AppProps) {
     initializeBoard()
   }, [initializeBoard])
 
-  // App-level input is active only in board mode.
-  // Help mode input is handled entirely by HelpOverlay (which owns text filter input).
-  // Detail mode has its own useInput inside TaskDetail.
-  // Form/picker modes have their own useInput handlers.
+  // Modal overlay modes — board stays mounted but input is disabled
+  const MODAL_OVERLAY_MODES: Set<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker"])
+  const isModalOverlay = MODAL_OVERLAY_MODES.has(state.uiMode)
+
+  // Board-like modes where the board/narrow terminal is visible
+  const isBoardVisible = state.uiMode === "board" || state.uiMode === "text-filter" || state.uiMode === "filter" || isModalOverlay
+
+  // App-level input is active only in board mode (not during overlays).
   const appInputActive = state.uiMode === "board"
 
-  useInput((input, _key) => {
+  // Board input is active only in pure board mode (not during overlays or text-filter)
+  const boardInputActive = state.uiMode === "board"
+
+  useActiveKeyboard((event: KeyEvent) => {
+    const input = event.raw || ""
     if (input === "a") {
       setState((prev) => ({ ...prev, uiMode: "create", createParent: undefined }))
     } else if (input === "A") {
@@ -220,9 +214,9 @@ export function App({ db, dbPath }: AppProps) {
     } else if (input === "v") {
       setPreviewVisible((prev) => !prev)
     } else if (input === "q") {
-      exit()
+      renderer.destroy()
     }
-  }, { isActive: appInputActive })
+  }, appInputActive)
 
   // ── Preview panel layout computation ──────────────────────────────────
   // Bottom panel: terminal tall enough (>= 28 rows)
@@ -246,9 +240,10 @@ export function App({ db, dbPath }: AppProps) {
   }
 
   return (
+    // @ts-expect-error ErrorBoundary class component vs OpenTUI JSX type mismatch (runtime-compatible)
     <ErrorBoundary>
       <DbContext.Provider value={db}>
-        <Box flexDirection="column" width="100%" height={terminalRows} backgroundColor={theme.bg_1}>
+        <box flexDirection="column" width="100%" height={terminalRows} backgroundColor={theme.bg_1}>
           <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} toast={toast} sortField={sortField} />
 
           {dbError && (
@@ -258,11 +253,11 @@ export function App({ db, dbPath }: AppProps) {
                 setDbError(null)
                 setState((prev) => ({ ...prev }))
               }}
-              onDismiss={exit}
+              onDismiss={() => renderer.destroy()}
             />
           )}
 
-          {(state.uiMode === "board" || state.uiMode === "text-filter") && (
+          {isBoardVisible && (
             <>
               {state.uiMode === "text-filter" && (
                 <TextFilterBar
@@ -271,10 +266,23 @@ export function App({ db, dbPath }: AppProps) {
                   onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
                 />
               )}
+              {state.uiMode === "filter" && (
+                <FilterBar
+                  filters={filterHook.filters}
+                  onToggleStatus={filterHook.toggleStatus}
+                  onTogglePriority={filterHook.togglePriority}
+                  onToggleSource={filterHook.toggleSource}
+                  onToggleReady={filterHook.toggleReady}
+                  onToggleBlocked={filterHook.toggleBlocked}
+                  onToggleArchived={filterHook.toggleArchived}
+                  onClear={filterHook.clearFilters}
+                  onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+                />
+              )}
               {previewLayout === "side" ? (
-                <Box flexDirection="row" flexGrow={1}>
+                <box flexDirection="row" flexGrow={1}>
                   {terminalColumns < 80 ? (
-                    <Box flexGrow={1}>
+                    <box flexGrow={1}>
                       <NarrowTerminal
                         boardId={state.currentBoardId}
                         filters={filterHook.filters}
@@ -283,15 +291,15 @@ export function App({ db, dbPath }: AppProps) {
                           setState((prev) => ({ ...prev, selectedTask: task, uiMode: "detail" }))
                         }
                         onHighlightTask={handleHighlightTask}
-                         onMoveTask={handleMoveTask}
-                         inputActive={state.uiMode === "board"}
-hideSubtasks={hideSubtasks}
-                          sortField={sortField}
-                          onDbError={handleDbError}
-                       />
-                    </Box>
+                        onMoveTask={handleMoveTask}
+                        inputActive={boardInputActive}
+                        hideSubtasks={hideSubtasks}
+                        sortField={sortField}
+                        onDbError={handleDbError}
+                      />
+                    </box>
                   ) : (
-                    <Box flexGrow={1}>
+                    <box flexGrow={1}>
                       <Board
                         boardId={state.currentBoardId}
                         filters={filterHook.filters}
@@ -301,15 +309,15 @@ hideSubtasks={hideSubtasks}
                         }
                         onHighlightTask={handleHighlightTask}
                         onMoveTask={handleMoveTask}
-                        inputActive={state.uiMode === "board"}
+                        inputActive={boardInputActive}
                         hideSubtasks={hideSubtasks}
                         sortField={sortField}
                         onDbError={handleDbError}
                       />
-                    </Box>
+                    </box>
                   )}
                   <TaskPreview task={previewTask} orientation="side" />
-                </Box>
+                </box>
               ) : (
                 <>
                   {terminalColumns < 80 ? (
@@ -322,7 +330,7 @@ hideSubtasks={hideSubtasks}
                       }
                       onHighlightTask={handleHighlightTask}
                       onMoveTask={handleMoveTask}
-                      inputActive={state.uiMode === "board"}
+                      inputActive={boardInputActive}
                       heightReduction={boardHeightReduction}
                       hideSubtasks={hideSubtasks}
                       sortField={sortField}
@@ -338,7 +346,7 @@ hideSubtasks={hideSubtasks}
                       }
                       onHighlightTask={handleHighlightTask}
                       onMoveTask={handleMoveTask}
-                      inputActive={state.uiMode === "board"}
+                      inputActive={boardInputActive}
                       heightReduction={boardHeightReduction}
                       hideSubtasks={hideSubtasks}
                       sortField={sortField}
@@ -352,20 +360,6 @@ hideSubtasks={hideSubtasks}
               )}
             </>
           )}
-
-        {state.uiMode === "filter" && (
-          <FilterBar
-            filters={filterHook.filters}
-            onToggleStatus={filterHook.toggleStatus}
-            onTogglePriority={filterHook.togglePriority}
-            onToggleSource={filterHook.toggleSource}
-            onToggleReady={filterHook.toggleReady}
-            onToggleBlocked={filterHook.toggleBlocked}
-            onToggleArchived={filterHook.toggleArchived}
-            onClear={filterHook.clearFilters}
-            onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
-          />
-        )}
 
         {state.uiMode === "detail" && state.selectedTask && (
           <TaskDetail
@@ -477,7 +471,7 @@ hideSubtasks={hideSubtasks}
             }}
           />
         )}
-      </Box>
+      </box>
     </DbContext.Provider>
   </ErrorBoundary>
   )

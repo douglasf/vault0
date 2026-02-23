@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from "react"
-import { Box, Text, useInput, useStdout } from "ink"
+import { useState, useMemo } from "react"
+import type { KeyEvent } from "@opentui/core"
+import { TextAttributes } from "@opentui/core"
+import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import { Scrollbar } from "./Scrollbar.js"
 import { theme } from "../lib/theme.js"
+import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface HelpOverlayProps {
   onClose: () => void
@@ -112,7 +115,6 @@ const sections: ShortcutSection[] = [
 
 /**
  * Flatten sections into renderable items for display.
- * Each item is a section header, a shortcut row, a legend entry, or a divider.
  */
 interface HeaderItem {
   kind: "header"
@@ -136,7 +138,6 @@ type RenderItem = HeaderItem | ShortcutItem | LegendItem | DividerItem
 function buildItems(): RenderItem[] {
   const items: RenderItem[] = []
 
-  // Keyboard Shortcuts super-header
   items.push({ kind: "divider", label: "⌨  Keyboard Shortcuts" })
   for (const section of sections) {
     items.push({ kind: "header", title: section.title })
@@ -145,7 +146,6 @@ function buildItems(): RenderItem[] {
     }
   }
 
-  // Legend super-header
   items.push({ kind: "divider", label: "🎨  Legend" })
   for (const section of legendSections) {
     items.push({ kind: "header", title: section.title })
@@ -158,11 +158,6 @@ function buildItems(): RenderItem[] {
 
 const allItems = buildItems()
 
-/**
- * Filter the flat item list by a search string. Matches against both the key
- * binding and its description (case-insensitive). Section headers are included
- * only when at least one shortcut in the section matches.
- */
 function filterItems(items: RenderItem[], query: string): RenderItem[] {
   if (!query) return items
   const lower = query.toLowerCase()
@@ -189,32 +184,28 @@ function filterItems(items: RenderItem[], query: string): RenderItem[] {
 }
 
 export function HelpOverlay({ onClose }: HelpOverlayProps) {
-  const { stdout } = useStdout()
-  const terminalRows = stdout?.rows || 24
+  const { height: terminalRows } = useTerminalDimensions()
 
   const [filter, setFilter] = useState("")
   const [scrollOffset, setScrollOffset] = useState(0)
 
   const filteredItems = useMemo(() => filterItems(allItems, filter), [filter])
 
-  // Available height for the scrollable content area.
-  // Subtract chrome: App header (~3), overlay paddingY (2),
-  // title line + marginBottom (2), filter line (1),
-  // footer + marginTop (2). Total overhead ≈ 10 lines.
-  const contentHeight = Math.max(3, terminalRows - 10)
+  // Available height for scrollable content inside the modal.
+  // Modal has border (2) + padding (2) + title (1) + marginBottom (1) +
+  // filter line (1) + marginTop (1) + footer (1) + marginTop (1) = ~10.
+  // Plus the outer overlay centering eats some space.
+  // Use ~60% of terminal height as content area.
+  const contentHeight = Math.max(3, Math.floor(terminalRows * 0.6))
 
-  // Clamp scroll offset to valid range
   const maxScroll = Math.max(0, filteredItems.length - 1)
 
-  // Find the scroll offset that ensures the content fits. We scroll by item
-  // index and compute how many items fit in the content area starting at offset.
   const visibleWindow = useMemo(() => {
     const offset = Math.min(scrollOffset, maxScroll)
     let linesUsed = 0
     let count = 0
     for (let i = offset; i < filteredItems.length; i++) {
       let itemLines = 1
-      // Section headers and dividers (not at the top of the window) have a margin line above
       const k = filteredItems[i].kind
       if ((k === "header" || k === "divider") && i > offset) {
         itemLines += 1
@@ -229,40 +220,41 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
   const visible = filteredItems.slice(visibleWindow.offset, visibleWindow.offset + visibleWindow.count)
   const needsScrollbar = filteredItems.length > visibleWindow.count || visibleWindow.offset > 0
 
-  useInput((input, key) => {
+  useKeyboard((event: KeyEvent) => {
     // Close overlay
-    if (input === "?" || key.escape) {
+    if ((event.raw === "?") || event.name === "escape") {
       onClose()
       return
     }
 
     // Scroll
-    if (key.upArrow) {
+    if (event.name === "up") {
       setScrollOffset((prev) => Math.max(0, prev - 1))
       return
     }
-    if (key.downArrow) {
+    if (event.name === "down") {
       setScrollOffset((prev) => Math.min(maxScroll, prev + 1))
       return
     }
-    if (key.pageDown) {
+    if (event.name === "pagedown") {
       setScrollOffset((prev) => Math.min(maxScroll, prev + contentHeight))
       return
     }
-    if (key.pageUp) {
+    if (event.name === "pageup") {
       setScrollOffset((prev) => Math.max(0, prev - contentHeight))
       return
     }
 
     // Backspace — remove last character from filter
-    if (key.backspace || key.delete) {
+    if (event.name === "backspace") {
       setFilter((prev) => prev.slice(0, -1))
       setScrollOffset(0)
       return
     }
 
     // Regular character input — append to filter
-    if (input && !key.ctrl && !key.meta) {
+    const input = event.raw || ""
+    if (input && input.length === 1 && !event.ctrl && !event.meta) {
       setFilter((prev) => prev + input)
       setScrollOffset(0)
       return
@@ -274,90 +266,83 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
   const isFiltered = filter.length > 0
 
   return (
-    <Box
-      flexDirection="column"
-      width="100%"
-      backgroundColor={theme.bg_1}
-      paddingX={2}
-      paddingY={1}
-      flexGrow={1}
-    >
+    <ModalOverlay onClose={onClose} size="large">
       {/* Title bar */}
-      <Box justifyContent="space-between" marginBottom={1}>
-        <Text bold color={theme.fg_1}>
+      <box justifyContent="space-between" marginBottom={1}>
+        <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>
           Vault0 — Help
-        </Text>
+        </text>
         {isFiltered && (
-          <Text color={theme.fg_0}>
+          <text fg={theme.fg_0}>
             {matchCount}/{totalCount} matches
-          </Text>
+          </text>
         )}
-      </Box>
+      </box>
 
       {/* Filter input */}
-      <Box>
-        <Text color={theme.fg_0}>Filter: </Text>
-        <Text color={theme.fg_1}>{filter}</Text>
-        <Text color={theme.fg_1}>▎</Text>
-      </Box>
+      <box>
+        <text fg={theme.fg_0}>Filter: </text>
+        <text fg={theme.fg_1}>{filter}</text>
+        <text fg={theme.fg_1}>▎</text>
+      </box>
 
       {/* Scrollable shortcut list */}
-      <Box flexDirection="row" flexGrow={1} marginTop={1}>
-        <Box flexDirection="column" flexGrow={1}>
+      <box flexDirection="row" flexGrow={1} marginTop={1} height={visibleWindow.linesUsed}>
+        <box flexDirection="column" flexGrow={1}>
           {visible.length === 0 ? (
-            <Text color={theme.fg_0} italic>No matching shortcuts</Text>
+            <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>No matching shortcuts</text>
           ) : (
             visible.map((item, i) => {
               const k = `${item.kind}-${visibleWindow.offset + i}`
               if (item.kind === "divider") {
                 return (
-                  <Box key={k} marginTop={i === 0 ? 0 : 1} marginBottom={0}>
-                    <Text bold color={theme.cyan}>
+                  <box key={k} marginTop={i === 0 ? 0 : 1} marginBottom={0}>
+                    <text fg={theme.cyan} attributes={TextAttributes.BOLD}>
                       {item.label}
-                    </Text>
-                  </Box>
+                    </text>
+                  </box>
                 )
               }
               if (item.kind === "header") {
                 return (
-                  <Box key={k} marginTop={i === 0 ? 0 : 1}>
-                    <Text bold underline color={theme.fg_1}>
+                  <box key={k} marginTop={i === 0 ? 0 : 1}>
+                    <text fg={theme.fg_1} attributes={TextAttributes.BOLD | TextAttributes.UNDERLINE}>
                       {item.title}
-                    </Text>
-                  </Box>
+                    </text>
+                  </box>
                 )
               }
               if (item.kind === "legend") {
                 const { entry } = item
                 return (
-                  <Box key={k}>
-                    <Box width={16}>
-                      <Text
-                        color={entry.color()}
-                        backgroundColor={entry.bgColor?.()}
-                        bold
+                  <box key={k}>
+                    <box width={16}>
+                      <text
+                        fg={entry.color()}
+                        bg={entry.bgColor?.()}
+                        attributes={TextAttributes.BOLD}
                       >
                         {entry.label}
-                      </Text>
-                    </Box>
-                    {entry.desc ? <Text color={theme.fg_0}>{entry.desc}</Text> : null}
-                  </Box>
+                      </text>
+                    </box>
+                    {entry.desc ? <text fg={theme.fg_0}>{entry.desc}</text> : null}
+                  </box>
                 )
               }
               // shortcut
               return (
-                <Box key={k}>
-                  <Box width={16}>
-                    <Text bold color={theme.fg_1}>
+                <box key={k}>
+                  <box width={16}>
+                    <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>
                       {item.key}
-                    </Text>
-                  </Box>
-                  <Text color={theme.fg_0}>{item.desc}</Text>
-                </Box>
+                    </text>
+                  </box>
+                  <text fg={theme.fg_0}>{item.desc}</text>
+                </box>
               )
             })
           )}
-        </Box>
+        </box>
         {needsScrollbar && (
           <Scrollbar
             totalItems={filteredItems.length}
@@ -367,14 +352,14 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
             isActive
           />
         )}
-      </Box>
+      </box>
 
       {/* Footer */}
-      <Box marginTop={1}>
-        <Text color={theme.fg_0}>
+      <box marginTop={1}>
+        <text fg={theme.fg_0}>
           Type to filter · ↑/↓ scroll · ? or Esc to close
-        </Text>
-      </Box>
-    </Box>
+        </text>
+      </box>
+    </ModalOverlay>
   )
 }

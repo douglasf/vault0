@@ -1,5 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react"
-import { Box, Text, useInput } from "ink"
+import { TextAttributes } from "@opentui/core"
+import type { KeyEvent } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import type { Task, Status, Priority, TaskType, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTaskDetail, addDependency, removeDependency } from "../db/queries.js"
@@ -7,6 +9,7 @@ import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constan
 import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
 import { theme } from "../lib/theme.js"
 import { copyToClipboard } from "../lib/clipboard.js"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { DependencyPicker } from "./DependencyPicker.js"
 
 export interface TaskDetailProps {
@@ -58,12 +61,12 @@ export function TaskDetail({
     detail = getTaskDetail(db, taskId)
   } catch {
     return (
-      <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-        <Text color={theme.red}>Task not found (may have been archived)</Text>
-        <Box marginTop={1}>
-          <Text color={theme.dim_0}>Press Esc to go back</Text>
-        </Box>
-      </Box>
+      <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+        <text fg={theme.red}>Task not found (may have been archived)</text>
+        <box marginTop={1}>
+          <text fg={theme.dim_0}>Press Esc to go back</text>
+        </box>
+      </box>
     )
   }
 
@@ -82,61 +85,61 @@ export function TaskDetail({
   // indicators changes the viewport size, which changes whether indicators
   // are needed, causing content to oscillate between renders. The cost is
   // 2 unused lines when content fits without scrolling — negligible.
-  const rows = process.stdout.rows || 24
+  const { height: rows } = useTerminalDimensions()
   const totalLines = sections.length
-  const maxVisible = Math.max(1, rows - 11)
+  const maxVisible = Math.max(1, (rows || 24) - 11)
   const clampedOffset = Math.min(scrollOffset, Math.max(0, totalLines - maxVisible))
 
   const visibleLines = sections.slice(clampedOffset, clampedOffset + maxVisible)
 
-  useInput((input, key) => {
-    if (key.escape) {
+  useActiveKeyboard((event: KeyEvent) => {
+    if (event.name === "escape") {
       onBack()
-    } else if (input === "e") {
+    } else if (event.raw === "e" && !event.ctrl && !event.meta) {
       onEdit(detail)
-    } else if (input === "s") {
+    } else if (event.raw === "s" && !event.ctrl && !event.meta) {
       onStatusPick(detail)
-    } else if (input === "p") {
+    } else if (event.raw === "p" && !event.ctrl && !event.meta) {
       onCyclePriority(detail.id)
-    } else if (input === "d") {
+    } else if (event.raw === "d" && !event.ctrl && !event.meta) {
       onDelete(detail.id)
-    } else if (input === "u") {
+    } else if (event.raw === "u" && !event.ctrl && !event.meta) {
       if (detail.archivedAt !== null) {
         onUnarchive(detail.id)
       }
-    } else if (input === "A") {
+    } else if (event.raw === "A" && !event.ctrl && !event.meta) {
       // Only allow adding subtasks to top-level tasks (not subtasks of subtasks)
       if (!detail.parentId) {
         onCreateSubtask(detail)
       }
-    } else if (input === "c") {
+    } else if (event.raw === "c" && !event.ctrl && !event.meta) {
       const ok = copyToClipboard(detail.id)
       showCopyToast(ok ? `Copied: ${detail.id}` : "Copy failed")
-    } else if (input === "+") {
+    } else if (event.raw === "+" && !event.ctrl && !event.meta) {
       setShowDependencyPicker(true)
       setDependencyError("")
-    } else if (input === "-" && detail.dependsOn.length > 0) {
+    } else if (event.raw === "-" && !event.ctrl && !event.meta && detail.dependsOn.length > 0) {
       setShowDependencyRemover(true)
       setRemoveDepIndex(0)
       setDependencyError("")
-    } else if (key.upArrow) {
+    } else if (event.name === "up") {
       setScrollOffset((prev) => Math.max(0, prev - 1))
-    } else if (key.downArrow) {
+    } else if (event.name === "down") {
       setScrollOffset((prev) => Math.min(Math.max(0, totalLines - maxVisible), prev + 1))
-    } else if (key.pageUp) {
+    } else if (event.name === "pageup") {
       setScrollOffset((prev) => Math.max(0, prev - maxVisible))
-    } else if (key.pageDown) {
+    } else if (event.name === "pagedown") {
       setScrollOffset((prev) => Math.min(Math.max(0, totalLines - maxVisible), prev + maxVisible))
     }
-  }, { isActive: !showDependencyPicker && !showDependencyRemover })
+  }, !showDependencyPicker && !showDependencyRemover)
 
   // Dependency removal overlay input handler
-  useInput((_input, key) => {
-    if (key.upArrow) {
+  useActiveKeyboard((event: KeyEvent) => {
+    if (event.name === "up") {
       setRemoveDepIndex((i) => Math.max(0, i - 1))
-    } else if (key.downArrow) {
+    } else if (event.name === "down") {
       setRemoveDepIndex((i) => Math.min(detail.dependsOn.length - 1, i + 1))
-    } else if (key.return) {
+    } else if (event.name === "return") {
       const dep = detail.dependsOn[removeDepIndex]
       if (dep) {
         try {
@@ -147,25 +150,24 @@ export function TaskDetail({
         }
       }
       setShowDependencyRemover(false)
-    } else if (key.escape) {
+    } else if (event.name === "escape") {
       setShowDependencyRemover(false)
     }
-  }, { isActive: showDependencyRemover })
+  }, showDependencyRemover)
 
   const hasMore = totalLines > maxVisible
 
   // Render callback for visible scroll lines.
   // Keys include the scroll offset so React unmounts/remounts every SectionLine
-  // when the viewport shifts. This prevents Ink's terminal diff from corrupting
+  // when the viewport shifts. This prevents terminal diff from corrupting
   // output when in-place content changes (text length changes cause ghost
   // characters, structural changes between line types cause layout glitches).
-  // This matches the pattern used by HelpOverlay's absolute-index keys.
   const renderSlot = (line: LineData, slot: number) => (
     <SectionLine key={`${clampedOffset}-${slot}`} line={line} />
   )
 
   return (
-    <Box flexDirection="column" width="100%">
+    <box flexDirection="column" width="100%">
       {showDependencyPicker ? (
         <DependencyPicker
           currentTaskId={taskId}
@@ -183,81 +185,79 @@ export function TaskDetail({
           onCancel={() => setShowDependencyPicker(false)}
         />
       ) : showDependencyRemover ? (
-        <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-          <Text bold color={theme.yellow}>Remove Dependency</Text>
+        <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+          <text attributes={TextAttributes.BOLD} fg={theme.yellow}>Remove Dependency</text>
 
-          <Box marginTop={1} flexDirection="column">
+          <box marginTop={1} flexDirection="column">
             {detail.dependsOn.map((dep, i) => (
-              <Box key={dep.id}>
-                <Text
-                  color={getStatusColor(dep.status)}
-                  inverse={i === removeDepIndex}
+              <box key={dep.id}>
+                <text
+                  fg={i === removeDepIndex ? theme.bg_1 : getStatusColor(dep.status)}
+                  bg={i === removeDepIndex ? getStatusColor(dep.status) : undefined}
                 >
                   {i === removeDepIndex ? "▸ " : "  "}
                   {dep.title.substring(0, 45)} [{STATUS_LABELS[dep.status as Status] || dep.status}]
-                </Text>
-              </Box>
+                </text>
+              </box>
             ))}
-          </Box>
+          </box>
 
-          <Box marginTop={1}>
-            <Text color={theme.dim_0}>↑/↓: navigate  Enter: remove  Esc: cancel</Text>
-          </Box>
-        </Box>
+          <box marginTop={1}>
+            <text fg={theme.dim_0}>↑/↓: navigate  Enter: remove  Esc: cancel</text>
+          </box>
+        </box>
       ) : (
-        <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1} width="100%">
+        <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1} width="100%">
           {/* Header */}
-          <Box justifyContent="center">
-            <Text bold color={theme.blue}>Task Detail</Text>
-          </Box>
+          <box justifyContent="center">
+            <text attributes={TextAttributes.BOLD} fg={theme.blue}>Task Detail</text>
+          </box>
 
           {/* Scroll-up indicator — always render the slot to keep constant
               output height and prevent React reconciliation churn */}
-          <Box justifyContent="flex-end">
+          <box justifyContent="flex-end">
             {hasMore && clampedOffset > 0
-              ? <Text color={theme.dim_0}>↑ {clampedOffset} more</Text>
-              : <Text> </Text>}
-          </Box>
+              ? <text fg={theme.dim_0}>↑ {clampedOffset} more</text>
+              : <text> </text>}
+          </box>
 
           {/* Content — keys include the scroll offset so React creates fresh
-              SectionLine instances on each scroll step. This avoids Ink terminal
-              diff artifacts (ghost characters, corrupted values) that occur when
-              updating slot content in-place with varying text lengths/structures. */}
-          <Box flexDirection="column" marginTop={1}>
+              SectionLine instances on each scroll step. */}
+          <box flexDirection="column" marginTop={1}>
             {visibleLines.map(renderSlot)}
-          </Box>
+          </box>
 
           {/* Scroll-down indicator — always render the slot to keep constant
               output height and prevent React reconciliation churn */}
-          <Box justifyContent="flex-end">
+          <box justifyContent="flex-end">
             {hasMore && clampedOffset + maxVisible < totalLines
-              ? <Text color={theme.dim_0}>↓ {totalLines - clampedOffset - maxVisible} more</Text>
-              : <Text> </Text>}
-          </Box>
+              ? <text fg={theme.dim_0}>↓ {totalLines - clampedOffset - maxVisible} more</text>
+              : <text> </text>}
+          </box>
 
           {/* Dependency error */}
           {dependencyError && (
-            <Box marginTop={1}>
-              <Text color={theme.red}>⚠ {dependencyError}</Text>
-            </Box>
+            <box marginTop={1}>
+              <text fg={theme.red}>⚠ {dependencyError}</text>
+            </box>
           )}
 
           {/* Copy toast */}
           {copyToast && (
-            <Box marginTop={dependencyError ? 0 : 1}>
-              <Text color={theme.green} bold>✓ {copyToast}</Text>
-            </Box>
+            <box marginTop={dependencyError ? 0 : 1}>
+              <text fg={theme.green} attributes={TextAttributes.BOLD}>✓ {copyToast}</text>
+            </box>
           )}
 
           {/* Footer shortcuts */}
-          <Box marginTop={1} justifyContent="center">
-            <Text color={theme.dim_0}>
+          <box marginTop={1} justifyContent="center">
+            <text fg={theme.dim_0}>
               [e]dit  [s]tatus  [p]riority  [d]elete  {!detail.parentId && "[A]dd subtask  "}[c]opy id  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
-            </Text>
-          </Box>
-        </Box>
+            </text>
+          </box>
+        </box>
       )}
-    </Box>
+    </box>
   )
 }
 
@@ -278,54 +278,54 @@ function SectionLine({ line }: { line: LineData }) {
   switch (line.type) {
     case "heading":
       return (
-        <Box>
-          <Text bold color={theme.blue}>── {line.label} ──</Text>
-        </Box>
+        <box>
+          <text attributes={TextAttributes.BOLD} fg={theme.blue}>── {line.label} ──</text>
+        </box>
       )
     case "field":
       return (
-        <Box>
-          <Text color={theme.dim_0}>{line.label}: </Text>
-          <Text color={line.color ?? theme.fg_1} bold={line.bold}>{line.value}</Text>
-        </Box>
+        <box>
+          <text fg={theme.dim_0}>{line.label}: </text>
+          <text fg={line.color ?? theme.fg_1} attributes={line.bold ? TextAttributes.BOLD : TextAttributes.NONE}>{line.value}</text>
+        </box>
       )
     case "dep":
       return (
-        <Box>
-          <Text color={theme.fg_1}>{line.label === "depends_on" ? "  → " : "  ← "}</Text>
-          <Text color={theme.fg_1}>{line.value}</Text>
-          <Text color={theme.dim_0}> </Text>
-          <Text color={getStatusColor(line.status || "")}>[{STATUS_LABELS[line.status as Status] || line.status}]</Text>
-        </Box>
+        <box>
+          <text fg={theme.fg_1}>{line.label === "depends_on" ? "  → " : "  ← "}</text>
+          <text fg={theme.fg_1}>{line.value}</text>
+          <text fg={theme.dim_0}> </text>
+          <text fg={getStatusColor(line.status || "")}>[{STATUS_LABELS[line.status as Status] || line.status}]</text>
+        </box>
       )
     case "subtask":
       return (
-        <Box>
-          <Text color={theme.fg_1}>  {line.done ? "[x]" : "[ ]"} </Text>
-          <Text color={line.done ? theme.dim_0 : theme.fg_1}>{line.value}</Text>
-        </Box>
+        <box>
+          <text fg={theme.fg_1}>  {line.done ? "[x]" : "[ ]"} </text>
+          <text fg={line.done ? theme.dim_0 : theme.fg_1}>{line.value}</text>
+        </box>
       )
     case "history":
       return (
-        <Box>
-          <Text color={theme.dim_0}>  {line.label}  </Text>
-          <Text color={theme.fg_1}>{line.value}</Text>
-        </Box>
+        <box>
+          <text fg={theme.dim_0}>  {line.label}  </text>
+          <text fg={theme.fg_1}>{line.value}</text>
+        </box>
       )
     case "blocked-banner":
       return (
-        <Box>
-          <Text color={theme.red} bold>🔒 Blocked — waiting on {line.value} {Number(line.value) === 1 ? "dependency" : "dependencies"}</Text>
-        </Box>
+        <box>
+          <text fg={theme.red} attributes={TextAttributes.BOLD}>🔒 Blocked — waiting on {line.value} {Number(line.value) === 1 ? "dependency" : "dependencies"}</text>
+        </box>
       )
     case "text":
       return (
-        <Box>
-          <Text color={line.dimmed ? theme.dim_0 : (line.color ?? theme.fg_1)}>{line.value}</Text>
-        </Box>
+        <box>
+          <text fg={line.dimmed ? theme.dim_0 : (line.color ?? theme.fg_1)}>{line.value}</text>
+        </box>
       )
     case "blank":
-      return <Box><Text> </Text></Box>
+      return <box><text> </text></box>
     default:
       return null
   }
@@ -482,7 +482,7 @@ function formatDateTime(date: Date | string | number | null | undefined): string
 
 function wordWrap(text: string, maxWidth: number): string[] {
   const lines: string[] = []
-  // Replace tab characters with spaces — tabs render as garbled boxes in Ink
+  // Replace tab characters with spaces — tabs render as garbled boxes
   const paragraphs = text.replace(/\t/g, "    ").split("\n")
   for (const para of paragraphs) {
     if (para.length <= maxWidth) {

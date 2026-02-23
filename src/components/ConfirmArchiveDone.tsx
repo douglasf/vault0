@@ -1,6 +1,8 @@
-import React from "react"
-import { Box, Text, useInput } from "ink"
+import type { KeyEvent } from "@opentui/core"
+import { useKeyboard } from "@opentui/react"
 import { theme } from "../lib/theme.js"
+import { TextAttributes } from "@opentui/core"
+import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface ConfirmArchiveDoneProps {
   doneCount: number
@@ -9,30 +11,31 @@ export interface ConfirmArchiveDoneProps {
 }
 
 export function ConfirmArchiveDone({ doneCount, onConfirm, onCancel }: ConfirmArchiveDoneProps) {
-  useInput((input, key) => {
+  useKeyboard((event: KeyEvent) => {
+    const input = event.raw || ""
     if (input === "y" || input === "Y") {
       onConfirm()
-    } else if (input === "n" || input === "N" || key.escape) {
+    } else if (input === "n" || input === "N") {
       onCancel()
     }
   })
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <Text bold color={theme.yellow}>Archive Done Lane</Text>
+    <ModalOverlay onClose={onCancel} size="small">
+      <text fg={theme.yellow} attributes={TextAttributes.BOLD}>Archive Done Lane</text>
 
-      <Box marginTop={1} flexDirection="column">
-        <Text>
+      <box marginTop={1} flexDirection="column">
+        <text fg={theme.fg_1}>
           Archive all {doneCount} task{doneCount !== 1 ? "s" : ""} in the Done column?
-        </Text>
-        <Box marginTop={1}>
-          <Text color={theme.dim_0}>Archived tasks can be viewed using the "Show Archived" filter (f).</Text>
-        </Box>
-      </Box>
+        </text>
+        <box marginTop={1}>
+          <text fg={theme.dim_0}>Archived tasks can be viewed using the "Show Archived" filter (f).</text>
+        </box>
+      </box>
 
-      <Box marginTop={1}>
-        <Text color={theme.dim_0}>[y]es  [n]o / Esc: cancel</Text>
-      </Box>
-    </Box>
+      <box marginTop={1}>
+        <text fg={theme.dim_0}>[y]es  [n]o / Esc: cancel</text>
+      </box>
+    </ModalOverlay>
   )
 }

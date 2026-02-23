@@ -1,5 +1,7 @@
 import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { TextAttributes } from "@opentui/core"
+import type { KeyEvent } from "@opentui/core"
+import { useKeyboard } from "@opentui/react"
 import type { Task, Status } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTasksByStatus } from "../db/queries.js"
@@ -48,72 +50,72 @@ export function DependencyPicker({
   const scrollStart = Math.max(0, Math.min(idealStart, Math.max(0, availableTasks.length - maxVisible)))
   const visibleTasks = availableTasks.slice(scrollStart, scrollStart + maxVisible)
 
-  useInput((input, key) => {
-    if (key.upArrow) {
+  useKeyboard((event: KeyEvent) => {
+    if (event.name === "up") {
       setSelectedIndex((i) => Math.max(0, i - 1))
-    } else if (key.downArrow) {
+    } else if (event.name === "down") {
       setSelectedIndex((i) => Math.min(availableTasks.length - 1, i + 1))
-    } else if (key.return) {
+    } else if (event.name === "return") {
       if (availableTasks[selectedIndex]) {
         onSelectDependency(availableTasks[selectedIndex].id)
       }
-    } else if (key.escape) {
+    } else if (event.name === "escape") {
       onCancel()
-    } else if (key.backspace || key.delete) {
+    } else if (event.name === "backspace" || event.name === "delete") {
       setSearchFilter((s) => s.slice(0, -1))
       setSelectedIndex(0)
-    } else if (input && input.length === 1 && /[a-zA-Z0-9 _\-]/.test(input)) {
-      setSearchFilter((s) => s + input)
+    } else if (event.raw && event.raw.length === 1 && !event.ctrl && !event.meta && /[a-zA-Z0-9 _\-]/.test(event.raw)) {
+      setSearchFilter((s) => s + event.raw)
       setSelectedIndex(0)
     }
   })
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <Text bold color={theme.cyan}>Add Dependency</Text>
+    <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+      <text attributes={TextAttributes.BOLD} fg={theme.cyan}>Add Dependency</text>
 
-      <Box marginTop={1}>
-        <Text color={theme.dim_0}>Search: </Text>
+      <box marginTop={1}>
+        <text fg={theme.dim_0}>Search: </text>
         {searchFilter ? (
-          <Text>{searchFilter}</Text>
+          <text>{searchFilter}</text>
         ) : (
-          <Text color={theme.dim_0}>(type to filter)</Text>
+          <text fg={theme.dim_0}>(type to filter)</text>
         )}
-      </Box>
+      </box>
 
-      <Box marginTop={1} flexDirection="column">
+      <box marginTop={1} flexDirection="column">
         {availableTasks.length === 0 ? (
-          <Text color={theme.dim_0}>No matching tasks</Text>
+          <text fg={theme.dim_0}>No matching tasks</text>
         ) : (
           visibleTasks.map((task, i) => {
             const globalIndex = scrollStart + i
             const isSelected = globalIndex === selectedIndex
             return (
-              <Box key={task.id}>
-                <Text
-                  color={getStatusColor(task.status)}
-                  inverse={isSelected}
+              <box key={task.id}>
+                <text
+                  fg={isSelected ? theme.bg_1 : getStatusColor(task.status)}
+                  bg={isSelected ? getStatusColor(task.status) : undefined}
                 >
                   {isSelected ? "▸ " : "  "}
                   {task.title.substring(0, 45)} [{STATUS_LABELS[task.status as Status] || task.status}]
-                </Text>
-              </Box>
+                </text>
+              </box>
             )
           })
         )}
-      </Box>
+      </box>
 
       {availableTasks.length > maxVisible && (
-        <Box marginTop={1}>
-          <Text color={theme.dim_0}>
+        <box marginTop={1}>
+          <text fg={theme.dim_0}>
             {scrollStart + 1}–{Math.min(scrollStart + maxVisible, availableTasks.length)} of {availableTasks.length}
-          </Text>
-        </Box>
+          </text>
+        </box>
       )}
 
-      <Box marginTop={1}>
-        <Text color={theme.dim_0}>↑/↓: navigate  Enter: add  Esc: cancel</Text>
-      </Box>
-    </Box>
+      <box marginTop={1}>
+        <text fg={theme.dim_0}>↑/↓: navigate  Enter: add  Esc: cancel</text>
+      </box>
+    </box>
   )
 }

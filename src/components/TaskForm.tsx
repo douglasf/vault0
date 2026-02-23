@@ -1,5 +1,7 @@
 import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { TextAttributes } from "@opentui/core"
+import type { KeyEvent } from "@opentui/core"
+import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, TASK_TYPE_LABELS, TASK_TYPES } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme } from "../lib/theme.js"
@@ -45,16 +47,16 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
     ? ["title", "description", "priority", "type", "status", "submit"]
     : ["title", "description", "priority", "type", "submit"]
 
-  useInput((input, key) => {
-    if (key.escape) {
+  useKeyboard((event: KeyEvent) => {
+    if (event.name === "escape") {
       onCancel()
       return
     }
 
     // Tab / Shift+Tab to navigate fields
-    if (key.tab) {
+    if (event.name === "tab") {
       const currentIndex = fields.indexOf(focusField)
-      const nextIndex = key.shift
+      const nextIndex = event.shift
         ? (currentIndex - 1 + fields.length) % fields.length
         : (currentIndex + 1) % fields.length
       setFocusField(fields[nextIndex])
@@ -62,7 +64,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
     }
 
     // Enter on submit button
-    if (key.return && focusField === "submit") {
+    if (event.name === "return" && focusField === "submit") {
       if (titleInput.value.trim()) {
         onSubmit({ title: titleInput.value.trim(), description: descInput.value, priority, status, type: taskType })
       }
@@ -71,36 +73,36 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
     // Text editing for title (single-line: Enter advances to next field)
     if (focusField === "title") {
-      if (key.return) {
+      if (event.name === "return") {
         const currentIndex = fields.indexOf("title")
         if (currentIndex < fields.length - 1) {
           setFocusField(fields[currentIndex + 1])
         }
         return
       }
-      titleInput.handleInput(input, key)
+      titleInput.handleKeyEvent(event)
       return
     }
 
     // Text editing for description (multiline: Enter inserts newline via hook)
     if (focusField === "description") {
-      descInput.handleInput(input, key)
+      descInput.handleKeyEvent(event)
       return
     }
 
     // Priority cycling with arrow keys
     if (focusField === "priority") {
-      if (key.leftArrow || key.upArrow) {
+      if (event.name === "left" || event.name === "up") {
         setPriority((prev) => {
           const idx = PRIORITIES.indexOf(prev)
           return PRIORITIES[(idx - 1 + PRIORITIES.length) % PRIORITIES.length]
         })
-      } else if (key.rightArrow || key.downArrow) {
+      } else if (event.name === "right" || event.name === "down") {
         setPriority((prev) => {
           const idx = PRIORITIES.indexOf(prev)
           return PRIORITIES[(idx + 1) % PRIORITIES.length]
         })
-      } else if (key.return) {
+      } else if (event.name === "return") {
         const currentIndex = fields.indexOf(focusField)
         if (currentIndex < fields.length - 1) {
           setFocusField(fields[currentIndex + 1])
@@ -111,17 +113,17 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
     // Task type cycling with arrow keys
     if (focusField === "type") {
-      if (key.leftArrow || key.upArrow) {
+      if (event.name === "left" || event.name === "up") {
         setTaskType((prev) => {
           const idx = TYPE_OPTIONS.indexOf(prev)
           return TYPE_OPTIONS[(idx - 1 + TYPE_OPTIONS.length) % TYPE_OPTIONS.length]
         })
-      } else if (key.rightArrow || key.downArrow) {
+      } else if (event.name === "right" || event.name === "down") {
         setTaskType((prev) => {
           const idx = TYPE_OPTIONS.indexOf(prev)
           return TYPE_OPTIONS[(idx + 1) % TYPE_OPTIONS.length]
         })
-      } else if (key.return) {
+      } else if (event.name === "return") {
         const currentIndex = fields.indexOf(focusField)
         if (currentIndex < fields.length - 1) {
           setFocusField(fields[currentIndex + 1])
@@ -132,17 +134,17 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
     // Status cycling with arrow keys (create mode only)
     if (focusField === "status") {
-      if (key.leftArrow || key.upArrow) {
+      if (event.name === "left" || event.name === "up") {
         setStatus((prev) => {
           const idx = STATUSES.indexOf(prev)
           return STATUSES[(idx - 1 + STATUSES.length) % STATUSES.length]
         })
-      } else if (key.rightArrow || key.downArrow) {
+      } else if (event.name === "right" || event.name === "down") {
         setStatus((prev) => {
           const idx = STATUSES.indexOf(prev)
           return STATUSES[(idx + 1) % STATUSES.length]
         })
-      } else if (key.return) {
+      } else if (event.name === "return") {
         const currentIndex = fields.indexOf(focusField)
         if (currentIndex < fields.length - 1) {
           setFocusField(fields[currentIndex + 1])
@@ -158,8 +160,8 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   // Terminal-aware width for description to prevent container overflow.
   // RADICAL SIMPLIFICATION: No outer box, no padding, no border, no margin.
   // Only overhead is the 4-char indent prefix ("    ") added inline.
-  const termCols = process.stdout.columns || 80
-  const descTextWidth = Math.max(10, termCols - 4)
+  const { width: termCols } = useTerminalDimensions()
+  const descTextWidth = Math.max(10, (termCols || 80) - 4)
 
   // Build display lines from tokens: text tokens get word-wrapped,
   // paste tokens render as a single placeholder line.
@@ -224,7 +226,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   const descHasMoreBelow = descScrollStart + DESC_VIEWPORT < descTotalDisplayLines
 
   // Title field: no outer box overhead, just prefix "▸ Title: " (9 chars)
-  const titleTextWidth = Math.max(10, termCols - 9)
+  const titleTextWidth = Math.max(10, (termCols || 80) - 9)
 
   let titleHStart = 0
   if (isTitleFocused && titleInput.value.length > titleTextWidth) {
@@ -235,25 +237,25 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   const titleAdjCursor = titleInput.cursor - titleHStart
 
   return (
-    <Box flexDirection="column" paddingX={2}>
-      <Text bold color={theme.blue}>
+    <box flexDirection="column" paddingX={2}>
+      <text attributes={TextAttributes.BOLD} fg={theme.blue}>
         {mode === "create" ? (parentTitle ? "Create Subtask" : "Create Task") : "Edit Task"}
-      </Text>
+      </text>
       {parentTitle && (
-        <Text color={theme.dim_0}>Parent: {parentTitle}</Text>
+        <text fg={theme.dim_0}>Parent: {parentTitle}</text>
       )}
 
-      <Text> </Text>
-      <Text color={isTitleFocused ? theme.blue : theme.fg_0}>
+      <text> </text>
+      <text fg={isTitleFocused ? theme.blue : theme.fg_0}>
         {isTitleFocused ? "\u25B8 " : "  "}Title: {titleVisible.slice(0, isTitleFocused ? titleAdjCursor : titleVisible.length)}
-        {isTitleFocused && <Text inverse>{titleVisible[titleAdjCursor] || " "}</Text>}
+        {isTitleFocused && <text attributes={TextAttributes.INVERSE}>{titleVisible[titleAdjCursor] || " "}</text>}
         {isTitleFocused ? titleVisible.slice(titleAdjCursor + 1) : ""}
-      </Text>
+      </text>
 
-      <Text> </Text>
-      <Text color={isDescFocused ? theme.blue : theme.fg_0}>
+      <text> </text>
+      <text fg={isDescFocused ? theme.blue : theme.fg_0}>
         {isDescFocused ? "\u25B8 " : "  "}Description:
-      </Text>
+      </text>
 
       {(() => {
         // Token-based rendering: text tokens are editable, paste tokens show placeholders.
@@ -261,10 +263,10 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
         return (
           <>
             {descHasMoreAbove && (
-              <Text color={theme.dim_0} wrap="truncate">  {`↑ ${descScrollStart} more`}</Text>
+              <text fg={theme.dim_0} truncate={true}>  {`↑ ${descScrollStart} more`}</text>
             )}
             {descInput.value === "" && !isDescFocused ? (
-              <Text color={theme.dim_0}>  (empty)</Text>
+              <text fg={theme.dim_0}>  (empty)</text>
             ) : (
               descVisibleLines.map((dl, i) => {
                 const globalIdx = descScrollStart + i
@@ -273,9 +275,9 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
                 // Paste placeholder lines: always dim, never have cursor
                 if (dl.isPaste) {
                   return (
-                    <Text key={lineKey} color={theme.dim_0} wrap="truncate">
+                    <text key={lineKey} fg={theme.dim_0} truncate={true}>
                       {"    "}{dl.text}
-                    </Text>
+                    </text>
                   )
                 }
 
@@ -289,70 +291,73 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
                     before = before.slice(0, Math.max(0, descTextWidth - 1 - after.length))
                   }
                   return (
-                    <Text key={lineKey} wrap="truncate" color={theme.fg_0}>
-                      {"  "}{before}<Text inverse>{cursorChar}</Text>{after}
-                    </Text>
+                    <text key={lineKey} truncate={true} fg={theme.fg_0}>
+                      {"  "}{before}<text attributes={TextAttributes.INVERSE}>{cursorChar}</text>{after}
+                    </text>
                   )
                 }
                 return (
-                  <Text key={lineKey} wrap="truncate" color={isDescFocused ? theme.fg_0 : theme.dim_0}>
+                  <text key={lineKey} truncate={true} fg={isDescFocused ? theme.fg_0 : theme.dim_0}>
                     {"  "}{dl.text || " "}
-                  </Text>
+                  </text>
                 )
               })
             )}
             {descHasMoreBelow && (
-              <Text color={theme.dim_0} wrap="truncate">  {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</Text>
+              <text fg={theme.dim_0} truncate={true}>  {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</text>
             )}
           </>
         )
       })()}
 
-      <Text> </Text>
-      <Text>
-        <Text color={focusField === "priority" ? theme.blue : theme.fg_0}>
+      <text> </text>
+      <text>
+        <text fg={focusField === "priority" ? theme.blue : theme.fg_0}>
           {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
-        </Text>
-        <Text color={getPriorityColor(priority)}>
+        </text>
+        <text fg={getPriorityColor(priority)}>
           {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
-        </Text>
-      </Text>
+        </text>
+      </text>
 
-      <Text> </Text>
-      <Text>
-        <Text color={focusField === "type" ? theme.blue : theme.fg_0}>
+      <text> </text>
+      <text>
+        <text fg={focusField === "type" ? theme.blue : theme.fg_0}>
           {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
-        </Text>
-        <Text color={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
+        </text>
+        <text fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
           {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
-        </Text>
-      </Text>
+        </text>
+      </text>
 
       {mode === "create" && (
         <>
-          <Text> </Text>
-          <Text>
-            <Text color={focusField === "status" ? theme.blue : theme.fg_0}>
+          <text> </text>
+          <text>
+            <text fg={focusField === "status" ? theme.blue : theme.fg_0}>
               {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
-            </Text>
-            <Text color={getStatusColor(status)}>
+            </text>
+            <text fg={getStatusColor(status)}>
               {"\u25C0 "}{STATUS_DISPLAY[status] || status}{" \u25B6"}
-            </Text>
-          </Text>
+            </text>
+          </text>
         </>
       )}
 
-      <Text> </Text>
-      <Text> </Text>
-      <Text inverse={focusField === "submit"} color={focusField === "submit" ? theme.blue : theme.fg_0}>
+      <text> </text>
+      <text> </text>
+      <text
+        fg={focusField === "submit" ? theme.bg_1 : theme.fg_0}
+        bg={focusField === "submit" ? theme.blue : undefined}
+      >
         {focusField === "submit" ? "\u25B8 " : "  "}
         [{mode === "create" ? "Create" : "Save"}]
-      </Text>
+      </text>
 
-      <Text> </Text>
-      <Text color={theme.dim_0}>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</Text>
-      <Text color={theme.dim_0}>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</Text>
-    </Box>
+      <text> </text>
+      <text fg={theme.dim_0}>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</text>
+      <text fg={theme.dim_0}>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</text>
+    </box>
   )
 }
 

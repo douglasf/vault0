@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, Text } from "ink"
+import { TextAttributes } from "@opentui/core"
 import type { TaskCard as TaskCardType, TaskType } from "../lib/types.js"
 import { getPriorityColor, getTaskTypeColor, theme } from "../lib/theme.js"
 import { TASK_TYPE_INDICATORS } from "../lib/constants.js"
@@ -23,32 +23,37 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
   const typeIndicator = taskType ? TASK_TYPE_INDICATORS[taskType] : ""
   const typeColor = taskType ? getTaskTypeColor(taskType) : undefined
 
+  // Compute combined text attributes for the title
+  let titleAttrs = TextAttributes.NONE
+  if (isSelected) titleAttrs |= TextAttributes.INVERSE | TextAttributes.BOLD
+  if (isArchived) titleAttrs |= TextAttributes.STRIKETHROUGH
+
   return (
-    <Box flexDirection="column" paddingLeft={isSubtask ? 1 : 0}>
+    <box flexDirection="column" paddingLeft={isSubtask ? 1 : 0}>
       {/* Title row with priority dot — subtasks get → prefix */}
-      <Box>
-        <Text color={isArchived ? theme.dim_0 : priorityColor}>{isSubtask ? "→ " : "● "}</Text>
-        <Box flexGrow={1} flexShrink={1} flexBasis={0} overflow="hidden">
-          <Text wrap="truncate-end" inverse={isSelected} bold={isSelected} color={isArchived ? theme.dim_0 : theme.fg_1} strikethrough={isArchived}>
+      <box>
+        <text fg={isArchived ? theme.dim_0 : priorityColor}>{isSubtask ? "→ " : "● "}</text>
+        <box flexGrow={1} flexShrink={1} flexBasis={0} overflow="hidden">
+          <text truncate={true} attributes={titleAttrs} fg={isArchived ? theme.dim_0 : theme.fg_1}>
             {task.title}
-          </Text>
-        </Box>
-        <Box flexShrink={0}>
-          {isArchived && <Text color={theme.dim_0}> ⌫</Text>}
-          {isBlocked && <Text color={theme.red}> 🔒</Text>}
-          {typeIndicator !== "" && <Text color={typeColor}> {typeIndicator}</Text>}
-          {subtaskBadge !== "" && <Text color={theme.fg_0}> {subtaskBadge}</Text>}
-        </Box>
-      </Box>
+          </text>
+        </box>
+        <box flexShrink={0}>
+          {isArchived && <text fg={theme.dim_0}> ⌫</text>}
+          {isBlocked && <text fg={theme.red}> 🔒</text>}
+          {typeIndicator !== "" && <text fg={typeColor}> {typeIndicator}</text>}
+          {subtaskBadge !== "" && <text fg={theme.fg_0}> {subtaskBadge}</text>}
+        </box>
+      </box>
 
       {/* Parent reference for subtasks (only when not grouped by Column) */}
       {showParentRef && isSubtask && task.parentTitle && (
-        <Box paddingLeft={2} overflow="hidden">
-          <Text color={theme.dim_0} italic wrap="truncate-end">
+        <box paddingLeft={2} overflow="hidden">
+          <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
             ↳ {task.parentTitle}
-          </Text>
-        </Box>
+          </text>
+        </box>
       )}
-    </Box>
+    </box>
   )
 }

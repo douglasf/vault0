@@ -1,9 +1,11 @@
-import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { useState } from "react"
+import { TextAttributes } from "@opentui/core"
+import type { KeyEvent } from "@opentui/core"
 import type { Filters, Status, Priority, Source } from "../lib/types.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
 import { getStatusColor } from "../lib/theme.js"
 import { theme } from "../lib/theme.js"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 
 export interface FilterBarProps {
   filters: Filters
@@ -55,30 +57,32 @@ export function FilterBar({
   const [sectionIdx, setSectionIdx] = useState(0)
   const [itemIdx, setItemIdx] = useState(0)
 
-  useInput((input, key) => {
-    if (key.escape) {
+  useActiveKeyboard((event: KeyEvent) => {
+    const input = event.raw || ""
+
+    if (event.name === "escape") {
       onClose()
       return
     }
 
-    if (key.upArrow) {
+    if (event.name === "up") {
       setSectionIdx((prev) => {
         const next = Math.max(0, prev - 1)
         setItemIdx(0)
         return next
       })
-    } else if (key.downArrow) {
+    } else if (event.name === "down") {
       setSectionIdx((prev) => {
         const next = Math.min(SECTIONS.length - 1, prev + 1)
         setItemIdx(0)
         return next
       })
-    } else if (key.leftArrow) {
+    } else if (event.name === "left") {
       setItemIdx((prev) => Math.max(0, prev - 1))
-    } else if (key.rightArrow) {
+    } else if (event.name === "right") {
       const max = sectionItemCount(SECTIONS[sectionIdx]) - 1
       setItemIdx((prev) => Math.min(max, prev + 1))
-    } else if (key.return || input === " ") {
+    } else if (event.name === "return" || input === " ") {
       const section = SECTIONS[sectionIdx]
       if (section === "status") {
         onToggleStatus(VISIBLE_STATUSES[itemIdx])
@@ -102,107 +106,110 @@ export function FilterBar({
   const currentSection = SECTIONS[sectionIdx]
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <Text bold color={theme.fg_1}>⚙ Filters</Text>
+    <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
+      <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>⚙ Filters</text>
 
       {/* Status */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold color={currentSection === "status" ? theme.blue : theme.fg_0}>
+      <box marginTop={1} flexDirection="column">
+        <text attributes={TextAttributes.BOLD} fg={currentSection === "status" ? theme.blue : theme.fg_0}>
           Status:
-        </Text>
-        <Box gap={1}>
+        </text>
+        <box gap={1}>
           {VISIBLE_STATUSES.map((status, idx) => {
             const isSelected = filters.status === status
             const isCursor = currentSection === "status" && itemIdx === idx
+            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
             return (
-              <Box key={status}>
-                <Text
-                  color={getStatusColor(status)}
-                  inverse={isCursor}
-                  bold={isSelected}
+              <box key={status}>
+                <text
+                  fg={getStatusColor(status)}
+                  attributes={attrs}
                 >
                   {isSelected ? "●" : "○"} {STATUS_LABELS[status]}
-                </Text>
-              </Box>
+                </text>
+              </box>
             )
           })}
-        </Box>
-      </Box>
+        </box>
+      </box>
 
       {/* Priority */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold color={currentSection === "priority" ? theme.blue : theme.fg_0}>
+      <box marginTop={1} flexDirection="column">
+        <text attributes={TextAttributes.BOLD} fg={currentSection === "priority" ? theme.blue : theme.fg_0}>
           Priority:
-        </Text>
-        <Box gap={1}>
+        </text>
+        <box gap={1}>
           {PRIORITIES.map((priority, idx) => {
             const isSelected = filters.priority === priority
             const isCursor = currentSection === "priority" && itemIdx === idx
+            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
             return (
-              <Box key={priority}>
-                <Text inverse={isCursor} bold={isSelected} color={theme.fg_0}>
+              <box key={priority}>
+                <text attributes={attrs} fg={theme.fg_0}>
                   {isSelected ? "●" : "○"} {PRIORITY_LABELS[priority]}
-                </Text>
-              </Box>
+                </text>
+              </box>
             )
           })}
-        </Box>
-      </Box>
+        </box>
+      </box>
 
       {/* Source */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold color={currentSection === "source" ? theme.blue : theme.fg_0}>
+      <box marginTop={1} flexDirection="column">
+        <text attributes={TextAttributes.BOLD} fg={currentSection === "source" ? theme.blue : theme.fg_0}>
           Source:
-        </Text>
-        <Box gap={1}>
+        </text>
+        <box gap={1}>
           {SOURCES.map((source, idx) => {
             const isSelected = filters.source === source
             const isCursor = currentSection === "source" && itemIdx === idx
+            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
             return (
-              <Box key={source}>
-                <Text inverse={isCursor} bold={isSelected} color={theme.fg_0}>
+              <box key={source}>
+                <text attributes={attrs} fg={theme.fg_0}>
                   {isSelected ? "●" : "○"} {source}
-                </Text>
-              </Box>
+                </text>
+              </box>
             )
           })}
-        </Box>
-      </Box>
+        </box>
+      </box>
 
       {/* Toggle Filters */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold color={currentSection === "toggles" ? theme.blue : theme.fg_0}>
+      <box marginTop={1} flexDirection="column">
+        <text attributes={TextAttributes.BOLD} fg={currentSection === "toggles" ? theme.blue : theme.fg_0}>
           Toggles:
-        </Text>
-        <Box gap={1}>
+        </text>
+        <box gap={1}>
           {TOGGLE_KEYS.map((toggleKey, idx) => {
             const isSelected = !!filters[toggleKey]
             const isCursor = currentSection === "toggles" && itemIdx === idx
+            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
             return (
-              <Box key={toggleKey}>
-                <Text inverse={isCursor} bold={isSelected} color={theme.fg_0}>
+              <box key={toggleKey}>
+                <text attributes={attrs} fg={theme.fg_0}>
                   {isSelected ? "●" : "○"} {TOGGLE_LABELS[toggleKey]}
-                </Text>
-              </Box>
+                </text>
+              </box>
             )
           })}
-        </Box>
-      </Box>
+        </box>
+      </box>
 
       {/* Actions */}
-      <Box marginTop={1}>
-        <Text
-          inverse={currentSection === "actions"}
-          color={currentSection === "actions" ? theme.fg_1 : theme.fg_0}
+      <box marginTop={1}>
+        <text
+          attributes={currentSection === "actions" ? TextAttributes.INVERSE : TextAttributes.NONE}
+          fg={currentSection === "actions" ? theme.fg_1 : theme.fg_0}
         >
           Clear All Filters (c)
-        </Text>
-      </Box>
+        </text>
+      </box>
 
       {/* Help */}
-      <Box marginTop={1}>
-        <Text color={theme.fg_0}>↑/↓ section  ←/→ item  Enter toggle  c clear  Esc close</Text>
-      </Box>
-    </Box>
+      <box marginTop={1}>
+        <text fg={theme.fg_0}>↑/↓ section  ←/→ item  Enter toggle  c clear  Esc close</text>
+      </box>
+    </box>
   )
 }

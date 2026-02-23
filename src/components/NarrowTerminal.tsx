@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useRef } from "react"
-import { Box, Text, useInput } from "ink"
+import { useCallback, useEffect, useRef } from "react"
+import { TextAttributes } from "@opentui/core"
+import type { KeyEvent } from "@opentui/core"
 import { Column } from "./Column.js"
 import { useDb } from "../lib/db-context.js"
 import { useBoard } from "../hooks/useBoard.js"
 import { useNavigation } from "../hooks/useNavigation.js"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { STATUS_LABELS } from "../lib/constants.js"
 import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
@@ -101,7 +103,8 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
   }, [highlightedTask, onHighlightTask])
 
   // Keyboard handler — same as Board but also handles enter for selection
-  useInput((input, key) => {
+  useActiveKeyboard((event: KeyEvent) => {
+    const input = event.raw || ""
     const moveLeft = input === "<"
     const moveRight = input === ">"
 
@@ -119,11 +122,11 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
         pendingFocusTaskId.current = task.id
         onMoveTask?.(task, targetStatus)
       }
-    } else if (key.leftArrow) nav.navigateLeft()
-    else if (key.rightArrow) nav.navigateRight()
-    else if (key.upArrow) nav.navigateUp()
-    else if (key.downArrow) nav.navigateDown()
-    else if (key.return) {
+    } else if (event.name === "left") nav.navigateLeft()
+    else if (event.name === "right") nav.navigateRight()
+    else if (event.name === "up") nav.navigateUp()
+    else if (event.name === "down") nav.navigateDown()
+    else if (event.name === "return") {
       const selected = nav.selectCurrent()
       if (selected) {
         const tasks = filterCollapsed(tasksByStatus.get(VISIBLE_STATUSES[selected.column]) || [])
@@ -132,25 +135,25 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
         }
       }
     }
-  }, { isActive: inputActive !== false })
+  }, inputActive !== false)
 
   const activeStatus = VISIBLE_STATUSES[nav.selectedColumn]
 
   return (
-    <Box flexDirection="column" width="100%" flexGrow={1}>
+    <box flexDirection="column" width="100%" flexGrow={1}>
       {/* Column tab indicator */}
-      <Box justifyContent="center" gap={1} marginBottom={1}>
+      <box justifyContent="center" gap={1} marginBottom={1}>
         {VISIBLE_STATUSES.map((status, i) => (
-          <Text
+          <text
             key={status}
-            bold={i === nav.selectedColumn}
-            color={i === nav.selectedColumn ? theme.fg_1 : theme.dim_0}
-            backgroundColor={i === nav.selectedColumn ? getStatusBgColor() : undefined}
+            attributes={i === nav.selectedColumn ? TextAttributes.BOLD : TextAttributes.NONE}
+            fg={i === nav.selectedColumn ? theme.fg_1 : theme.dim_0}
+            bg={i === nav.selectedColumn ? getStatusBgColor() : undefined}
           >
             {i === nav.selectedColumn ? ` ${STATUS_LABELS[status]} ` : STATUS_LABELS[status]}
-          </Text>
+          </text>
         ))}
-      </Box>
+      </box>
 
       {/* Single visible column */}
       <Column
@@ -164,13 +167,13 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
         hideSubtasks={hideSubtasks}
       />
 
-      <Box marginTop={1} justifyContent="center">
-        <Text color={theme.dim_0}>
+      <box marginTop={1} justifyContent="center">
+        <text fg={theme.dim_0}>
           {"<"}/{">"}  switch columns {"  "}
           Up/Down navigate {"  "}
           ? help
-        </Text>
-      </Box>
-    </Box>
+        </text>
+      </box>
+    </box>
   )
 }

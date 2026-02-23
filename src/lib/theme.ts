@@ -5,6 +5,8 @@
 //   fg_0, fg_1:       foreground shades (secondary, primary)
 //   red, orange, yellow, green, cyan, blue, violet, magenta: accent colors
 
+import { RGBA } from "@opentui/core"
+
 export interface ThemeDefinition {
   /** Human-readable theme name */
   name: string
@@ -275,4 +277,23 @@ export function getTaskTypeColor(type: string): string {
 
 export function getStatusBgColor(): string {
   return activeTheme.bg_0
+}
+
+// ── OpenTUI RGBA Color Utilities ────────────────────────────────────
+// These bridge the theme's hex string colors with OpenTUI's RGBA model.
+// Theme colors remain hex strings (compatible with OpenTUI's fg/bg props).
+// Use these utilities when you need RGBA objects (e.g. overlay dimming).
+
+/** Convert a hex color string to an OpenTUI RGBA object */
+export function toRGBA(hex: string, alpha = 255): RGBA {
+  const rgba = RGBA.fromHex(hex)
+  if (alpha !== 255) {
+    rgba.a = alpha / 255
+  }
+  return rgba
+}
+
+/** Create a semi-transparent black background for modal overlay dimming */
+export function overlayBg(alpha = 150): RGBA {
+  return RGBA.fromInts(0, 0, 0, alpha)
 }

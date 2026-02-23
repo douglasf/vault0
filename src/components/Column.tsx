@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
-import { Box, Text, useStdout } from "ink"
+import { TextAttributes } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import { TaskCard } from "./TaskCard.js"
 import { Scrollbar } from "./Scrollbar.js"
 import type { TaskCard as TaskCardType, Status } from "../lib/types.js"
@@ -89,8 +90,7 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
     ? rawTasks.filter((t) => t.parentId === null)
     : rawTasks
   const hiddenCount = rawTasks.length - tasks.length
-  const { stdout } = useStdout()
-  const terminalRows = stdout?.rows || 24
+  const { height: terminalRows } = useTerminalDimensions()
 
   // Compute orphan parent summaries when subtasks are hidden:
   // For each parent that has subtasks in this column but is NOT itself in this column,
@@ -172,30 +172,30 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
 
   // Use fixed percentage width when columnCount is known (multi-column board layout),
   // otherwise fall back to flexGrow for single-column usage (NarrowTerminal).
-  const fixedWidth = columnCount ? `${Math.floor(100 / columnCount)}%` : undefined
+  const fixedWidth: `${number}%` | undefined = columnCount ? `${Math.floor(100 / columnCount)}%` : undefined
 
   return (
-    <Box flexDirection="column" width={fixedWidth} flexGrow={fixedWidth ? 0 : 1} paddingX={1} overflow="hidden" backgroundColor={bgColor}>
+    <box flexDirection="column" width={fixedWidth} flexGrow={fixedWidth ? 0 : 1} paddingX={1} overflow="hidden" backgroundColor={bgColor}>
       {/* Column header with status label and task count */}
-      <Box justifyContent="center" marginBottom={1}>
+      <box justifyContent="center" marginBottom={1}>
         {isActive ? (
-           <Text bold color={theme.blue} underline>
+           <text attributes={TextAttributes.BOLD | TextAttributes.UNDERLINE} fg={theme.blue}>
             {STATUS_LABELS[status]} {tasks.length}{hiddenCount > 0 ? ` (${hiddenCount})` : ""}
-          </Text>
+          </text>
         ) : (
-          <Text bold color={theme.fg_1}>
+          <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>
             {STATUS_LABELS[status]} {tasks.length}{hiddenCount > 0 ? ` (${hiddenCount})` : ""}
-          </Text>
+          </text>
         )}
-      </Box>
+      </box>
 
       {/* Task list with scrollbar */}
-      <Box flexDirection="column" flexGrow={1}>
+      <box flexDirection="column" flexGrow={1}>
         {tasks.length === 0 ? (
-          <Text color={theme.dim_0}>No tasks</Text>
+          <text fg={theme.dim_0}>No tasks</text>
         ) : (
-          <Box flexDirection="row">
-            <Box flexDirection="column" flexGrow={1}>
+          <box flexDirection="row">
+            <box flexDirection="column" flexGrow={1}>
               {visibleTasks.map((task, i) => {
                 const globalIndex = scrollOffset + i
                 const isSelected = isActive && selectedRow === globalIndex
@@ -212,14 +212,14 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
                 const bottomMargin = isFollowedByChild ? 0 : 1
 
                 return (
-                  <Box key={task.id} flexDirection="column" marginBottom={bottomMargin}>
+                  <box key={task.id} flexDirection="column" marginBottom={bottomMargin}>
                     {/* Orphan group header — shown once per parent group */}
                     {showOrphanHeader && task.parentTitle && (
-                      <Box overflow="hidden">
-                        <Text color={theme.dim_0} italic wrap="truncate-end">
+                      <box overflow="hidden">
+                        <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
                           ↳ {task.parentTitle}
-                        </Text>
-                      </Box>
+                        </text>
+                      </box>
                     )}
                     <TaskCard
                       task={task}
@@ -228,10 +228,10 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
                       isBlocked={blockedIds.has(task.id)}
                       showParentRef={isSubtask ? false : undefined}
                     />
-                  </Box>
+                  </box>
                 )
               })}
-            </Box>
+            </box>
             {needsScrollbar && (
               <Scrollbar
                 totalItems={tasks.length}
@@ -241,17 +241,17 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
                 isActive={isActive}
               />
             )}
-          </Box>
+          </box>
         )}
         {/* Orphan parent summaries when subtasks are hidden */}
         {orphanParentSummaries.map((summary) => (
-          <Box key={summary.id} marginTop={tasks.length > 0 ? 1 : 0} overflow="hidden">
-            <Text color={theme.dim_0} italic wrap="truncate-end">
+          <box key={summary.id} marginTop={tasks.length > 0 ? 1 : 0} overflow="hidden">
+            <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
               {summary.title} ({summary.count})
-            </Text>
-          </Box>
+            </text>
+          </box>
         ))}
-      </Box>
-    </Box>
+      </box>
+    </box>
   )
 }

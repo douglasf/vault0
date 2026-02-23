@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
-import { render } from "ink"
+import { createCliRenderer } from "@opentui/core"
+import { createRoot } from "@opentui/react"
 import React from "react"
 import { App } from "./components/App.js"
 import { initDatabase } from "./db/connection.js"
@@ -241,10 +242,8 @@ async function main() {
     // Clean up the lock file when the process exits for any reason.
     // Using the 'exit' event instead of signal handlers avoids conflicts with:
     //   - bun --watch (which sends SIGTERM to restart — we must not call process.exit() ourselves)
-    //   - ink's exitOnCtrlC (which handles SIGINT gracefully for terminal cleanup)
+    //   - OpenTUI's exitOnCtrlC (which handles SIGINT gracefully for terminal cleanup)
     process.on("exit", () => {
-      // Ensure we always leave alternate screen (safety net for crashes/signals)
-      try { process.stdout.write("\x1b[?1049l") } catch { /* fd may be closed */ }
       releaseLock()
     })
 
@@ -257,12 +256,6 @@ async function main() {
     const { db, sqlite, dbPath } = initDatabase(repoRoot)
     runEmbeddedMigrations(sqlite)
     seedDefaultBoard(db)
-
-    // ── Enter alternate screen buffer ─────────────────────────────────────
-    // This gives us a clean full-screen canvas and, when we leave on exit,
-    // restores the user's previous terminal content (like vim/less/OpenCode).
-    process.stdout.write("\x1b[?1049h") // enter alternate screen
-    process.stdout.write("\x1b[H")      // move cursor to top-left
 
     // ── Periodic WAL checkpoint ───────────────────────────────────────────
     // SQLite's wal_autocheckpoint can be starved when the TUI holds read
@@ -278,28 +271,27 @@ async function main() {
       }
     }, WAL_CHECKPOINT_INTERVAL_MS)
 
-    // Launch TUI
-    const { waitUntilExit } = render(<App db={db} dbPath={dbPath} />, {
+    // ── Launch OpenTUI renderer ───────────────────────────────────────────
+    // OpenTUI handles alternate screen, raw mode, and cleanup automatically.
+    const renderer = await createCliRenderer({
       exitOnCtrlC: true,
+      useAlternateScreen: true,
+      targetFps: 30,
+      onDestroy: () => {
+        clearInterval(walCheckpointTimer)
+
+        try {
+          renderExitScreen()
+        } catch {
+          // Non-fatal — don't block exit if rendering fails
+        }
+
+        sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
+        sqlite.close()
+      },
     })
 
-    // Cleanup on exit
-    await waitUntilExit()
-    clearInterval(walCheckpointTimer)
-
-    // ── Leave alternate screen buffer ─────────────────────────────────────
-    // Exit alternate screen FIRST so we're back in normal terminal, then
-    // print the exit banner to stdout (persists like OpenCode's exit screen).
-    process.stdout.write("\x1b[?1049l")
-
-    try {
-      renderExitScreen()
-    } catch {
-      // Non-fatal — don't block exit if rendering fails
-    }
-
-    sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
-    sqlite.close()
+    createRoot(renderer).render(<App db={db} dbPath={dbPath} />)
   } catch (error) {
     console.error("\nError starting Vault0:")
 

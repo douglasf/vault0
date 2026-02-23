@@ -1,9 +1,12 @@
-import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { useState } from "react"
+import type { KeyEvent } from "@opentui/core"
+import { TextAttributes } from "@opentui/core"
+import { useKeyboard } from "@opentui/react"
 import type { Status, Task } from "../lib/types.js"
 import { STATUS_LABELS, VISIBLE_STATUSES } from "../lib/constants.js"
 import { getStatusColor } from "../lib/theme.js"
 import { theme } from "../lib/theme.js"
+import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface StatusPickerProps {
   task: Task
@@ -15,39 +18,43 @@ export function StatusPicker({ task, onSelectStatus, onCancel }: StatusPickerPro
   const currentIndex = VISIBLE_STATUSES.indexOf(task.status as Status)
   const [selectedIndex, setSelectedIndex] = useState(currentIndex >= 0 ? currentIndex : 0)
 
-  useInput((_input, key) => {
-    if (key.upArrow) {
+  useKeyboard((event: KeyEvent) => {
+    if (event.name === "up") {
       setSelectedIndex((i) => Math.max(0, i - 1))
-    } else if (key.downArrow) {
+    } else if (event.name === "down") {
       setSelectedIndex((i) => Math.min(VISIBLE_STATUSES.length - 1, i + 1))
-    } else if (key.return) {
+    } else if (event.name === "return") {
       onSelectStatus(VISIBLE_STATUSES[selectedIndex])
-    } else if (key.escape) {
-      onCancel()
     }
   })
 
   return (
-    <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <Text bold color={theme.cyan} wrap="truncate-end">Move Task: {task.title}</Text>
+    <ModalOverlay onClose={onCancel} size="medium">
+      <text fg={theme.cyan} attributes={TextAttributes.BOLD} truncate={true}>Move Task: {task.title}</text>
 
-      {VISIBLE_STATUSES.map((status, i) => (
-        <Box key={status} marginTop={i === 0 ? 1 : 0}>
-          <Text
-            color={getStatusColor(status)}
-            inverse={i === selectedIndex}
-            bold={status === task.status}
-          >
-            {i === selectedIndex ? "▸ " : "  "}
-            {STATUS_LABELS[status]}
-            {status === task.status ? " (current)" : ""}
-          </Text>
-        </Box>
-      ))}
+      {VISIBLE_STATUSES.map((status, i) => {
+        const isSelected = i === selectedIndex
+        const isCurrent = status === task.status
+        const statusColor = getStatusColor(status)
+        const attrs = isCurrent ? TextAttributes.BOLD : TextAttributes.NONE
+        return (
+          <box key={status} marginTop={i === 0 ? 1 : 0}>
+            <text
+              fg={isSelected ? theme.bg_1 : statusColor}
+              bg={isSelected ? statusColor : undefined}
+              attributes={attrs}
+            >
+              {isSelected ? "▸ " : "  "}
+              {STATUS_LABELS[status]}
+              {isCurrent ? " (current)" : ""}
+            </text>
+          </box>
+        )
+      })}
 
-      <Box marginTop={1}>
-        <Text color={theme.dim_0}>↑/↓: navigate  Enter: select  Esc: cancel</Text>
-      </Box>
-    </Box>
+      <box marginTop={1}>
+        <text fg={theme.dim_0}>↑/↓: navigate  Enter: select  Esc: cancel</text>
+      </box>
+    </ModalOverlay>
   )
 }

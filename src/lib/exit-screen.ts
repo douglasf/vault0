@@ -5,30 +5,38 @@
 
 import { getSessionStats } from "./session-stats.js"
 import { LOGO_LINES } from "./logo.js"
+import { theme } from "./theme.js"
 
 // ── ANSI helpers ────────────────────────────────────────────────────
 
 const ESC = "\x1b["
 const RESET = `${ESC}0m`
 const BOLD = `${ESC}1m`
-const DIM = `${ESC}2m`
 
-// Selenized Dark palette
-const CYAN = `${ESC}38;2;57;199;185m`
-const GREEN = `${ESC}38;2;128;184;60m`
-const DIM_FG = `${ESC}38;2;113;139;144m`
-const FG = `${ESC}38;2;200;215;216m`
+/** Convert a hex color string (#RRGGBB) to an ANSI 24-bit fg color escape */
+function hexToAnsi(hex: string): string {
+  const r = Number.parseInt(hex.slice(1, 3), 16)
+  const g = Number.parseInt(hex.slice(3, 5), 16)
+  const b = Number.parseInt(hex.slice(5, 7), 16)
+  return `${ESC}38;2;${r};${g};${b}m`
+}
 
 // ── ASCII Art Banner ────────────────────────────────────────────────
 
-const BANNER = `${FG}\n${LOGO_LINES.join("\n")}\n${RESET}`
+function renderBanner(): string {
+  const FG = hexToAnsi(theme.fg_1)
+  return `${FG}\n${LOGO_LINES.join("\n")}\n${RESET}`
+}
 
 // ── Main render function ────────────────────────────────────────────
 
 export function renderExitScreen(): void {
   const stats = getSessionStats()
+  const CYAN = hexToAnsi(theme.cyan)
+  const GREEN = hexToAnsi(theme.green)
+  const FG = hexToAnsi(theme.fg_1)
 
-  let output = BANNER
+  let output = renderBanner()
 
   // Minimal stats — only created and done
   if (stats.tasksCreated > 0 || stats.tasksDone > 0) {

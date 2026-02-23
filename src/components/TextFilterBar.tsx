@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from "react"
-import { Box, Text, useInput } from "ink"
+import { useEffect, useRef } from "react"
+import { TextAttributes } from "@opentui/core"
+import type { KeyEvent } from "@opentui/core"
+import { useKeyboard } from "@opentui/react"
 import { useTextInput } from "../hooks/useTextInput.js"
 import { theme } from "../lib/theme.js"
 
@@ -31,30 +33,30 @@ export function TextFilterBar({ initialValue, onSearch, onClose }: TextFilterBar
     }
   }, [textInput.value, onSearch])
 
-  useInput((input, key) => {
-    if (key.escape) {
+  useKeyboard((event: KeyEvent) => {
+    if (event.name === "escape") {
       // Escape clears the search and closes
       onSearch("")
       onClose()
       return
     }
-    if (key.return) {
+    if (event.name === "return") {
       // Enter keeps the current search and closes
       onClose()
       return
     }
-    textInput.handleInput(input, key)
+    textInput.handleKeyEvent(event)
   })
 
   return (
-    <Box paddingX={1}>
-      <Text color={theme.cyan} bold>🔍 </Text>
-      <Text color={theme.cyan}>
+    <box paddingX={1}>
+      <text fg={theme.cyan} attributes={TextAttributes.BOLD}>🔍 </text>
+      <text fg={theme.cyan}>
         {textInput.beforeCursor}
-        <Text inverse>{textInput.afterCursor[0] || " "}</Text>
+        <text attributes={TextAttributes.INVERSE}>{textInput.afterCursor[0] || " "}</text>
         {textInput.afterCursor.slice(1)}
-      </Text>
-      <Text color={theme.dim_0}>  Enter keep · Esc clear</Text>
-    </Box>
+      </text>
+      <text fg={theme.dim_0}>  Enter keep · Esc clear</text>
+    </box>
   )
 }

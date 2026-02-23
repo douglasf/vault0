@@ -1,6 +1,6 @@
 import React from "react"
 import type { ErrorInfo, ReactNode } from "react"
-import { Box, Text } from "ink"
+import { TextAttributes } from "@opentui/core"
 import { theme } from "../lib/theme.js"
 
 interface Props {
@@ -32,24 +32,24 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <Box
+        <box
           flexDirection="column"
           paddingX={2}
           paddingY={1}
           backgroundColor={theme.bg_1}
         >
-          <Text bold color="red">
+          <text attributes={TextAttributes.BOLD} fg="red">
             Vault0 Encountered an Error
-          </Text>
-          <Box marginTop={1}>
-            <Text>{this.state.error?.message || "Unknown error"}</Text>
-          </Box>
-          <Box marginTop={1}>
-            <Text color={theme.dim_0}>
+          </text>
+          <box marginTop={1}>
+            <text>{this.state.error?.message || "Unknown error"}</text>
+          </box>
+          <box marginTop={1}>
+            <text fg={theme.dim_0}>
               Press Ctrl+C to exit. Check stderr output for details.
-            </Text>
-          </Box>
-        </Box>
+            </text>
+          </box>
+        </box>
       )
     }
 

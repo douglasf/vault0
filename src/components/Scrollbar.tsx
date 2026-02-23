@@ -1,5 +1,4 @@
-import React from "react"
-import { Box, Text } from "ink"
+import type React from "react"
 import { theme } from "../lib/theme.js"
 
 export interface ScrollbarProps {
@@ -40,15 +39,15 @@ export function Scrollbar({
   for (let i = 0; i < trackHeight; i++) {
     const isThumb = i >= thumbStart && i < thumbStart + thumbSize
     lines.push(
-      <Text key={i} color={isThumb ? thumbColor : trackColor}>
+      <text key={i} fg={isThumb ? thumbColor : trackColor}>
         {isThumb ? "█" : "│"}
-      </Text>,
+      </text>,
     )
   }
 
   return (
-    <Box flexDirection="column" marginLeft={1}>
+    <box flexDirection="column" marginLeft={1}>
       {lines}
-    </Box>
+    </box>
   )
 }

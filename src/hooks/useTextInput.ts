@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react"
-import { useStdin, type Key } from "ink"
+import { useKeyboard, useRenderer } from "@opentui/react"
+import type { KeyEvent, PasteEvent } from "@opentui/core"
 
 // ── Token types ─────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export interface TextInputResult {
   /** Cursor position (flat index in the reconstructed string) */
   cursor: number
   /** Handle a key input event. Returns true if the key was consumed. */
-  handleInput: (input: string, key: Key) => boolean
+  handleKeyEvent: (event: KeyEvent) => boolean
   /** Text before the cursor (in the flat value) */
   beforeCursor: string
   /** Text from cursor onwards (in the flat value) */
@@ -71,13 +72,15 @@ export interface TextInputResult {
  * Text and paste tokens alternate: [text, paste, text, paste, …, text].
  * Empty text tokens are allowed (they serve as cursor anchors between pastes).
  *
- * NOTE on Ink key mapping (v6):
- * On macOS, the physical Backspace key sends \x7f (ASCII 127). Ink maps this
- * to `key.delete = true`, NOT `key.backspace = true`. The `key.backspace` flag
- * only triggers for \b (ASCII 8, i.e. Ctrl+H). The real Forward Delete key
- * (Fn+Backspace on Mac) sends \x1b[3~ which Ink also maps to `key.delete = true`.
- * To distinguish them, we capture the raw stdin sequence via `useStdin` and check
- * whether it's \x1b[3~ (forward-delete) or \x7f (backward-delete).
+ * OpenTUI KeyEvent provides `event.name` for named keys:
+ * "backspace", "delete", "up", "down", "left", "right", "tab", "return",
+ * "escape", "home", "end", "pageup", "pagedown".
+ * Character input is available via `event.raw`.
+ * Modifier flags: `event.ctrl`, `event.shift`, `event.meta`, `event.option`.
+ *
+ * Paste events arrive via the renderer's `keyInput` "paste" event with
+ * `PasteEvent.text` containing the full pasted content — no bracketed
+ * paste buffering needed.
  *
  * Navigation:
  * - Left/Right arrows: move cursor by character; skip paste tokens at boundaries
@@ -103,127 +106,93 @@ export function useTextInput(initialValue = "", multiline = false): TextInputRes
     cursorCharOffset: initialValue.length,
   })
 
-  const { internal_eventEmitter } = useStdin()
+  const renderer = useRenderer()
+  const multilineRef = useRef(multiline)
+  multilineRef.current = multiline
 
-  // Capture the raw stdin sequence so we can distinguish physical Backspace
-  // (\x7f) from physical Delete (\x1b[3~) — Ink maps both to key.delete.
-  const lastRawRef = useRef("")
-  // Bracketed-paste buffer: when non-null, we're collecting chunks between
-  // ESC[200~ and ESC[201~ into a single string before creating a paste token.
-  const pasteBufferRef = useRef<string | null>(null)
-
+  // Listen for paste events from the renderer
   useEffect(() => {
-    const capture = (data: string | Buffer) => {
-      lastRawRef.current = typeof data === "string" ? data : String(data)
+    const handlePaste = (event: PasteEvent) => {
+      const sanitized = event.text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\t/g, "    ")
+      if (multilineRef.current && sanitized.includes("\n")) {
+        setState(prev => insertPaste(prev, sanitized))
+      } else if (sanitized) {
+        setState(prev => insertText(prev, sanitized))
+      }
     }
-    internal_eventEmitter?.on("input", capture)
+    renderer.keyInput.on("paste", handlePaste)
     return () => {
-      internal_eventEmitter?.removeListener("input", capture)
+      renderer.keyInput.removeListener("paste", handlePaste)
     }
-  }, [internal_eventEmitter])
+  }, [renderer])
 
-  const handleInput = useCallback((input: string, key: Key): boolean => {
-    // ── Bracketed paste buffering ─────────────────────────────────────
-    // Terminals send ESC[200~ before pasted content and ESC[201~ after.
-    // Ink strips the ESC, so we receive "[200~" and "[201~" as input.
-    // Buffer ALL content between these markers, then create a single
-    // paste token — this prevents the first line from leaking as text.
-    if (input === "[200~") {
-      // Guard: if a previous paste buffer is still open (lost [201~]),
-      // flush it before starting a new one so content isn't silently lost.
-      if (pasteBufferRef.current !== null && pasteBufferRef.current.length > 0) {
-        const stale = pasteBufferRef.current
-        const sanitized = stale.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-        if (multiline && sanitized.includes("\n")) {
-          setState(prev => insertPaste(prev, sanitized))
-        } else if (sanitized) {
-          setState(prev => insertText(prev, sanitized))
-        }
-      }
-      pasteBufferRef.current = ""
-      return true
-    }
-    if (input === "[201~") {
-      const buffered = pasteBufferRef.current
-      pasteBufferRef.current = null
-      if (buffered) {
-        const sanitized = buffered.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\t/g, "    ")
-        if (multiline && sanitized.includes("\n")) {
-          setState(prev => insertPaste(prev, sanitized))
-        } else if (sanitized) {
-          setState(prev => insertText(prev, sanitized))
-        }
-      }
-      return true
-    }
-    if (pasteBufferRef.current !== null) {
-      pasteBufferRef.current += input
-      return true
-    }
+  const handleKeyEvent = useCallback((event: KeyEvent): boolean => {
+    const ml = multilineRef.current
 
-    // Backward-delete: delete char before cursor (or entire preceding paste token).
-    if (key.backspace || (key.delete && !isForwardDeleteSequence(lastRawRef.current))) {
+    // Backward-delete (Backspace key)
+    if (event.name === "backspace") {
       setState(prev => backwardDelete(prev))
       return true
     }
 
-    // Forward-delete: delete char at cursor (or entire following paste token).
-    if (key.delete && isForwardDeleteSequence(lastRawRef.current)) {
+    // Forward-delete (Delete key)
+    if (event.name === "delete") {
       setState(prev => forwardDelete(prev))
       return true
     }
 
     // Left arrow
-    if (key.leftArrow) {
-      setState(prev => moveLeft(prev, key.ctrl || key.meta))
+    if (event.name === "left") {
+      setState(prev => moveLeft(prev, event.ctrl || event.meta || event.option))
       return true
     }
 
     // Right arrow
-    if (key.rightArrow) {
-      setState(prev => moveRight(prev, key.ctrl || key.meta))
+    if (event.name === "right") {
+      setState(prev => moveRight(prev, event.ctrl || event.meta || event.option))
       return true
     }
 
     // Home key
-    if (key.home) {
-      setState(prev => moveHome(prev, multiline))
+    if (event.name === "home") {
+      setState(prev => moveHome(prev, ml))
       return true
     }
 
     // End key
-    if (key.end) {
-      setState(prev => moveEnd(prev, multiline))
+    if (event.name === "end") {
+      setState(prev => moveEnd(prev, ml))
       return true
     }
 
-    // Up arrow (multiline only — move to previous line, crossing paste boundaries)
-    if (key.upArrow && multiline) {
+    // Up arrow (multiline only)
+    if (event.name === "up" && ml) {
       setState(prev => moveUp(prev))
       return true
     }
 
-    // Down arrow (multiline only — move to next line, crossing paste boundaries)
-    if (key.downArrow && multiline) {
+    // Down arrow (multiline only)
+    if (event.name === "down" && ml) {
       setState(prev => moveDown(prev))
       return true
     }
 
-    // Enter in multiline mode: insert newline into current text token
-    if (key.return && multiline) {
+    // Enter in multiline mode: insert newline
+    if (event.name === "return" && ml) {
       setState(prev => insertText(prev, "\n"))
       return true
     }
 
     // Ctrl shortcuts
-    if (key.ctrl) {
-      switch (input) {
+    if (event.ctrl) {
+      const raw = event.raw
+      switch (raw) {
         case "a": // Go to start of line (or start of input in single-line)
-          setState(prev => moveHome(prev, multiline))
+          setState(prev => moveHome(prev, ml))
           return true
 
         case "e": // Go to end of line (or end of input in single-line)
-          setState(prev => moveEnd(prev, multiline))
+          setState(prev => moveEnd(prev, ml))
           return true
 
         case "d": // Forward-delete: delete char at cursor
@@ -231,11 +200,11 @@ export function useTextInput(initialValue = "", multiline = false): TextInputRes
           return true
 
         case "u": // Clear from start of line to cursor
-          setState(prev => clearToLineStart(prev, multiline))
+          setState(prev => clearToLineStart(prev, ml))
           return true
 
         case "k": // Clear from cursor to end of line
-          setState(prev => clearToLineEnd(prev, multiline))
+          setState(prev => clearToLineEnd(prev, ml))
           return true
 
         case "w": // Delete word before cursor (or preceding paste token)
@@ -248,16 +217,23 @@ export function useTextInput(initialValue = "", multiline = false): TextInputRes
     }
 
     // Regular character input (not ctrl, not meta)
-    if (input && !key.meta) {
-      // Normalize line endings
-      let sanitized = input
+    if (event.raw && !event.meta && !event.ctrl && event.raw.length >= 1) {
+      // Filter out named keys that have raw values but aren't character input
+      if (event.name && ["escape", "tab", "return", "up", "down", "left", "right",
+        "home", "end", "pageup", "pagedown", "insert", "f1", "f2", "f3", "f4",
+        "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12"].includes(event.name)) {
+        return false
+      }
+
+      let sanitized = event.raw
       if (sanitized.length > 1) {
         sanitized = sanitized.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\t/g, "    ")
       }
       if (!sanitized) return true
 
-      // Detect multi-line paste: multi-char input containing newlines.
-      const isPasteChunk = multiline && sanitized.length > 1 && sanitized.includes("\n")
+      // Detect multi-line paste: multi-char input containing newlines
+      // (fallback for terminals that don't use bracketed paste)
+      const isPasteChunk = ml && sanitized.length > 1 && sanitized.includes("\n")
 
       if (isPasteChunk) {
         setState(prev => insertPaste(prev, sanitized, true))
@@ -268,7 +244,7 @@ export function useTextInput(initialValue = "", multiline = false): TextInputRes
     }
 
     return false
-  }, [multiline])
+  }, [])
 
   // ── Derive rendering values from token state ──────────────────────
   const { tokens, cursorTokenIndex, cursorCharOffset } = state
@@ -288,7 +264,7 @@ export function useTextInput(initialValue = "", multiline = false): TextInputRes
   return {
     value,
     cursor,
-    handleInput,
+    handleKeyEvent,
     beforeCursor,
     afterCursor,
     lines,
@@ -837,18 +813,4 @@ function findNextWordBoundary(text: string, cursor: number): number {
   // Skip whitespace
   while (pos < text.length && /\s/.test(text[pos])) pos++
   return pos
-}
-
-/**
- * Check if the raw stdin sequence corresponds to the forward-Delete key.
- *
- * Standard:  \x1b[3~      Shift-Delete: \x1b[3$    Ctrl-Delete: \x1b[3^
- * Modifier:  \x1b[3;2~    Kitty enhanced: \x1b[3;1:1~
- *
- * All forward-delete variants start with ESC [ 3 followed by ~ $ ^ or ;
- * This is distinct from Backspace which produces \x7f or \x1b\x7f.
- */
-function isForwardDeleteSequence(raw: string): boolean {
-  // ESC (0x1b) followed by "[3" then one of ~ $ ^ ;
-  return raw.length >= 4 && raw.charCodeAt(0) === 0x1b && raw[1] === "[" && raw[2] === "3"
 }
