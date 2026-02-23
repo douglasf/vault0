@@ -33,7 +33,7 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
   }
 
   return (
-    <box flexDirection="column" width="100%" marginBottom={1} backgroundColor={theme.bg_0}>
+    <box flexDirection="column" width="100%" marginBottom={1} flexShrink={0} backgroundColor={theme.bg_0}>
       <box flexDirection="row" justifyContent="space-between" paddingX={1}>
         <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>Vault0</text>
         <box flexDirection="row">
