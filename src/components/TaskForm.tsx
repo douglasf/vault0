@@ -34,8 +34,8 @@ const STATUS_DISPLAY: Record<string, string> = {
 const DESC_VIEWPORT = 8
 
 export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFormProps) {
-  const titleInput = useTextInput(task?.title || "", false)
-  const descInput = useTextInput(task?.description || "", true)
+  const titleInput = useTextInput(task?.title?.replace(/\t/g, "    ") || "", false)
+  const descInput = useTextInput(task?.description?.replace(/\t/g, "    ") || "", true)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
   const [status, setStatus] = useState<Status>((task?.status as Status) || "backlog")
@@ -187,7 +187,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       continue
     }
 
-    const logicalLines = token.content.split("\n")
+    const logicalLines = token.content.replace(/\t/g, "    ").split("\n")
     for (let li = 0; li < logicalLines.length; li++) {
       const line = logicalLines[li]
       const wrapped = wrapWithOffsets(line, descTextWidth)

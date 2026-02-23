@@ -147,7 +147,7 @@ export function useTextInput(initialValue = "", multiline = false): TextInputRes
       const buffered = pasteBufferRef.current
       pasteBufferRef.current = null
       if (buffered) {
-        const sanitized = buffered.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+        const sanitized = buffered.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\t/g, "    ")
         if (multiline && sanitized.includes("\n")) {
           setState(prev => insertPaste(prev, sanitized))
         } else if (sanitized) {
@@ -252,7 +252,7 @@ export function useTextInput(initialValue = "", multiline = false): TextInputRes
       // Normalize line endings
       let sanitized = input
       if (sanitized.length > 1) {
-        sanitized = sanitized.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+        sanitized = sanitized.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\t/g, "    ")
       }
       if (!sanitized) return true
 

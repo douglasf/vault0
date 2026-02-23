@@ -102,7 +102,8 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
 /** Word-wrap text to maxWidth, returning at most maxLines lines. Appends "…" when truncated. */
 function wordWrapLines(text: string, maxWidth: number, maxLines: number): string[] {
   const lines: string[] = []
-  const paragraphs = text.split("\n")
+  // Replace tab characters with spaces — tabs render as garbled boxes in Ink
+  const paragraphs = text.replace(/\t/g, "    ").split("\n")
 
   for (const para of paragraphs) {
     if (lines.length >= maxLines) break

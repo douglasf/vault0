@@ -482,7 +482,8 @@ function formatDateTime(date: Date | string | number | null | undefined): string
 
 function wordWrap(text: string, maxWidth: number): string[] {
   const lines: string[] = []
-  const paragraphs = text.split("\n")
+  // Replace tab characters with spaces — tabs render as garbled boxes in Ink
+  const paragraphs = text.replace(/\t/g, "    ").split("\n")
   for (const para of paragraphs) {
     if (para.length <= maxWidth) {
       lines.push(para)
