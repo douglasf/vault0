@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react"
-import type { KeyEvent } from "@opentui/core"
+import { useState, useMemo, useRef } from "react"
+import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
-import { Scrollbar } from "./Scrollbar.js"
 import { theme } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
 
@@ -185,40 +184,19 @@ function filterItems(items: RenderItem[], query: string): RenderItem[] {
 
 export function HelpOverlay({ onClose }: HelpOverlayProps) {
   const { height: terminalRows } = useTerminalDimensions()
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
 
   const [filter, setFilter] = useState("")
-  const [scrollOffset, setScrollOffset] = useState(0)
 
   const filteredItems = useMemo(() => filterItems(allItems, filter), [filter])
 
   // Available height for scrollable content inside the modal.
-  // Modal has border (2) + padding (2) + title (1) + marginBottom (1) +
-  // filter line (1) + marginTop (1) + footer (1) + marginTop (1) = ~10.
-  // Plus the outer overlay centering eats some space.
   // Use ~60% of terminal height as content area.
   const contentHeight = Math.max(3, Math.floor(terminalRows * 0.6))
 
-  const maxScroll = Math.max(0, filteredItems.length - 1)
-
-  const visibleWindow = useMemo(() => {
-    const offset = Math.min(scrollOffset, maxScroll)
-    let linesUsed = 0
-    let count = 0
-    for (let i = offset; i < filteredItems.length; i++) {
-      let itemLines = 1
-      const k = filteredItems[i].kind
-      if ((k === "header" || k === "divider") && i > offset) {
-        itemLines += 1
-      }
-      if (linesUsed + itemLines > contentHeight && count > 0) break
-      linesUsed += itemLines
-      count++
-    }
-    return { offset, count, linesUsed }
-  }, [scrollOffset, maxScroll, filteredItems, contentHeight])
-
-  const visible = filteredItems.slice(visibleWindow.offset, visibleWindow.offset + visibleWindow.count)
-  const needsScrollbar = filteredItems.length > visibleWindow.count || visibleWindow.offset > 0
+  const resetScroll = () => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }
 
   useKeyboard((event: KeyEvent) => {
     // Close overlay
@@ -227,28 +205,28 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
       return
     }
 
-    // Scroll
+    // Scroll via ScrollBox ref
     if (event.name === "up") {
-      setScrollOffset((prev) => Math.max(0, prev - 1))
+      scrollRef.current?.scrollBy(-1)
       return
     }
     if (event.name === "down") {
-      setScrollOffset((prev) => Math.min(maxScroll, prev + 1))
+      scrollRef.current?.scrollBy(1)
       return
     }
     if (event.name === "pagedown") {
-      setScrollOffset((prev) => Math.min(maxScroll, prev + contentHeight))
+      scrollRef.current?.scrollBy(contentHeight)
       return
     }
     if (event.name === "pageup") {
-      setScrollOffset((prev) => Math.max(0, prev - contentHeight))
+      scrollRef.current?.scrollBy(-contentHeight)
       return
     }
 
     // Backspace — remove last character from filter
     if (event.name === "backspace") {
       setFilter((prev) => prev.slice(0, -1))
-      setScrollOffset(0)
+      resetScroll()
       return
     }
 
@@ -256,7 +234,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     const input = event.raw || ""
     if (input && input.length === 1 && !event.ctrl && !event.meta) {
       setFilter((prev) => prev + input)
-      setScrollOffset(0)
+      resetScroll()
       return
     }
   })
@@ -287,72 +265,61 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
       </box>
 
       {/* Scrollable shortcut list */}
-      <box flexDirection="row" flexGrow={1} marginTop={1} height={visibleWindow.linesUsed}>
-        <box flexDirection="column" flexGrow={1}>
-          {visible.length === 0 ? (
-            <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>No matching shortcuts</text>
-          ) : (
-            visible.map((item, i) => {
-              const k = `${item.kind}-${visibleWindow.offset + i}`
-              if (item.kind === "divider") {
-                return (
-                  <box key={k} marginTop={i === 0 ? 0 : 1} marginBottom={0}>
-                    <text fg={theme.cyan} attributes={TextAttributes.BOLD}>
-                      {item.label}
-                    </text>
-                  </box>
-                )
-              }
-              if (item.kind === "header") {
-                return (
-                  <box key={k} marginTop={i === 0 ? 0 : 1}>
-                    <text fg={theme.fg_1} attributes={TextAttributes.BOLD | TextAttributes.UNDERLINE}>
-                      {item.title}
-                    </text>
-                  </box>
-                )
-              }
-              if (item.kind === "legend") {
-                const { entry } = item
-                return (
-                  <box key={k}>
-                    <box width={16}>
-                      <text
-                        fg={entry.color()}
-                        bg={entry.bgColor?.()}
-                        attributes={TextAttributes.BOLD}
-                      >
-                        {entry.label}
-                      </text>
-                    </box>
-                    {entry.desc ? <text fg={theme.fg_0}>{entry.desc}</text> : null}
-                  </box>
-                )
-              }
-              // shortcut
+      <scrollbox ref={scrollRef} scrollY flexGrow={1} marginTop={1} height={contentHeight}>
+        {filteredItems.length === 0 ? (
+          <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>No matching shortcuts</text>
+        ) : (
+          filteredItems.map((item, i) => {
+            const k = `${item.kind}-${i}`
+            if (item.kind === "divider") {
               return (
-                <box key={k}>
-                  <box width={16}>
-                    <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>
-                      {item.key}
-                    </text>
-                  </box>
-                  <text fg={theme.fg_0}>{item.desc}</text>
+                <box key={k} marginTop={i === 0 ? 0 : 1} marginBottom={0}>
+                  <text fg={theme.cyan} attributes={TextAttributes.BOLD}>
+                    {item.label}
+                  </text>
                 </box>
               )
-            })
-          )}
-        </box>
-        {needsScrollbar && (
-          <Scrollbar
-            totalItems={filteredItems.length}
-            visibleItems={visibleWindow.count}
-            scrollOffset={visibleWindow.offset}
-            trackHeight={visibleWindow.linesUsed}
-            isActive
-          />
+            }
+            if (item.kind === "header") {
+              return (
+                <box key={k} marginTop={i === 0 ? 0 : 1}>
+                  <text fg={theme.fg_1} attributes={TextAttributes.BOLD | TextAttributes.UNDERLINE}>
+                    {item.title}
+                  </text>
+                </box>
+              )
+            }
+            if (item.kind === "legend") {
+              const { entry } = item
+              return (
+                <box key={k} flexDirection="row">
+                  <box width={16}>
+                    <text
+                      fg={entry.color()}
+                      bg={entry.bgColor?.()}
+                      attributes={TextAttributes.BOLD}
+                    >
+                      {entry.label}
+                    </text>
+                  </box>
+                  {entry.desc ? <text fg={theme.fg_0}>{entry.desc}</text> : null}
+                </box>
+              )
+            }
+            // shortcut
+            return (
+              <box key={k} flexDirection="row">
+                <box width={16}>
+                  <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>
+                    {item.key}
+                  </text>
+                </box>
+                <text fg={theme.fg_0}>{item.desc}</text>
+              </box>
+            )
+          })
         )}
-      </box>
+      </scrollbox>
 
       {/* Footer */}
       <box marginTop={1}>

@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react"
+import React, { useRef, useEffect } from "react"
 import { TextAttributes } from "@opentui/core"
+import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import { TaskCard } from "./TaskCard.js"
-import { Scrollbar } from "./Scrollbar.js"
 import type { TaskCard as TaskCardType, Status } from "../lib/types.js"
 import { STATUS_LABELS } from "../lib/constants.js"
-import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
+import { getStatusBgColor, theme } from "../lib/theme.js"
 
 export interface ColumnProps {
   status: Status
@@ -22,68 +22,6 @@ export interface ColumnProps {
   hideSubtasks?: boolean
 }
 
-/** Compute the rendered line height of a single task card (excluding bottom margin). */
-function computeTaskLineHeight(
-  task: TaskCardType,
-  isBlocked: boolean,
-  hasOrphanHeader: boolean,
-): number {
-  let lines = 1 // title line is always present (blocked icon is inline)
-  if (hasOrphanHeader) lines += 1
-  return lines
-}
-
-/**
- * Compute the visible window of tasks starting from scrollOffset that fits
- * within the available terminal lines. Accounts for actual rendered height
- * of each task (title + badges + margins) instead of treating tasks as 1 line.
- */
-function computeVisibleWindow(
-  tasks: TaskCardType[],
-  scrollOffset: number,
-  availableHeight: number,
-  parentIdsInColumn: Set<string>,
-  blockedIds: Set<string>,
-): { visibleCount: number; orphanHeaderIndices: Set<number>; totalLinesUsed: number } {
-  const orphanHeaderIndices = new Set<number>()
-  const seenOrphanParents = new Set<string>()
-  let linesUsed = 0
-  let visibleCount = 0
-
-  for (let i = scrollOffset; i < tasks.length; i++) {
-    const task = tasks[i]
-
-    // Check if this task starts a new orphan group
-    const needsOrphanHeader =
-      task.parentId !== null &&
-      !parentIdsInColumn.has(task.parentId) &&
-      !seenOrphanParents.has(task.parentId)
-    const hasOrphanHeader = needsOrphanHeader && !!task.parentTitle
-    if (needsOrphanHeader && task.parentId) {
-      seenOrphanParents.add(task.parentId)
-    }
-
-    const taskHeight = computeTaskLineHeight(task, blockedIds.has(task.id), hasOrphanHeader)
-
-    // Bottom margin: 1 line unless followed by a sibling/child in the same group
-    const next = tasks[i + 1]
-    const isFollowedByChild =
-      next !== undefined &&
-      next.parentId !== null &&
-      (next.parentId === task.id || next.parentId === task.parentId)
-    const margin = (i < tasks.length - 1 && !isFollowedByChild) ? 1 : 0
-
-    // Stop if this task won't fit (always include at least one task)
-    if (linesUsed + taskHeight > availableHeight && visibleCount > 0) break
-
-    if (hasOrphanHeader) orphanHeaderIndices.add(i)
-    linesUsed += taskHeight + margin
-    visibleCount++
-  }
-
-  return { visibleCount, orphanHeaderIndices, totalLinesUsed: Math.max(linesUsed, 1) }
-}
-
 export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyIds, blockedIds, heightReduction, columnCount, hideSubtasks }: ColumnProps) {
   // Filter out subtasks when globally hidden
   const tasks = hideSubtasks
@@ -91,6 +29,8 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
     : rawTasks
   const hiddenCount = rawTasks.length - tasks.length
   const { height: terminalRows } = useTerminalDimensions()
+
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
 
   // Compute orphan parent summaries when subtasks are hidden:
   // For each parent that has subtasks in this column but is NOT itself in this column,
@@ -112,7 +52,31 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
     return Array.from(groups.entries()).map(([id, { title, count }]) => ({ id, title, count }))
   }, [hideSubtasks, rawTasks])
 
-  const [scrollOffset, setScrollOffset] = useState(0)
+  // Precompute which parent IDs exist in this column (for orphan header detection)
+  const parentIdsInColumn = React.useMemo(
+    () => new Set(tasks.filter((t) => t.parentId === null).map((t) => t.id)),
+    [tasks],
+  )
+
+  // Track which indices need orphan headers (for rendering)
+  const orphanHeaderIndices = React.useMemo(() => {
+    const indices = new Set<number>()
+    const seenOrphanParents = new Set<string>()
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i]
+      const needsOrphanHeader =
+        task.parentId !== null &&
+        !parentIdsInColumn.has(task.parentId) &&
+        !seenOrphanParents.has(task.parentId)
+      if (needsOrphanHeader && task.parentTitle) {
+        indices.add(i)
+      }
+      if (needsOrphanHeader && task.parentId) {
+        seenOrphanParents.add(task.parentId)
+      }
+    }
+    return indices
+  }, [tasks, parentIdsInColumn])
 
   // Available height in terminal lines for task content.
   // Reserve lines for: App header (~3), column header + marginBottom (2),
@@ -120,53 +84,25 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
   // When a preview panel is visible, subtract its height too.
   const availableHeight = Math.max(3, terminalRows - 8 - (heightReduction || 0))
 
-  // Precompute which parent IDs exist in this column
-  const parentIdsInColumn = new Set(
-    tasks.filter((t) => t.parentId === null).map((t) => t.id),
-  )
-
-  // Compute the visible window based on actual rendered line heights
-  const { visibleCount, orphanHeaderIndices, totalLinesUsed } = computeVisibleWindow(
-    tasks, scrollOffset, availableHeight, parentIdsInColumn, blockedIds,
-  )
-
-  const visibleTasks = tasks.slice(scrollOffset, scrollOffset + visibleCount)
-  const needsScrollbar = tasks.length > visibleCount || scrollOffset > 0
-
-  // Clamp scrollOffset when the task list shrinks (e.g. a task was moved out).
-  // This must run for ALL columns, not just the active one, to prevent
-  // invisible tasks caused by a stale scrollOffset.
-  // Key insight: if all remaining tasks fit on screen from offset 0, reset to 0.
-  // Otherwise, ensure scrollOffset doesn't push us past the end.
-  useEffect(() => {
-    if (tasks.length === 0) {
-      setScrollOffset(0)
-    } else if (scrollOffset > 0) {
-      // Check if all tasks would fit starting from offset 0
-      const { visibleCount: countFromZero } = computeVisibleWindow(
-        tasks, 0, availableHeight, parentIdsInColumn, blockedIds,
-      )
-      if (countFromZero >= tasks.length) {
-        // All tasks fit — no need to scroll at all
-        setScrollOffset(0)
-      } else if (scrollOffset >= tasks.length) {
-        setScrollOffset(Math.max(0, tasks.length - 1))
-      }
-    }
-  }, [tasks, scrollOffset, availableHeight, parentIdsInColumn, blockedIds])
-
   // Auto-scroll to keep selected row visible when this column is active.
-  // Since visible window size varies (tasks have different heights), we scroll
-  // incrementally — each step triggers a re-render with a fresh visibleCount
-  // until the selected row is within the window.
+  // Access the ScrollBox's content children to find the selected task's position.
   useEffect(() => {
-    if (!isActive) return
-    if (selectedRow < scrollOffset) {
-      setScrollOffset(selectedRow)
-    } else if (selectedRow >= scrollOffset + visibleCount) {
-      setScrollOffset((prev) => prev + 1)
+    if (!isActive || !scrollRef.current || tasks.length === 0) return
+    const children = scrollRef.current.content.getChildren()
+    if (selectedRow < 0 || selectedRow >= children.length) return
+
+    const child = children[selectedRow]
+    const childTop = child.y
+    const childBottom = childTop + child.height
+    const viewportTop = scrollRef.current.scrollTop
+    const viewportBottom = viewportTop + scrollRef.current.viewport.height
+
+    if (childTop < viewportTop) {
+      scrollRef.current.scrollTop = childTop
+    } else if (childBottom > viewportBottom) {
+      scrollRef.current.scrollTop = childBottom - scrollRef.current.viewport.height
     }
-  }, [selectedRow, scrollOffset, isActive, visibleCount])
+  }, [selectedRow, isActive, tasks])
 
   const bgColor = getStatusBgColor()
 
@@ -177,7 +113,7 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
   return (
     <box flexDirection="column" width={fixedWidth} flexGrow={fixedWidth ? 0 : 1} paddingX={1} overflow="hidden" backgroundColor={bgColor}>
       {/* Column header with status label and task count */}
-      <box justifyContent="center" marginBottom={1}>
+      <box alignItems="center" marginBottom={1}>
         {isActive ? (
            <text attributes={TextAttributes.BOLD | TextAttributes.UNDERLINE} fg={theme.blue}>
             {STATUS_LABELS[status]} {tasks.length}{hiddenCount > 0 ? ` (${hiddenCount})` : ""}
@@ -189,59 +125,47 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
         )}
       </box>
 
-      {/* Task list with scrollbar */}
+      {/* Task list with ScrollBox */}
       <box flexDirection="column" flexGrow={1}>
         {tasks.length === 0 ? (
           <text fg={theme.dim_0}>No tasks</text>
         ) : (
-          <box flexDirection="row">
-            <box flexDirection="column" flexGrow={1}>
-              {visibleTasks.map((task, i) => {
-                const globalIndex = scrollOffset + i
-                const isSelected = isActive && selectedRow === globalIndex
-                const isSubtask = task.parentId !== null
-                const showOrphanHeader = orphanHeaderIndices.has(globalIndex)
+          <scrollbox ref={scrollRef} scrollY flexGrow={1} height={availableHeight} viewportCulling>
+            {tasks.map((task, i) => {
+              const isSelected = isActive && selectedRow === i
+              const isSubtask = task.parentId !== null
+              const showOrphanHeader = orphanHeaderIndices.has(i)
 
-                // Reduce vertical spacing within parent–subtask groups:
-                // No margin between a parent and its first subtask, or between sibling subtasks.
-                const next = visibleTasks[i + 1]
-                const isFollowedByChild =
-                  next !== undefined &&
-                  next.parentId !== null &&
-                  (next.parentId === task.id || next.parentId === task.parentId)
-                const bottomMargin = isFollowedByChild ? 0 : 1
+              // Reduce vertical spacing within parent–subtask groups:
+              // No margin between a parent and its first subtask, or between sibling subtasks.
+              const next = tasks[i + 1]
+              const isFollowedByChild =
+                next !== undefined &&
+                next.parentId !== null &&
+                (next.parentId === task.id || next.parentId === task.parentId)
+              const bottomMargin = isFollowedByChild ? 0 : 1
 
-                return (
-                  <box key={task.id} flexDirection="column" marginBottom={bottomMargin}>
-                    {/* Orphan group header — shown once per parent group */}
-                    {showOrphanHeader && task.parentTitle && (
-                      <box overflow="hidden">
-                        <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
-                          ↳ {task.parentTitle}
-                        </text>
-                      </box>
-                    )}
-                    <TaskCard
-                      task={task}
-                      isSelected={isSelected}
-                      isReady={readyIds.has(task.id)}
-                      isBlocked={blockedIds.has(task.id)}
-                      showParentRef={isSubtask ? false : undefined}
-                    />
-                  </box>
-                )
-              })}
-            </box>
-            {needsScrollbar && (
-              <Scrollbar
-                totalItems={tasks.length}
-                visibleItems={visibleCount}
-                scrollOffset={scrollOffset}
-                trackHeight={totalLinesUsed}
-                isActive={isActive}
-              />
-            )}
-          </box>
+              return (
+                <box key={task.id} flexDirection="column" marginBottom={bottomMargin}>
+                  {/* Orphan group header — shown once per parent group */}
+                  {showOrphanHeader && task.parentTitle && (
+                    <box overflow="hidden">
+                      <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
+                        ↳ {task.parentTitle}
+                      </text>
+                    </box>
+                  )}
+                  <TaskCard
+                    task={task}
+                    isSelected={isSelected}
+                    isReady={readyIds.has(task.id)}
+                    isBlocked={blockedIds.has(task.id)}
+                    showParentRef={isSubtask ? false : undefined}
+                  />
+                </box>
+              )
+            })}
+          </scrollbox>
         )}
         {/* Orphan parent summaries when subtasks are hidden */}
         {orphanParentSummaries.map((summary) => (

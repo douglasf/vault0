@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent } from "@opentui/core"
+import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { Task, Status, Priority, TaskType, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
@@ -34,7 +34,7 @@ export function TaskDetail({
   onCreateSubtask,
 }: TaskDetailProps) {
   const db = useDb()
-  const [scrollOffset, setScrollOffset] = useState(0)
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
   const [showDependencyPicker, setShowDependencyPicker] = useState(false)
   const [showDependencyRemover, setShowDependencyRemover] = useState(false)
   const [dependencyError, setDependencyError] = useState("")
@@ -71,26 +71,14 @@ export function TaskDetail({
   }
 
   // Build content lines for scrollable display
-  // (detail is re-queried from sync DB on every render — no caching needed)
   const sections = buildSections(detail)
 
-  // Total overhead = App Header (3) + TaskDetail chrome (8) = 11 lines.
-  //
+  // Compute available height for the scrollbox.
+  // Total overhead = App Header (3) + TaskDetail chrome (6) = 9 lines.
   // App Header: content rows(2) + marginBottom(1) = 3
-  // TaskDetail: paddingY(2) + title(1) + scroll-up(1) +
-  //             content margin(1) + scroll-down(1) + footer margin(1) + footer(1) = 8
-  //
-  // IMPORTANT: maxVisible is ALWAYS rows-11, regardless of whether scrolling
-  // is needed. This prevents a feedback loop where showing/hiding scroll
-  // indicators changes the viewport size, which changes whether indicators
-  // are needed, causing content to oscillate between renders. The cost is
-  // 2 unused lines when content fits without scrolling — negligible.
+  // TaskDetail: paddingY(2) + title(1) + content margin(1) + footer margin(1) + footer(1) = 6
   const { height: rows } = useTerminalDimensions()
-  const totalLines = sections.length
-  const maxVisible = Math.max(1, (rows || 24) - 11)
-  const clampedOffset = Math.min(scrollOffset, Math.max(0, totalLines - maxVisible))
-
-  const visibleLines = sections.slice(clampedOffset, clampedOffset + maxVisible)
+  const scrollHeight = Math.max(1, (rows || 24) - 9)
 
   useActiveKeyboard((event: KeyEvent) => {
     if (event.name === "escape") {
@@ -123,13 +111,13 @@ export function TaskDetail({
       setRemoveDepIndex(0)
       setDependencyError("")
     } else if (event.name === "up") {
-      setScrollOffset((prev) => Math.max(0, prev - 1))
+      scrollRef.current?.scrollBy(-1)
     } else if (event.name === "down") {
-      setScrollOffset((prev) => Math.min(Math.max(0, totalLines - maxVisible), prev + 1))
+      scrollRef.current?.scrollBy(1)
     } else if (event.name === "pageup") {
-      setScrollOffset((prev) => Math.max(0, prev - maxVisible))
+      scrollRef.current?.scrollBy(-scrollHeight)
     } else if (event.name === "pagedown") {
-      setScrollOffset((prev) => Math.min(Math.max(0, totalLines - maxVisible), prev + maxVisible))
+      scrollRef.current?.scrollBy(scrollHeight)
     }
   }, !showDependencyPicker && !showDependencyRemover)
 
@@ -154,17 +142,6 @@ export function TaskDetail({
       setShowDependencyRemover(false)
     }
   }, showDependencyRemover)
-
-  const hasMore = totalLines > maxVisible
-
-  // Render callback for visible scroll lines.
-  // Keys include the scroll offset so React unmounts/remounts every SectionLine
-  // when the viewport shifts. This prevents terminal diff from corrupting
-  // output when in-place content changes (text length changes cause ghost
-  // characters, structural changes between line types cause layout glitches).
-  const renderSlot = (line: LineData, slot: number) => (
-    <SectionLine key={`${clampedOffset}-${slot}`} line={line} />
-  )
 
   return (
     <box flexDirection="column" width="100%">
@@ -213,27 +190,12 @@ export function TaskDetail({
             <text attributes={TextAttributes.BOLD} fg={theme.blue}>Task Detail</text>
           </box>
 
-          {/* Scroll-up indicator — always render the slot to keep constant
-              output height and prevent React reconciliation churn */}
-          <box justifyContent="flex-end">
-            {hasMore && clampedOffset > 0
-              ? <text fg={theme.dim_0}>↑ {clampedOffset} more</text>
-              : <text> </text>}
-          </box>
-
-          {/* Content — keys include the scroll offset so React creates fresh
-              SectionLine instances on each scroll step. */}
-          <box flexDirection="column" marginTop={1}>
-            {visibleLines.map(renderSlot)}
-          </box>
-
-          {/* Scroll-down indicator — always render the slot to keep constant
-              output height and prevent React reconciliation churn */}
-          <box justifyContent="flex-end">
-            {hasMore && clampedOffset + maxVisible < totalLines
-              ? <text fg={theme.dim_0}>↓ {totalLines - clampedOffset - maxVisible} more</text>
-              : <text> </text>}
-          </box>
+          {/* Scrollable content */}
+          <scrollbox ref={scrollRef} scrollY flexGrow={1} marginTop={1} height={scrollHeight}>
+            {sections.map((line, i) => (
+              <SectionLine key={`${line.type}-${i}`} line={line} />
+            ))}
+          </scrollbox>
 
           {/* Dependency error */}
           {dependencyError && (
