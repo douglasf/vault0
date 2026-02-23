@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent } from "@opentui/core"
+import type { KeyEvent, SelectOption } from "@opentui/core"
 import type { Filters, Status, Priority, Source } from "../lib/types.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
 import { getStatusColor } from "../lib/theme.js"
@@ -19,7 +19,6 @@ export interface FilterBarProps {
   onClose: () => void
 }
 
-// Define navigable sections and their items
 type SectionKey = "status" | "priority" | "source" | "toggles" | "actions"
 
 const SECTIONS: SectionKey[] = ["status", "priority", "source", "toggles", "actions"]
@@ -33,14 +32,36 @@ const TOGGLE_LABELS: Record<string, string> = {
   showArchived: "Show Archived",
 }
 
-function sectionItemCount(section: SectionKey): number {
-  switch (section) {
-    case "status": return VISIBLE_STATUSES.length
-    case "priority": return PRIORITIES.length
-    case "source": return SOURCES.length
-    case "toggles": return TOGGLE_KEYS.length
-    case "actions": return 1 // "Clear Filters"
-  }
+function makeStatusOptions(filters: Filters): SelectOption[] {
+  return VISIBLE_STATUSES.map((status) => ({
+    name: `${filters.status === status ? "●" : "○"} ${STATUS_LABELS[status]}`,
+    description: "",
+    value: status,
+  }))
+}
+
+function makePriorityOptions(filters: Filters): SelectOption[] {
+  return PRIORITIES.map((priority) => ({
+    name: `${filters.priority === priority ? "●" : "○"} ${PRIORITY_LABELS[priority]}`,
+    description: "",
+    value: priority,
+  }))
+}
+
+function makeSourceOptions(filters: Filters): SelectOption[] {
+  return SOURCES.map((source) => ({
+    name: `${filters.source === source ? "●" : "○"} ${source}`,
+    description: "",
+    value: source,
+  }))
+}
+
+function makeToggleOptions(filters: Filters): SelectOption[] {
+  return TOGGLE_KEYS.map((key) => ({
+    name: `${filters[key] ? "●" : "○"} ${TOGGLE_LABELS[key]}`,
+    description: "",
+    value: key,
+  }))
 }
 
 export function FilterBar({
@@ -55,7 +76,8 @@ export function FilterBar({
   onClose,
 }: FilterBarProps) {
   const [sectionIdx, setSectionIdx] = useState(0)
-  const [itemIdx, setItemIdx] = useState(0)
+
+  const currentSection = SECTIONS[sectionIdx]
 
   useActiveKeyboard((event: KeyEvent) => {
     const input = event.raw || ""
@@ -65,45 +87,38 @@ export function FilterBar({
       return
     }
 
-    if (event.name === "up") {
-      setSectionIdx((prev) => {
-        const next = Math.max(0, prev - 1)
-        setItemIdx(0)
-        return next
-      })
-    } else if (event.name === "down") {
-      setSectionIdx((prev) => {
-        const next = Math.min(SECTIONS.length - 1, prev + 1)
-        setItemIdx(0)
-        return next
-      })
-    } else if (event.name === "left") {
-      setItemIdx((prev) => Math.max(0, prev - 1))
-    } else if (event.name === "right") {
-      const max = sectionItemCount(SECTIONS[sectionIdx]) - 1
-      setItemIdx((prev) => Math.min(max, prev + 1))
-    } else if (event.name === "return" || input === " ") {
-      const section = SECTIONS[sectionIdx]
-      if (section === "status") {
-        onToggleStatus(VISIBLE_STATUSES[itemIdx])
-      } else if (section === "priority") {
-        onTogglePriority(PRIORITIES[itemIdx])
-      } else if (section === "source") {
-        onToggleSource(SOURCES[itemIdx])
-      } else if (section === "toggles") {
-        const toggleKey = TOGGLE_KEYS[itemIdx]
-        if (toggleKey === "readyOnly") onToggleReady()
-        else if (toggleKey === "blockedOnly") onToggleBlocked()
-        else if (toggleKey === "showArchived") onToggleArchived()
-      } else if (section === "actions") {
-        onClear()
-      }
+    if (event.name === "tab" && !event.shift) {
+      setSectionIdx((prev) => Math.min(SECTIONS.length - 1, prev + 1))
+    } else if ((event.name === "tab" && event.shift) || event.name === "btab") {
+      setSectionIdx((prev) => Math.max(0, prev - 1))
     } else if (input === "c") {
+      onClear()
+    } else if (currentSection === "actions" && (event.name === "return" || input === " ")) {
       onClear()
     }
   })
 
-  const currentSection = SECTIONS[sectionIdx]
+  const handleStatusSelect = (_index: number, option: SelectOption | null) => {
+    if (option?.value) onToggleStatus(option.value as Status)
+  }
+
+  const handlePrioritySelect = (_index: number, option: SelectOption | null) => {
+    if (option?.value) onTogglePriority(option.value as Priority)
+  }
+
+  const handleSourceSelect = (_index: number, option: SelectOption | null) => {
+    if (option?.value) onToggleSource(option.value as Source)
+  }
+
+  const handleToggleSelect = (_index: number, option: SelectOption | null) => {
+    if (!option?.value) return
+    const key = option.value as (typeof TOGGLE_KEYS)[number]
+    if (key === "readyOnly") onToggleReady()
+    else if (key === "blockedOnly") onToggleBlocked()
+    else if (key === "showArchived") onToggleArchived()
+  }
+
+  const selectHeight = 6
 
   return (
     <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
@@ -114,23 +129,17 @@ export function FilterBar({
         <text attributes={TextAttributes.BOLD} fg={currentSection === "status" ? theme.blue : theme.fg_0}>
           Status:
         </text>
-        <box gap={1}>
-          {VISIBLE_STATUSES.map((status, idx) => {
-            const isSelected = filters.status === status
-            const isCursor = currentSection === "status" && itemIdx === idx
-            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
-            return (
-              <box key={status}>
-                <text
-                  fg={getStatusColor(status)}
-                  attributes={attrs}
-                >
-                  {isSelected ? "●" : "○"} {STATUS_LABELS[status]}
-                </text>
-              </box>
-            )
-          })}
-        </box>
+        <select
+          options={makeStatusOptions(filters)}
+          focused={currentSection === "status"}
+          height={selectHeight}
+          showDescription={false}
+          onSelect={handleStatusSelect}
+          textColor={theme.fg_0}
+          selectedTextColor={theme.fg_1}
+          selectedBackgroundColor={theme.bg_2}
+          backgroundColor={theme.bg_1}
+        />
       </box>
 
       {/* Priority */}
@@ -138,20 +147,17 @@ export function FilterBar({
         <text attributes={TextAttributes.BOLD} fg={currentSection === "priority" ? theme.blue : theme.fg_0}>
           Priority:
         </text>
-        <box gap={1}>
-          {PRIORITIES.map((priority, idx) => {
-            const isSelected = filters.priority === priority
-            const isCursor = currentSection === "priority" && itemIdx === idx
-            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
-            return (
-              <box key={priority}>
-                <text attributes={attrs} fg={theme.fg_0}>
-                  {isSelected ? "●" : "○"} {PRIORITY_LABELS[priority]}
-                </text>
-              </box>
-            )
-          })}
-        </box>
+        <select
+          options={makePriorityOptions(filters)}
+          focused={currentSection === "priority"}
+          height={selectHeight}
+          showDescription={false}
+          onSelect={handlePrioritySelect}
+          textColor={theme.fg_0}
+          selectedTextColor={theme.fg_1}
+          selectedBackgroundColor={theme.bg_2}
+          backgroundColor={theme.bg_1}
+        />
       </box>
 
       {/* Source */}
@@ -159,41 +165,35 @@ export function FilterBar({
         <text attributes={TextAttributes.BOLD} fg={currentSection === "source" ? theme.blue : theme.fg_0}>
           Source:
         </text>
-        <box gap={1}>
-          {SOURCES.map((source, idx) => {
-            const isSelected = filters.source === source
-            const isCursor = currentSection === "source" && itemIdx === idx
-            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
-            return (
-              <box key={source}>
-                <text attributes={attrs} fg={theme.fg_0}>
-                  {isSelected ? "●" : "○"} {source}
-                </text>
-              </box>
-            )
-          })}
-        </box>
+        <select
+          options={makeSourceOptions(filters)}
+          focused={currentSection === "source"}
+          height={selectHeight}
+          showDescription={false}
+          onSelect={handleSourceSelect}
+          textColor={theme.fg_0}
+          selectedTextColor={theme.fg_1}
+          selectedBackgroundColor={theme.bg_2}
+          backgroundColor={theme.bg_1}
+        />
       </box>
 
-      {/* Toggle Filters */}
+      {/* Toggles */}
       <box marginTop={1} flexDirection="column">
         <text attributes={TextAttributes.BOLD} fg={currentSection === "toggles" ? theme.blue : theme.fg_0}>
           Toggles:
         </text>
-        <box gap={1}>
-          {TOGGLE_KEYS.map((toggleKey, idx) => {
-            const isSelected = !!filters[toggleKey]
-            const isCursor = currentSection === "toggles" && itemIdx === idx
-            const attrs = (isCursor ? TextAttributes.INVERSE : TextAttributes.NONE) | (isSelected ? TextAttributes.BOLD : TextAttributes.NONE)
-            return (
-              <box key={toggleKey}>
-                <text attributes={attrs} fg={theme.fg_0}>
-                  {isSelected ? "●" : "○"} {TOGGLE_LABELS[toggleKey]}
-                </text>
-              </box>
-            )
-          })}
-        </box>
+        <select
+          options={makeToggleOptions(filters)}
+          focused={currentSection === "toggles"}
+          height={4}
+          showDescription={false}
+          onSelect={handleToggleSelect}
+          textColor={theme.fg_0}
+          selectedTextColor={theme.fg_1}
+          selectedBackgroundColor={theme.bg_2}
+          backgroundColor={theme.bg_1}
+        />
       </box>
 
       {/* Actions */}
@@ -208,7 +208,7 @@ export function FilterBar({
 
       {/* Help */}
       <box marginTop={1}>
-        <text fg={theme.fg_0}>↑/↓ section  ←/→ item  Enter toggle  c clear  Esc close</text>
+        <text fg={theme.fg_0}>Tab/S-Tab section  ↑/↓ item  Enter toggle  c clear  Esc close</text>
       </box>
     </box>
   )

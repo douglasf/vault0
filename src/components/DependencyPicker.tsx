@@ -1,12 +1,11 @@
 import React, { useState } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent } from "@opentui/core"
+import type { KeyEvent, SelectOption } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import type { Task, Status } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTasksByStatus } from "../db/queries.js"
 import { VISIBLE_STATUSES, STATUS_LABELS } from "../lib/constants.js"
-import { getStatusColor } from "../lib/theme.js"
 import { theme } from "../lib/theme.js"
 
 export interface DependencyPickerProps {
@@ -25,7 +24,6 @@ export function DependencyPicker({
   onCancel,
 }: DependencyPickerProps) {
   const db = useDb()
-  const [selectedIndex, setSelectedIndex] = useState(0)
   const [searchFilter, setSearchFilter] = useState("")
 
   // Fetch all tasks across visible statuses (single DB call)
@@ -44,29 +42,19 @@ export function DependencyPicker({
       t.title.toLowerCase().includes(searchFilter.toLowerCase()),
   )
 
-  // Scrollable window: keep selected item roughly centered
-  const maxVisible = 10
-  const idealStart = selectedIndex - Math.floor(maxVisible / 2)
-  const scrollStart = Math.max(0, Math.min(idealStart, Math.max(0, availableTasks.length - maxVisible)))
-  const visibleTasks = availableTasks.slice(scrollStart, scrollStart + maxVisible)
+  const selectOptions: SelectOption[] = availableTasks.map((task) => ({
+    name: `${task.title.substring(0, 45)} [${STATUS_LABELS[task.status as Status] || task.status}]`,
+    description: "",
+    value: task.id,
+  }))
 
   useKeyboard((event: KeyEvent) => {
-    if (event.name === "up") {
-      setSelectedIndex((i) => Math.max(0, i - 1))
-    } else if (event.name === "down") {
-      setSelectedIndex((i) => Math.min(availableTasks.length - 1, i + 1))
-    } else if (event.name === "return") {
-      if (availableTasks[selectedIndex]) {
-        onSelectDependency(availableTasks[selectedIndex].id)
-      }
-    } else if (event.name === "escape") {
+    if (event.name === "escape") {
       onCancel()
     } else if (event.name === "backspace" || event.name === "delete") {
       setSearchFilter((s) => s.slice(0, -1))
-      setSelectedIndex(0)
     } else if (event.raw && event.raw.length === 1 && !event.ctrl && !event.meta && /[a-zA-Z0-9 _\-]/.test(event.raw)) {
       setSearchFilter((s) => s + event.raw)
-      setSelectedIndex(0)
     }
   })
 
@@ -87,31 +75,25 @@ export function DependencyPicker({
         {availableTasks.length === 0 ? (
           <text fg={theme.dim_0}>No matching tasks</text>
         ) : (
-          visibleTasks.map((task, i) => {
-            const globalIndex = scrollStart + i
-            const isSelected = globalIndex === selectedIndex
-            return (
-              <box key={task.id}>
-                <text
-                  fg={isSelected ? theme.bg_1 : getStatusColor(task.status)}
-                  bg={isSelected ? getStatusColor(task.status) : undefined}
-                >
-                  {isSelected ? "▸ " : "  "}
-                  {task.title.substring(0, 45)} [{STATUS_LABELS[task.status as Status] || task.status}]
-                </text>
-              </box>
-            )
-          })
+          <select
+            options={selectOptions}
+            focused={true}
+            height={Math.min(10, selectOptions.length)}
+            showDescription={false}
+            showScrollIndicator={availableTasks.length > 10}
+            backgroundColor={theme.bg_1}
+            textColor={theme.dim_0}
+            selectedBackgroundColor={theme.cyan}
+            selectedTextColor={theme.bg_1}
+            focusedBackgroundColor={theme.bg_1}
+            onSelect={(_index: number, option: SelectOption | null) => {
+              if (option?.value) {
+                onSelectDependency(option.value)
+              }
+            }}
+          />
         )}
       </box>
-
-      {availableTasks.length > maxVisible && (
-        <box marginTop={1}>
-          <text fg={theme.dim_0}>
-            {scrollStart + 1}–{Math.min(scrollStart + maxVisible, availableTasks.length)} of {availableTasks.length}
-          </text>
-        </box>
-      )}
 
       <box marginTop={1}>
         <text fg={theme.dim_0}>↑/↓: navigate  Enter: add  Esc: cancel</text>
