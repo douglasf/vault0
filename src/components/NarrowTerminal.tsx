@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from "react"
-import { TextAttributes } from "@opentui/core"
-import type { KeyEvent } from "@opentui/core"
+import type { KeyEvent, TabSelectRenderable, TabSelectOption } from "@opentui/core"
 import { Column } from "./Column.js"
 import { useDb } from "../lib/db-context.js"
 import { useBoard } from "../hooks/useBoard.js"
@@ -8,7 +7,7 @@ import { useNavigation } from "../hooks/useNavigation.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { STATUS_LABELS } from "../lib/constants.js"
-import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
+import { theme } from "../lib/theme.js"
 import type { Task, Filters, Status, SortField, TaskCard as TaskCardType } from "../lib/types.js"
 import type { DbError } from "../hooks/useBoard.js"
 
@@ -77,6 +76,12 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
 
   // Track a task that was just moved so we can follow it with the cursor after re-render
   const pendingFocusTaskId = useRef<string | null>(null)
+  const tabSelectRef = useRef<TabSelectRenderable>(null)
+
+  // Sync useNavigation's selectedColumn → tab-select when changed externally (e.g. pendingFocus)
+  useEffect(() => {
+    tabSelectRef.current?.setSelectedIndex(nav.selectedColumn)
+  }, [nav.selectedColumn])
 
   // After data refreshes, resolve the pending focus task to its new position
   useEffect(() => {
@@ -122,9 +127,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
         pendingFocusTaskId.current = task.id
         onMoveTask?.(task, targetStatus)
       }
-    } else if (event.name === "left") nav.navigateLeft()
-    else if (event.name === "right") nav.navigateRight()
-    else if (event.name === "up") nav.navigateUp()
+    } else if (event.name === "up") nav.navigateUp()
     else if (event.name === "down") nav.navigateDown()
     else if (event.name === "return") {
       const selected = nav.selectCurrent()
@@ -139,21 +142,32 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
 
   const activeStatus = VISIBLE_STATUSES[nav.selectedColumn]
 
+  const tabOptions: TabSelectOption[] = VISIBLE_STATUSES.map((status) => ({
+    name: STATUS_LABELS[status],
+    description: "",
+    value: status,
+  }))
+
+  const handleTabChange = useCallback((index: number) => {
+    nav.navigateToColumn(index)
+  }, [nav])
+
   return (
     <box flexDirection="column" width="100%" flexGrow={1}>
       {/* Column tab indicator */}
-      <box justifyContent="center" gap={1} marginBottom={1}>
-        {VISIBLE_STATUSES.map((status, i) => (
-          <text
-            key={status}
-            attributes={i === nav.selectedColumn ? TextAttributes.BOLD : TextAttributes.NONE}
-            fg={i === nav.selectedColumn ? theme.fg_1 : theme.dim_0}
-            bg={i === nav.selectedColumn ? getStatusBgColor() : undefined}
-          >
-            {i === nav.selectedColumn ? ` ${STATUS_LABELS[status]} ` : STATUS_LABELS[status]}
-          </text>
-        ))}
-      </box>
+      <tab-select
+        ref={tabSelectRef}
+        options={tabOptions}
+        focused={inputActive !== false}
+        onChange={handleTabChange}
+        textColor={theme.dim_0}
+        selectedTextColor={theme.fg_1}
+        showDescription={false}
+        showUnderline={true}
+        wrapSelection={false}
+        justifyContent="center"
+        marginBottom={1}
+      />
 
       {/* Single visible column */}
       <Column
@@ -169,7 +183,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
 
       <box marginTop={1} justifyContent="center">
         <text fg={theme.dim_0}>
-          {"<"}/{">"}  switch columns {"  "}
+          {"←"}/{"→"}  switch columns {"  "}
           Up/Down navigate {"  "}
           ? help
         </text>
