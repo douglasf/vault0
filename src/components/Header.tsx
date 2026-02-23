@@ -34,9 +34,9 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
 
   return (
     <box flexDirection="column" width="100%" marginBottom={1} backgroundColor={theme.bg_0}>
-      <box justifyContent="space-between" paddingX={1}>
+      <box flexDirection="row" justifyContent="space-between" paddingX={1}>
         <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>Vault0</text>
-        <box>
+        <box flexDirection="row">
           {toast && (
             <text fg={theme.green} attributes={TextAttributes.BOLD}> ✓ {toast} </text>
           )}
@@ -51,8 +51,8 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
           )}
         </box>
       </box>
-      <box justifyContent="space-between" paddingX={1}>
-        <box>
+      <box flexDirection="row" justifyContent="space-between" paddingX={1}>
+        <box flexDirection="row">
           <text fg={theme.cyan}>↕ {SORT_FIELD_LABELS[sortField]}</text>
           <text> | </text>
           <text fg={theme.dim_0}>{boardName}</text>
