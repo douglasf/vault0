@@ -12,6 +12,7 @@ import {
   removeDependency,
   getTaskDetail,
   archiveDoneTasks,
+  unarchiveTask,
 } from "../db/queries.js"
 
 // ═══════════════════════════════════════════════════════════════════
@@ -950,6 +951,66 @@ describe("archiveTask", () => {
   test("throws if task not found", () => {
     expect(() => {
       archiveTask(testDb.db, "nonexistent-id")
+    }).toThrow("not found")
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// unarchiveTask
+// ═══════════════════════════════════════════════════════════════════
+
+describe("unarchiveTask", () => {
+  let testDb: TestDb
+
+  beforeEach(() => {
+    testDb = createTestDb()
+  })
+
+  afterEach(() => {
+    closeTestDb(testDb.sqlite)
+  })
+
+  test("restores an archived task (clears archivedAt)", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "To restore", priority: "normal" })
+    archiveTask(testDb.db, task.id)
+
+    // Verify it's archived
+    const archived = testDb.db.select().from(tasks).where(eq(tasks.id, task.id)).get()
+    expect(archived?.archivedAt).toBeDefined()
+
+    unarchiveTask(testDb.db, task.id)
+
+    const restored = testDb.db.select().from(tasks).where(eq(tasks.id, task.id)).get()
+    expect(restored?.archivedAt).toBeNull()
+  })
+
+  test("cascades unarchive to subtasks", () => {
+    const parent = createTask(testDb.db, { boardId: testDb.boardId, title: "Parent", priority: "normal" })
+    const child1 = createTask(testDb.db, { boardId: testDb.boardId, title: "Child 1", priority: "normal", parentId: parent.id })
+    const child2 = createTask(testDb.db, { boardId: testDb.boardId, title: "Child 2", priority: "normal", parentId: parent.id })
+
+    archiveTask(testDb.db, parent.id)
+    unarchiveTask(testDb.db, parent.id)
+
+    const restoredParent = testDb.db.select().from(tasks).where(eq(tasks.id, parent.id)).get()
+    const restoredChild1 = testDb.db.select().from(tasks).where(eq(tasks.id, child1.id)).get()
+    const restoredChild2 = testDb.db.select().from(tasks).where(eq(tasks.id, child2.id)).get()
+
+    expect(restoredParent?.archivedAt).toBeNull()
+    expect(restoredChild1?.archivedAt).toBeNull()
+    expect(restoredChild2?.archivedAt).toBeNull()
+  })
+
+  test("throws if task is not archived", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Not archived", priority: "normal" })
+    expect(() => {
+      unarchiveTask(testDb.db, task.id)
+    }).toThrow("not archived")
+  })
+
+  test("throws if task not found", () => {
+    expect(() => {
+      unarchiveTask(testDb.db, "nonexistent-id")
     }).toThrow("not found")
   })
 })

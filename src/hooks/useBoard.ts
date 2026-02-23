@@ -4,10 +4,18 @@ import type { Filters, Status, SortField, TaskCard, Priority } from "../lib/type
 import { getTaskCards } from "../db/queries.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, TASK_TYPE_ORDER, TASK_TYPE_ORDER_NONE } from "../lib/constants.js"
 
+export type DbErrorKind = "connection" | "corruption" | "locked" | "unknown"
+
+export interface DbError {
+  kind: DbErrorKind
+  message: string
+}
+
 export interface UseBoardResult {
   tasksByStatus: Map<Status, TaskCard[]>
   readyIds: Set<string>
   blockedIds: Set<string>
+  dbError: DbError | null
   version: number
   refetch: () => void
 }
@@ -102,12 +110,41 @@ function groupByParent(cards: TaskCard[], sortField?: SortField): TaskCard[] {
   return result
 }
 
+function classifyDbError(error: unknown): DbError {
+  const msg = error instanceof Error ? error.message : String(error)
+  const lower = msg.toLowerCase()
+
+  if (lower.includes("database is locked") || lower.includes("sqlite_busy")) {
+    return { kind: "locked", message: msg }
+  }
+  if (
+    lower.includes("malformed") ||
+    lower.includes("corrupt") ||
+    lower.includes("not a database") ||
+    lower.includes("disk image is malformed") ||
+    lower.includes("database disk image is malformed")
+  ) {
+    return { kind: "corruption", message: msg }
+  }
+  if (
+    lower.includes("unable to open") ||
+    lower.includes("enoent") ||
+    lower.includes("eacces") ||
+    lower.includes("permission denied") ||
+    lower.includes("no such file")
+  ) {
+    return { kind: "connection", message: msg }
+  }
+  return { kind: "unknown", message: msg }
+}
+
 export function useBoard(db: Vault0Database, boardId: string, filters?: Filters, sortField?: SortField): UseBoardResult {
   const [version, setVersion] = useState(0)
 
   const tasksByStatus = new Map<Status, TaskCard[]>()
   const readyIds = new Set<string>()
   const blockedIds = new Set<string>()
+  let dbError: DbError | null = null
 
   if (boardId) {
     try {
@@ -148,8 +185,13 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters,
         if (card.isReady) readyIds.add(card.id)
         if (card.isBlocked) blockedIds.add(card.id)
       }
-    } catch {
-      // Silently fail — board may not exist yet during initialization
+    } catch (error) {
+      dbError = classifyDbError(error)
+      // Log unexpected errors — board may not exist yet during initialization,
+      // but other errors (corruption, permissions) should be visible
+      console.error(
+        `[useBoard] Failed to load board (${dbError.kind}): ${dbError.message}`,
+      )
     }
   }
 
@@ -160,5 +202,5 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters,
   // version is used to force re-renders when refetch is called
   void version
 
-  return { tasksByStatus, readyIds, blockedIds, version, refetch }
+  return { tasksByStatus, readyIds, blockedIds, dbError, version, refetch }
 }

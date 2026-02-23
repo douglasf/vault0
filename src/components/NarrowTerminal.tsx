@@ -8,6 +8,7 @@ import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { STATUS_LABELS } from "../lib/constants.js"
 import { getStatusColor, getStatusBgColor, theme } from "../lib/theme.js"
 import type { Task, Filters, Status, SortField, TaskCard as TaskCardType } from "../lib/types.js"
+import type { DbError } from "../hooks/useBoard.js"
 
 export interface NarrowTerminalProps {
   boardId: string
@@ -25,15 +26,22 @@ export interface NarrowTerminalProps {
   hideSubtasks?: boolean
   /** Sort field for lane ordering */
   sortField?: SortField
+  /** Called when a database error is detected */
+  onDbError?: (error: DbError | null) => void
 }
 
 /**
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks, sortField }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks, sortField, onDbError }: NarrowTerminalProps) {
   const db = useDb()
-  const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters, sortField)
+  const { tasksByStatus, readyIds, blockedIds, dbError, refetch } = useBoard(db, boardId, filters, sortField)
+
+  // Report database errors to parent
+  useEffect(() => {
+    onDbError?.(dbError)
+  }, [dbError, onDbError])
 
   // Helper to filter out subtasks when globally hidden
   const filterCollapsed = useCallback((tasks: TaskCardType[]) =>
@@ -137,7 +145,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
             key={status}
             bold={i === nav.selectedColumn}
             color={i === nav.selectedColumn ? theme.fg_1 : theme.dim_0}
-            backgroundColor={i === nav.selectedColumn ? getStatusBgColor(status) : undefined}
+            backgroundColor={i === nav.selectedColumn ? getStatusBgColor() : undefined}
           >
             {i === nav.selectedColumn ? ` ${STATUS_LABELS[status]} ` : STATUS_LABELS[status]}
           </Text>

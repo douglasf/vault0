@@ -7,6 +7,7 @@ import { useBoard } from "../hooks/useBoard.js"
 import { useNavigation } from "../hooks/useNavigation.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import type { Task, Filters, Status, SortField, TaskCard as TaskCardType } from "../lib/types.js"
+import type { DbError } from "../hooks/useBoard.js"
 
 export interface BoardProps {
   boardId: string
@@ -24,11 +25,18 @@ export interface BoardProps {
   hideSubtasks?: boolean
   /** Sort field for lane ordering */
   sortField?: SortField
+  /** Called when a database error is detected */
+  onDbError?: (error: DbError | null) => void
 }
 
-export function Board({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks, sortField }: BoardProps) {
+export function Board({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks, sortField, onDbError }: BoardProps) {
   const db = useDb()
-  const { tasksByStatus, readyIds, blockedIds } = useBoard(db, boardId, filters, sortField)
+  const { tasksByStatus, readyIds, blockedIds, dbError, refetch } = useBoard(db, boardId, filters, sortField)
+
+  // Report database errors to parent
+  useEffect(() => {
+    onDbError?.(dbError)
+  }, [dbError, onDbError])
 
   // Helper to filter out subtasks when globally hidden
   const filterCollapsed = useCallback((tasks: TaskCardType[]) =>

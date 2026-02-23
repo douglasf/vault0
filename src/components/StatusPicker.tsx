@@ -29,7 +29,7 @@ export function StatusPicker({ task, onSelectStatus, onCancel }: StatusPickerPro
 
   return (
     <Box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <Text bold color={theme.cyan}>Move Task: {task.title.substring(0, 30)}</Text>
+      <Text bold color={theme.cyan} wrap="truncate-end">Move Task: {task.title}</Text>
 
       {VISIBLE_STATUSES.map((status, i) => (
         <Box key={status} marginTop={i === 0 ? 1 : 0}>

@@ -1,12 +1,13 @@
 import type { Vault0Database } from "../db/connection.js"
 import type { Status, Priority, Source, TaskType } from "../lib/types.js"
 import { tasks } from "../db/schema.js"
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import {
   createTask,
   updateTask,
   updateTaskStatus,
   archiveTask,
+  unarchiveTask,
   archiveDoneTasks,
   getTaskCards,
   getTaskDetail,
@@ -74,13 +75,12 @@ function resolveTaskId(db: Vault0Database, idFragment: string): string {
   const exact = db.select().from(tasks).where(eq(tasks.id, idFragment)).get()
   if (exact) return exact.id
 
-  // Try suffix match (partial ID)
-  const all = db
+  // Try suffix match via SQL (avoids loading all IDs to JS)
+  const matches = db
     .select({ id: tasks.id })
     .from(tasks)
+    .where(sql`${tasks.id} LIKE ${`%${idFragment}`}`)
     .all()
-
-  const matches = all.filter((t) => t.id.endsWith(idFragment))
 
   if (matches.length === 0) {
     throw new Error(`No task found matching ID: "${idFragment}"`)
@@ -142,21 +142,22 @@ export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format
   })
 
   // Handle tags separately since createTask doesn't accept them
+  let finalTask = task
   if (flags.tags) {
     const tagList = flags.tags.split(",").map((t) => t.trim()).filter(Boolean)
     if (tagList.length > 0) {
-      updateTask(db, task.id, { tags: tagList })
+      finalTask = updateTask(db, task.id, { tags: tagList })
     }
   }
 
   if (format === "json") {
-    return { success: true, message: jsonOutput(task), data: task }
+    return { success: true, message: jsonOutput(finalTask), data: finalTask }
   }
 
   return {
     success: true,
-    message: formatSuccess(`Task created: [${task.id.slice(-8)}] ${task.title}`),
-    data: task,
+    message: formatSuccess(`Task created: [${finalTask.id.slice(-8)}] ${finalTask.title}`),
+    data: finalTask,
   }
 }
 
@@ -344,6 +345,31 @@ export function cmdDelete(db: Vault0Database, taskId: string, format: OutputForm
   return {
     success: true,
     message: formatSuccess(`Task ${action}: [${resolvedId.slice(-8)}] ${task?.title}`),
+    data: task,
+  }
+}
+
+/**
+ * vault0 task unarchive <ID>
+ * Restores a previously archived (soft-deleted) task. Cascades to subtasks.
+ */
+export function cmdUnarchive(db: Vault0Database, taskId: string, format: OutputFormat): CommandResult {
+  if (!taskId) {
+    return { success: false, message: formatError("Task ID is required. Usage: vault0 task unarchive <ID>") }
+  }
+
+  const resolvedId = resolveTaskId(db, taskId)
+  unarchiveTask(db, resolvedId)
+
+  const task = db.select().from(tasks).where(eq(tasks.id, resolvedId)).get()
+
+  if (format === "json") {
+    return { success: true, message: jsonOutput({ unarchived: true, id: resolvedId, title: task?.title }), data: task }
+  }
+
+  return {
+    success: true,
+    message: formatSuccess(`Task unarchived: [${resolvedId.slice(-8)}] ${task?.title}`),
     data: task,
   }
 }

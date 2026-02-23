@@ -8,6 +8,7 @@ import {
   cmdMove,
   cmdComplete,
   cmdDelete,
+  cmdUnarchive,
   cmdArchiveDone,
   cmdDepAdd,
   cmdDepRemove,
@@ -169,6 +170,11 @@ function handleTask(args: string[], db: Vault0Database): number {
 
     case "archive-done":
       result = cmdArchiveDone(db, parsed.flags, parsed.format)
+      break
+
+    case "unarchive":
+    case "restore":
+      result = cmdUnarchive(db, parsed.positional[0] || parsed.flags.id || "", parsed.format)
       break
 
     case "dep": {

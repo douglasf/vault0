@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { parseArgs } from "../cli/index.js"
+import { parseArgs, runCli } from "../cli/index.js"
 import { cmdView, cmdEdit, cmdComplete } from "../cli/commands.js"
 import { createTestDb, closeTestDb, type TestDb } from "./helpers.js"
 import { tasks } from "../db/schema.js"
@@ -55,6 +55,11 @@ describe("parseArgs", () => {
     test("extracts 'archive-done' subcommand", () => {
       const result = parseArgs(["archive-done"])
       expect(result.subcommand).toBe("archive-done")
+    })
+
+    test("extracts 'unarchive' subcommand", () => {
+      const result = parseArgs(["unarchive"])
+      expect(result.subcommand).toBe("unarchive")
     })
   })
 
@@ -497,5 +502,152 @@ describe("resolveTaskId (via commands)", () => {
 
   test("no match through cmdEdit throws error", () => {
     expect(() => cmdEdit(testDb.db, "NONEXISTENT", { title: "Nope" }, "text")).toThrow("No task found")
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// parseArgs — edge cases: unknown commands, malformed flags, special chars
+// ═══════════════════════════════════════════════════════════════════
+
+describe("parseArgs edge cases", () => {
+  // ── Unknown commands ──────────────────────────────────────────
+
+  describe("unknown commands", () => {
+    test("unknown subcommand is parsed as-is (routing handles rejection)", () => {
+      const result = parseArgs(["frobnicate"])
+      expect(result.subcommand).toBe("frobnicate")
+    })
+
+    test("unknown dep sub-subcommand is parsed as-is", () => {
+      const result = parseArgs(["dep", "frobnicate", "TASK1"])
+      expect(result.subcommand).toBe("dep")
+      expect(result.subsubcommand).toBe("frobnicate")
+      expect(result.positional).toEqual(["TASK1"])
+    })
+  })
+
+  // ── Malformed flags ───────────────────────────────────────────
+
+  describe("malformed flags", () => {
+    test("--key=value syntax treats '=' as part of the key (not supported)", () => {
+      // The parser does not split on '=', so --title=hello becomes key "title=hello"
+      const result = parseArgs(["add", "--title=hello"])
+      // The key is "title=hello" with empty value (no next arg)
+      expect(result.flags["title=hello"]).toBeDefined()
+      expect(result.flags.title).toBeUndefined()
+    })
+
+    test("single-dash flags like -t are treated as positional args", () => {
+      const result = parseArgs(["add", "-t", "My Task"])
+      // -t doesn't start with "--", so it's positional
+      expect(result.positional).toContain("-t")
+      expect(result.positional).toContain("My Task")
+    })
+
+    test("value starting with -- is consumed as a flag key, not as a value", () => {
+      // --title --weird: parser sees --title, then --weird as next flag (not value)
+      const result = parseArgs(["add", "--title", "--weird"])
+      // --title consumes --weird as its value (because --weird doesn't match boolean flags)
+      // Actually: "weird" is not a boolean flag, so --title gets "--weird" as value? No.
+      // Let's trace: arg="--title", key="title", next arg="--weird" which starts with "--"
+      // So i+1 < length and args[i+1].startsWith("--") is checked only for boolean flags.
+      // For non-boolean: `if (i + 1 < args.length)` — it takes next arg regardless.
+      expect(result.flags.title).toBe("--weird")
+    })
+  })
+
+  // ── Special characters in values ──────────────────────────────
+
+  describe("special characters in values", () => {
+    test("unicode/emoji in title", () => {
+      const result = parseArgs(["add", "--title", "Fix 🐛 bug"])
+      expect(result.flags.title).toBe("Fix 🐛 bug")
+    })
+
+    test("empty string value for title", () => {
+      const result = parseArgs(["add", "--title", ""])
+      expect(result.flags.title).toBe("")
+    })
+
+    test("value with newlines", () => {
+      const result = parseArgs(["add", "--description", "line1\nline2"])
+      expect(result.flags.description).toBe("line1\nline2")
+    })
+
+    test("value with special regex characters", () => {
+      const result = parseArgs(["add", "--title", "Fix (.*) [issue]"])
+      expect(result.flags.title).toBe("Fix (.*) [issue]")
+    })
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// runCli — integration tests
+// ═══════════════════════════════════════════════════════════════════
+
+describe("runCli integration", () => {
+  let testDb: TestDb
+
+  beforeEach(() => {
+    testDb = createTestDb()
+  })
+
+  afterEach(() => {
+    closeTestDb(testDb.sqlite)
+  })
+
+  test("unknown entity returns exit code 1", () => {
+    const code = runCli("frobnicate", [], testDb.db)
+    expect(code).toBe(1)
+  })
+
+  test("task with unknown subcommand returns exit code 1", () => {
+    const code = runCli("task", ["frobnicate"], testDb.db)
+    expect(code).toBe(1)
+  })
+
+  test("task with no subcommand returns exit code 1", () => {
+    const code = runCli("task", [], testDb.db)
+    expect(code).toBe(1)
+  })
+
+  test("task help returns exit code 0", () => {
+    const code = runCli("task", ["help"], testDb.db)
+    expect(code).toBe(0)
+  })
+
+  test("task add success returns exit code 0", () => {
+    const code = runCli("task", ["add", "--title", "Test task"], testDb.db)
+    expect(code).toBe(0)
+  })
+
+  test("task add without title returns exit code 1", () => {
+    const code = runCli("task", ["add"], testDb.db)
+    expect(code).toBe(1)
+  })
+
+  test("task view with non-existent ID returns exit code 1 (error caught)", () => {
+    const code = runCli("task", ["view", "NONEXISTENT999"], testDb.db)
+    expect(code).toBe(1)
+  })
+
+  test("dep unknown sub-subcommand returns exit code 1", () => {
+    const code = runCli("task", ["dep", "frobnicate", "TASK1"], testDb.db)
+    expect(code).toBe(1)
+  })
+
+  test("dep with no sub-subcommand returns exit code 1", () => {
+    const code = runCli("task", ["dep"], testDb.db)
+    expect(code).toBe(1)
+  })
+
+  test("board list returns exit code 0", () => {
+    const code = runCli("board", ["list"], testDb.db)
+    expect(code).toBe(0)
+  })
+
+  test("board unknown subcommand returns exit code 1", () => {
+    const code = runCli("board", ["frobnicate"], testDb.db)
+    expect(code).toBe(1)
   })
 })

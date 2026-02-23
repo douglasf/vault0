@@ -1,5 +1,11 @@
 import type { Status, Priority, TaskType, SortField } from "./types.js"
 
+/**
+ * Statuses shown as board columns in the TUI kanban view.
+ * "cancelled" is intentionally excluded — cancelled tasks are hidden from the board.
+ * They remain in the database and are visible via `vault0 task list` (CLI).
+ * To see all tasks including cancelled: `vault0 task list --status cancelled`
+ */
 export const VISIBLE_STATUSES: Status[] = ["backlog", "todo", "in_progress", "in_review", "done"]
 
 export const STATUS_LABELS: Record<Status, string> = {

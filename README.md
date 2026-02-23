@@ -198,6 +198,7 @@ vault0/
 
 **Tasks** — Items with status, priority, description, and metadata:
 - **Status**: backlog | todo | in_progress | in_review | done | cancelled
+  > **Note:** Cancelled tasks are hidden from the TUI board (which uses a 5-column kanban layout). To view or filter cancelled tasks, use the CLI: `vault0 task list --status cancelled`.
 - **Priority**: critical | high | normal | low
 - **Source**: manual | todo_md | opencode | opencode-plan | import
 - **Hierarchy**: Tasks can have subtasks via `parentId`
@@ -217,6 +218,30 @@ vault0/
 - **Soft deletes** — Tasks are archived (set `archivedAt`), never hard-deleted. Cascade to subtasks.
 - **ULID primary keys** — Time-sortable, globally unique, no sequence conflicts.
 - **Embedded migrations** — SQL migrations are compiled into the source so they work in both dev mode and standalone binaries.
+
+### Database Migrations
+
+Vault0 uses a **custom embedded migration runner** instead of Drizzle's default filesystem-based migrator. This is necessary because compiled Bun binaries (`bun build --compile`) cannot read migration SQL files from disk at runtime — all code must be self-contained.
+
+#### How It Works
+
+- Migration SQL is stored as string literals in `src/db/migrations.ts` (the `MIGRATIONS` array).
+- Each migration is hashed (SHA-256) and tracked in the `__drizzle_migrations` table — the same table Drizzle's filesystem migrator uses, so the two are **fully compatible**. Migrations applied by either runner are recognized by the other.
+- Migrations are split on Drizzle's `statement-breakpoint` markers and executed statement-by-statement.
+- An "already exists" safety net catches duplicate DDL errors gracefully, making re-runs idempotent even if hash mismatches occur (e.g., transitioning between migration runners).
+
+#### Adding a New Migration
+
+1. **Modify the schema** in `src/db/schema.ts`
+2. **Generate SQL** — run `bun run db:generate` to create the migration file in `drizzle/`
+3. **Embed the SQL** — copy the generated SQL content into a new entry in the `MIGRATIONS` array in `src/db/migrations.ts`
+4. **Rebuild** — run `make install` to compile the updated binary
+
+#### Conventions
+
+- Migration tags follow Drizzle's naming pattern: `0000_name`, `0001_name`, etc.
+- Use `IF NOT EXISTS` in DDL statements for safety.
+- Multi-statement migrations use Drizzle's `--> statement-breakpoint` delimiter.
 
 ## Development
 

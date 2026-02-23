@@ -16,6 +16,7 @@ export interface TaskDetailProps {
   onStatusPick: (task: Task) => void
   onCyclePriority: (taskId: string) => void
   onDelete: (taskId: string) => void
+  onUnarchive: (taskId: string) => void
   onCreateSubtask: (parent: Task) => void
 }
 
@@ -26,6 +27,7 @@ export function TaskDetail({
   onStatusPick,
   onCyclePriority,
   onDelete,
+  onUnarchive,
   onCreateSubtask,
 }: TaskDetailProps) {
   const db = useDb()
@@ -98,7 +100,10 @@ export function TaskDetail({
       onCyclePriority(detail.id)
     } else if (input === "d") {
       onDelete(detail.id)
-      onBack()
+    } else if (input === "u") {
+      if (detail.archivedAt !== null) {
+        onUnarchive(detail.id)
+      }
     } else if (input === "A") {
       // Only allow adding subtasks to top-level tasks (not subtasks of subtasks)
       if (!detail.parentId) {

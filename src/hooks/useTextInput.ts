@@ -315,7 +315,7 @@ function tokensToValue(tokens: Token[]): string {
 function flatCursorPos(state: TokenState): number {
   let pos = 0
   for (let i = 0; i < state.cursorTokenIndex; i++) {
-    pos += state.tokens[i].content.length
+    pos += state.tokens[i].content.length + 1  // +1 for "\n" separator
   }
   return pos + state.cursorCharOffset
 }

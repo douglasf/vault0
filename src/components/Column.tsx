@@ -168,7 +168,7 @@ export function Column({ status, tasks: rawTasks, selectedRow, isActive, readyId
     }
   }, [selectedRow, scrollOffset, isActive, visibleCount])
 
-  const bgColor = getStatusBgColor(status)
+  const bgColor = getStatusBgColor()
 
   // Use fixed percentage width when columnCount is known (multi-column board layout),
   // otherwise fall back to flexGrow for single-column usage (NarrowTerminal).

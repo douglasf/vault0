@@ -1,4 +1,5 @@
 export { useBoard } from "./useBoard.js"
+export type { UseBoardResult, DbError, DbErrorKind } from "./useBoard.js"
 export { useNavigation } from "./useNavigation.js"
 export { useTaskActions } from "./useTaskActions.js"
 export { useFilters } from "./useFilters.js"

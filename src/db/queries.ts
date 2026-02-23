@@ -7,10 +7,6 @@ import { VISIBLE_STATUSES } from "../lib/constants.js"
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function isTaskDone(task?: Task): boolean {
-  return task?.status === "done"
-}
-
 function isDependencySatisfied(task?: Task): boolean {
   return task?.status === "done" || task?.status === "in_review"
 }
@@ -199,19 +195,21 @@ export function updateTask(
   taskId: string,
   data: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[] }>,
 ) {
-  const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
-  if (!current) throw new Error(`Task ${taskId} not found`)
-  if (current.archivedAt) throw new Error(`Cannot update archived task: ${taskId}`)
+  return db.transaction((tx) => {
+    const current = tx.select().from(tasks).where(eq(tasks.id, taskId)).get()
+    if (!current) throw new Error(`Task ${taskId} not found`)
+    if (current.archivedAt) throw new Error(`Cannot update archived task: ${taskId}`)
 
-  return db
-    .update(tasks)
-    .set({
-      ...data,
-      updatedAt: new Date(),
-    })
-    .where(eq(tasks.id, taskId))
-    .returning()
-    .get()
+    return tx
+      .update(tasks)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId))
+      .returning()
+      .get()
+  })
 }
 
 /**
@@ -232,94 +230,96 @@ export interface StatusUpdateResult {
  * Throws if the task does not exist or is archived.
  */
 export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status): StatusUpdateResult {
-  const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
-  if (!current) throw new Error(`Task ${taskId} not found`)
-  if (current.archivedAt) throw new Error(`Cannot update status of archived task: ${taskId}`)
+  return db.transaction((tx) => {
+    const current = tx.select().from(tasks).where(eq(tasks.id, taskId)).get()
+    if (!current) throw new Error(`Task ${taskId} not found`)
+    if (current.archivedAt) throw new Error(`Cannot update status of archived task: ${taskId}`)
 
-  const now = new Date()
-  const result: StatusUpdateResult = {}
+    const now = new Date()
+    const result: StatusUpdateResult = {}
 
-  db.update(tasks)
-    .set({ status: newStatus, updatedAt: now })
-    .where(eq(tasks.id, taskId))
-    .run()
-
-  db.insert(taskStatusHistory)
-    .values({
-      taskId,
-      fromStatus: current.status,
-      toStatus: newStatus,
-    })
-    .run()
-
-  // Cascade status change to non-archived subtasks that are in the same lane
-  // (status) as the parent's old status. Subtasks already in a different lane
-  // (e.g. "done") should not be dragged along.
-  const subtasks = db
-    .select()
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.parentId, taskId),
-        isNull(tasks.archivedAt),
-        eq(tasks.status, current.status),
-      ),
-    )
-    .all()
-
-  for (const subtask of subtasks) {
-    db.update(tasks)
+    tx.update(tasks)
       .set({ status: newStatus, updatedAt: now })
-      .where(eq(tasks.id, subtask.id))
+      .where(eq(tasks.id, taskId))
       .run()
 
-    db.insert(taskStatusHistory)
+    tx.insert(taskStatusHistory)
       .values({
-        taskId: subtask.id,
-        fromStatus: subtask.status,
+        taskId,
+        fromStatus: current.status,
         toStatus: newStatus,
       })
       .run()
-  }
 
-  // Auto-complete parent when all sibling subtasks are done.
-  // Only triggers when a subtask moves to "done" and has a parent.
-  if (newStatus === "done" && current.parentId) {
-    const siblings = db
+    // Cascade status change to non-archived subtasks that are in the same lane
+    // (status) as the parent's old status. Subtasks already in a different lane
+    // (e.g. "done") should not be dragged along.
+    const subtasks = tx
       .select()
       .from(tasks)
       .where(
         and(
-          eq(tasks.parentId, current.parentId),
+          eq(tasks.parentId, taskId),
           isNull(tasks.archivedAt),
+          eq(tasks.status, current.status),
         ),
       )
       .all()
 
-    const allDone = siblings.length > 0 && siblings.every((s) => s.status === "done")
+    for (const subtask of subtasks) {
+      tx.update(tasks)
+        .set({ status: newStatus, updatedAt: now })
+        .where(eq(tasks.id, subtask.id))
+        .run()
 
-    if (allDone) {
-      const parent = db.select().from(tasks).where(eq(tasks.id, current.parentId)).get()
-      if (parent && parent.status !== "done" && parent.status !== "cancelled" && !parent.archivedAt) {
-        db.update(tasks)
-          .set({ status: "done", updatedAt: now })
-          .where(eq(tasks.id, current.parentId))
-          .run()
+      tx.insert(taskStatusHistory)
+        .values({
+          taskId: subtask.id,
+          fromStatus: subtask.status,
+          toStatus: newStatus,
+        })
+        .run()
+    }
 
-        db.insert(taskStatusHistory)
-          .values({
-            taskId: current.parentId,
-            fromStatus: parent.status,
-            toStatus: "done",
-          })
-          .run()
+    // Auto-complete parent when all sibling subtasks are done.
+    // Only triggers when a subtask moves to "done" and has a parent.
+    if (newStatus === "done" && current.parentId) {
+      const siblings = tx
+        .select()
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.parentId, current.parentId),
+            isNull(tasks.archivedAt),
+          ),
+        )
+        .all()
 
-        result.parentAutoCompleted = { id: parent.id, title: parent.title }
+      const allDone = siblings.length > 0 && siblings.every((s) => s.status === "done")
+
+      if (allDone) {
+        const parent = tx.select().from(tasks).where(eq(tasks.id, current.parentId)).get()
+        if (parent && parent.status !== "done" && parent.status !== "cancelled" && !parent.archivedAt) {
+          tx.update(tasks)
+            .set({ status: "done", updatedAt: now })
+            .where(eq(tasks.id, current.parentId))
+            .run()
+
+          tx.insert(taskStatusHistory)
+            .values({
+              taskId: current.parentId,
+              fromStatus: parent.status,
+              toStatus: "done",
+            })
+            .run()
+
+          result.parentAutoCompleted = { id: parent.id, title: parent.title }
+        }
       }
     }
-  }
 
-  return result
+    return result
+  }, { behavior: "immediate" })
 }
 
 /**
@@ -328,17 +328,30 @@ export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: 
  * Returns the count of top-level tasks archived.
  */
 export function archiveDoneTasks(db: Vault0Database, boardId: string): number {
-  const doneTasks = db
-    .select()
-    .from(tasks)
-    .where(and(eq(tasks.boardId, boardId), eq(tasks.status, "done"), isNull(tasks.archivedAt)))
-    .all()
+  return db.transaction((tx) => {
+    const doneTasks = tx
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.boardId, boardId), eq(tasks.status, "done"), isNull(tasks.archivedAt)))
+      .all()
 
-  for (const task of doneTasks) {
-    archiveTask(db, task.id)
-  }
+    const now = new Date()
+    for (const task of doneTasks) {
+      // Archive the task
+      tx.update(tasks)
+        .set({ archivedAt: now })
+        .where(eq(tasks.id, task.id))
+        .run()
 
-  return doneTasks.length
+      // Cascade archive to subtasks
+      tx.update(tasks)
+        .set({ archivedAt: now })
+        .where(and(eq(tasks.parentId, task.id), isNull(tasks.archivedAt)))
+        .run()
+    }
+
+    return doneTasks.length
+  })
 }
 
 /**
@@ -356,14 +369,48 @@ export function archiveTask(db: Vault0Database, taskId: string): { hardDeleted: 
     return { hardDeleted: true }
   }
 
-  const now = new Date()
+  return db.transaction((tx) => {
+    const now = new Date()
+
+    tx.update(tasks)
+      .set({ archivedAt: now })
+      .where(eq(tasks.id, taskId))
+      .run()
+
+    // Cascade archive to subtasks
+    const subtasks = tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.parentId, taskId))
+      .all()
+
+    for (const st of subtasks) {
+      tx.update(tasks)
+        .set({ archivedAt: now })
+        .where(eq(tasks.id, st.id))
+        .run()
+    }
+
+    return { hardDeleted: false }
+  })
+}
+
+/**
+ * Unarchive (restore) a previously archived task by clearing archivedAt.
+ * Cascades to subtasks — all archived subtasks are also restored.
+ * Throws if the task does not exist or is not archived.
+ */
+export function unarchiveTask(db: Vault0Database, taskId: string): void {
+  const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (!current) throw new Error(`Task ${taskId} not found`)
+  if (!current.archivedAt) throw new Error(`Task ${taskId} is not archived`)
 
   db.update(tasks)
-    .set({ archivedAt: now })
+    .set({ archivedAt: null })
     .where(eq(tasks.id, taskId))
     .run()
 
-  // Cascade archive to subtasks
+  // Cascade unarchive to subtasks
   const subtasks = db
     .select()
     .from(tasks)
@@ -371,13 +418,13 @@ export function archiveTask(db: Vault0Database, taskId: string): { hardDeleted: 
     .all()
 
   for (const st of subtasks) {
-    db.update(tasks)
-      .set({ archivedAt: now })
-      .where(eq(tasks.id, st.id))
-      .run()
+    if (st.archivedAt) {
+      db.update(tasks)
+        .set({ archivedAt: null })
+        .where(eq(tasks.id, st.id))
+        .run()
+    }
   }
-
-  return { hardDeleted: false }
 }
 
 /**
@@ -389,44 +436,46 @@ export function hardDeleteTask(db: Vault0Database, taskId: string) {
   const current = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
   if (!current) throw new Error(`Task ${taskId} not found`)
 
-  // 1. Hard-delete all subtasks first (they reference this task via parentId)
-  const subtasks = db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.parentId, taskId))
-    .all()
+  db.transaction((tx) => {
+    // 1. Hard-delete all subtasks first (they reference this task via parentId)
+    const subtasks = tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.parentId, taskId))
+      .all()
 
-  for (const subtask of subtasks) {
-    // Remove dependencies involving the subtask
-    db.delete(taskDependencies)
-      .where(or(eq(taskDependencies.taskId, subtask.id), eq(taskDependencies.dependsOn, subtask.id)))
+    for (const subtask of subtasks) {
+      // Remove dependencies involving the subtask
+      tx.delete(taskDependencies)
+        .where(or(eq(taskDependencies.taskId, subtask.id), eq(taskDependencies.dependsOn, subtask.id)))
+        .run()
+
+      // Remove status history for the subtask
+      tx.delete(taskStatusHistory)
+        .where(eq(taskStatusHistory.taskId, subtask.id))
+        .run()
+
+      // Remove the subtask row
+      tx.delete(tasks)
+        .where(eq(tasks.id, subtask.id))
+        .run()
+    }
+
+    // 2. Remove dependencies involving this task (both directions)
+    tx.delete(taskDependencies)
+      .where(or(eq(taskDependencies.taskId, taskId), eq(taskDependencies.dependsOn, taskId)))
       .run()
 
-    // Remove status history for the subtask
-    db.delete(taskStatusHistory)
-      .where(eq(taskStatusHistory.taskId, subtask.id))
+    // 3. Remove status history for this task
+    tx.delete(taskStatusHistory)
+      .where(eq(taskStatusHistory.taskId, taskId))
       .run()
 
-    // Remove the subtask row
-    db.delete(tasks)
-      .where(eq(tasks.id, subtask.id))
+    // 4. Remove the task row
+    tx.delete(tasks)
+      .where(eq(tasks.id, taskId))
       .run()
-  }
-
-  // 2. Remove dependencies involving this task (both directions)
-  db.delete(taskDependencies)
-    .where(or(eq(taskDependencies.taskId, taskId), eq(taskDependencies.dependsOn, taskId)))
-    .run()
-
-  // 3. Remove status history for this task
-  db.delete(taskStatusHistory)
-    .where(eq(taskStatusHistory.taskId, taskId))
-    .run()
-
-  // 4. Remove the task row
-  db.delete(tasks)
-    .where(eq(tasks.id, taskId))
-    .run()
+  })
 }
 
 // ── Dependency Mutations ────────────────────────────────────────────
@@ -487,11 +536,14 @@ export function getTaskDetail(db: Vault0Database, taskId: string): TaskDetail {
     .where(eq(taskDependencies.taskId, taskId))
     .all()
 
-  const depTasks: Task[] = []
-  for (const d of deps) {
-    const t = db.select().from(tasks).where(eq(tasks.id, d.dependsOn)).get()
-    if (t) depTasks.push(t)
-  }
+  // Batch-load dependency tasks (avoids N+1)
+  const depIds = deps.map(d => d.dependsOn)
+  const depTasksUnordered = depIds.length > 0
+    ? db.select().from(tasks).where(inArray(tasks.id, depIds)).all()
+    : []
+  // Preserve original dependency order
+  const depTaskMap = new Map(depTasksUnordered.map(t => [t.id, t]))
+  const depTasks = depIds.map(id => depTaskMap.get(id)).filter((t): t is Task => t != null)
 
   const reverseDeps = db
     .select()
@@ -499,11 +551,13 @@ export function getTaskDetail(db: Vault0Database, taskId: string): TaskDetail {
     .where(eq(taskDependencies.dependsOn, taskId))
     .all()
 
-  const dependedOnByTasks: Task[] = []
-  for (const d of reverseDeps) {
-    const t = db.select().from(tasks).where(eq(tasks.id, d.taskId)).get()
-    if (t) dependedOnByTasks.push(t)
-  }
+  // Batch-load reverse dependency tasks (avoids N+1)
+  const reverseDepIds = reverseDeps.map(d => d.taskId)
+  const reverseDepTasksUnordered = reverseDepIds.length > 0
+    ? db.select().from(tasks).where(inArray(tasks.id, reverseDepIds)).all()
+    : []
+  const reverseDepTaskMap = new Map(reverseDepTasksUnordered.map(t => [t.id, t]))
+  const dependedOnByTasks = reverseDepIds.map(id => reverseDepTaskMap.get(id)).filter((t): t is Task => t != null)
 
   const history = db
     .select()

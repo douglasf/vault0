@@ -28,49 +28,58 @@ function acquireTuiLock(repoRoot: string, watchMode = false): (() => void) | nul
 
   mkdirSync(vault0Dir, { recursive: true })
 
-  // Check for existing lock
-  if (existsSync(lockPath)) {
+  // Atomic lock acquisition using O_EXCL (wx flag) to eliminate TOCTOU race.
+  // writeFileSync with { flag: "wx" } fails if the file already exists,
+  // making check-and-create a single atomic operation.
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: "wx" })
+    // Successfully created — we own the lock
+  } catch {
+    // Lock file exists — check if it's stale or held by an active process
+    let existingPid: number | undefined
     try {
       const content = readFileSync(lockPath, "utf-8").trim()
-      const pid = Number.parseInt(content, 10)
-      if (pid && !Number.isNaN(pid)) {
-        // If the lock belongs to our own PID (e.g. bun --watch re-executing
-        // in the same process), just overwrite it — no need to signal ourselves.
-        if (pid === process.pid) {
-          // Same process — stale lock from previous execution cycle
-        } else {
-          // Check if the process is still alive
-          try {
-            process.kill(pid, 0) // signal 0 = existence check, no actual signal sent
-            if (watchMode) {
-              // In watch mode, the previous instance may still be shutting down.
-              // Send SIGTERM and give it a moment to exit gracefully.
-              try { process.kill(pid, "SIGTERM") } catch { /* already dying */ }
-              // Brief wait for the old process to release the lock
-              Bun.sleepSync(200)
-              // Re-check — if still alive after SIGTERM, bail out
-              try {
-                process.kill(pid, 0)
-                return null // genuinely still running
-              } catch {
-                // Dead now — proceed to overwrite
-              }
-            } else {
-              // Process is alive — another TUI instance is running
-              return null
+      existingPid = Number.parseInt(content, 10)
+    } catch {
+      // Can't read lock file — try to replace it
+    }
+
+    if (existingPid && !Number.isNaN(existingPid)) {
+      if (existingPid === process.pid) {
+        // Same process (e.g. bun --watch re-executing) — stale lock, replace it
+      } else {
+        try {
+          process.kill(existingPid, 0) // signal 0 = existence check
+          if (watchMode) {
+            // In watch mode, the previous instance may still be shutting down.
+            // Send SIGTERM and give it a moment to exit gracefully.
+            try { process.kill(existingPid, "SIGTERM") } catch { /* already dying */ }
+            Bun.sleepSync(200)
+            try {
+              process.kill(existingPid, 0)
+              return null // genuinely still running
+            } catch {
+              // Dead now — proceed to replace lock
             }
-          } catch {
-            // Process is dead — stale lock, safe to overwrite
+          } else {
+            // Process is alive — another TUI instance is running
+            return null
           }
+        } catch {
+          // Process is dead — stale lock
         }
       }
+    }
+
+    // Stale or unreadable lock — remove and re-acquire atomically
+    try { unlinkSync(lockPath) } catch { /* already gone */ }
+    try {
+      writeFileSync(lockPath, String(process.pid), { flag: "wx" })
     } catch {
-      // Can't read lock — overwrite it
+      // Another instance grabbed the lock between our unlink and write
+      return null
     }
   }
-
-  // Write our PID
-  writeFileSync(lockPath, String(process.pid))
 
   return () => {
     try {

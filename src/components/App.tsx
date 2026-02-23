@@ -16,11 +16,13 @@ import { TextFilterBar } from "./TextFilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
 import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
+import { ErrorBanner } from "./ErrorBanner.js"
 import { theme } from "../lib/theme.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import type { Task, Status, SortField } from "../lib/types.js"
+import type { DbError } from "../hooks/useBoard.js"
 import { getBoards, getTaskCards } from "../db/queries.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { SORT_FIELDS, SORT_FIELD_LABELS } from "../lib/constants.js"
@@ -101,6 +103,13 @@ export function App({ db, dbPath }: AppProps) {
     toastTimerRef.current = setTimeout(() => setToast(""), durationMs)
   }, [])
 
+  // Database error state — surfaced from Board/NarrowTerminal via onDbError callback
+  const [dbError, setDbError] = useState<DbError | null>(null)
+
+  const handleDbError = useCallback((error: DbError | null) => {
+    setDbError(error)
+  }, [])
+
   // Clean up toast timer on unmount
   useEffect(() => {
     return () => {
@@ -158,6 +167,12 @@ export function App({ db, dbPath }: AppProps) {
       const task = highlightedTaskRef.current
       if (task) {
         setState((prev) => ({ ...prev, selectedTask: task, uiMode: "confirm-delete", deleteReturnMode: "board" }))
+      }
+    } else if (input === "u") {
+      const task = highlightedTaskRef.current
+      if (task && task.archivedAt !== null) {
+        actions.undeleteTask(task.id)
+        setState((prev) => ({ ...prev }))
       }
     } else if (input === "D") {
       // Archive all tasks in the Done lane
@@ -236,6 +251,17 @@ export function App({ db, dbPath }: AppProps) {
         <Box flexDirection="column" width="100%" height={terminalRows} backgroundColor={theme.bg_1}>
           <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} toast={toast} sortField={sortField} />
 
+          {dbError && (
+            <ErrorBanner
+              error={dbError}
+              onRetry={() => {
+                setDbError(null)
+                setState((prev) => ({ ...prev }))
+              }}
+              onDismiss={exit}
+            />
+          )}
+
           {(state.uiMode === "board" || state.uiMode === "text-filter") && (
             <>
               {state.uiMode === "text-filter" && (
@@ -260,7 +286,8 @@ export function App({ db, dbPath }: AppProps) {
                          onMoveTask={handleMoveTask}
                          inputActive={state.uiMode === "board"}
 hideSubtasks={hideSubtasks}
-                         sortField={sortField}
+                          sortField={sortField}
+                          onDbError={handleDbError}
                        />
                     </Box>
                   ) : (
@@ -277,6 +304,7 @@ hideSubtasks={hideSubtasks}
                         inputActive={state.uiMode === "board"}
                         hideSubtasks={hideSubtasks}
                         sortField={sortField}
+                        onDbError={handleDbError}
                       />
                     </Box>
                   )}
@@ -298,6 +326,7 @@ hideSubtasks={hideSubtasks}
                       heightReduction={boardHeightReduction}
                       hideSubtasks={hideSubtasks}
                       sortField={sortField}
+                      onDbError={handleDbError}
                     />
                   ) : (
                     <Board
@@ -313,6 +342,7 @@ hideSubtasks={hideSubtasks}
                       heightReduction={boardHeightReduction}
                       hideSubtasks={hideSubtasks}
                       sortField={sortField}
+                      onDbError={handleDbError}
                     />
                   )}
                   {previewLayout === "bottom" && (
@@ -356,6 +386,10 @@ hideSubtasks={hideSubtasks}
             }}
             onDelete={(_taskId) => {
               setState((prev) => ({ ...prev, uiMode: "confirm-delete", deleteReturnMode: "detail" }))
+            }}
+            onUnarchive={(taskId) => {
+              actions.undeleteTask(taskId)
+              setState((prev) => ({ ...prev }))
             }}
             onCreateSubtask={(parent) => {
               setState((prev) => ({ ...prev, uiMode: "create", createParent: parent }))

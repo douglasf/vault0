@@ -117,13 +117,19 @@ export function runEmbeddedMigrations(sqlite: Database) {
 
     if (applied.has(hash)) continue
 
-    // Split on drizzle's statement-breakpoint markers and execute each statement
-    const statements = migration.sql.split("--> statement-breakpoint")
-    for (const stmt of statements) {
-      const trimmed = stmt.trim()
-      if (trimmed) {
+    // Split on drizzle's statement-breakpoint markers
+    const statements = migration.sql
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    // Wrap in a transaction so it's all-or-nothing. If any statement fails
+    // (other than "already exists"), the entire migration is rolled back and
+    // NOT recorded as applied — preventing partial schema corruption.
+    const runMigration = sqlite.transaction(() => {
+      for (const stmt of statements) {
         try {
-          sqlite.exec(trimmed)
+          sqlite.exec(stmt)
         } catch (error) {
           // Handle "already exists" errors gracefully — this happens when
           // transitioning from drizzle's filesystem migrator (which uses
@@ -136,11 +142,14 @@ export function runEmbeddedMigrations(sqlite: Database) {
           throw error
         }
       }
-    }
 
-    // Record migration as applied
-    sqlite.prepare(
-      'INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES (?, ?)'
-    ).run(hash, Date.now())
+      // Record migration as applied — inside the transaction so it's
+      // only persisted if all statements succeeded.
+      sqlite.prepare(
+        'INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES (?, ?)'
+      ).run(hash, Date.now())
+    })
+
+    runMigration()
   }
 }

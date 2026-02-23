@@ -163,7 +163,14 @@ function loadThemeFile(name: string): Partial<ThemeDefinition> | null {
  * 3. If no file found, use the built-in theme directly (if it exists)
  * 4. Final fallback: selenized-dark built-in
  */
-function resolveTheme(name: string): ThemeDefinition {
+function resolveTheme(name: string, visited = new Set<string>()): ThemeDefinition {
+  if (visited.has(name)) {
+    throw new Error(
+      `Circular theme extends detected: ${[...visited].join(" -> ")} -> ${name}`,
+    )
+  }
+  visited.add(name)
+
   const fileData = loadThemeFile(name)
 
   if (fileData) {
@@ -171,7 +178,7 @@ function resolveTheme(name: string): ThemeDefinition {
     let base: ThemeDefinition
     if (fileData.extends) {
       // Recursively resolve the extended theme
-      base = resolveTheme(fileData.extends)
+      base = resolveTheme(fileData.extends, visited)
     } else if (BUILTIN_THEMES[name]) {
       base = BUILTIN_THEMES[name]
     } else {
@@ -185,7 +192,7 @@ function resolveTheme(name: string): ThemeDefinition {
 
   // Unknown theme name with no file — fall back to default
   if (name !== DEFAULT_THEME_NAME) {
-    return resolveTheme(DEFAULT_THEME_NAME)
+    return resolveTheme(DEFAULT_THEME_NAME, visited)
   }
 
   return SELENIZED_DARK_THEME
@@ -266,6 +273,6 @@ export function getTaskTypeColor(type: string): string {
   }
 }
 
-export function getStatusBgColor(_status: string): string {
+export function getStatusBgColor(): string {
   return activeTheme.bg_0
 }

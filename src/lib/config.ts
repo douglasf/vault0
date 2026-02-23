@@ -6,19 +6,6 @@ import { homedir } from "node:os"
 
 export interface Vault0Config {
   /**
-   * Board display settings.
-   * Reserved for future use — themes, visible columns, etc.
-   */
-  board?: {
-    /** Which status columns to display (default: all) */
-    visibleStatuses?: string[]
-    /** Default priority for new tasks */
-    defaultPriority?: string
-    /** Default task type for new tasks */
-    defaultType?: string
-  }
-
-  /**
    * Theme overrides.
    * Reserved for future use — will be expanded with the themes feature.
    */
@@ -71,11 +58,6 @@ function mergeConfigs(
   project: Partial<Vault0Config>,
 ): Vault0Config {
   const merged: Vault0Config = {}
-
-  // Merge board section
-  if (global.board || project.board) {
-    merged.board = { ...global.board, ...project.board }
-  }
 
   // Merge theme section
   if (global.theme || project.theme) {

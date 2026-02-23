@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { createTestDb, closeTestDb, type TestDb } from "./helpers.js"
-import { createTask, addDependency, updateTaskStatus } from "../db/queries.js"
+import { createTask, addDependency, updateTaskStatus, archiveTask } from "../db/queries.js"
 import {
   cmdAdd,
   cmdList,
@@ -9,6 +9,7 @@ import {
   cmdMove,
   cmdComplete,
   cmdDelete,
+  cmdUnarchive,
   cmdDepAdd,
   cmdDepRemove,
   cmdDepList,
@@ -120,6 +121,14 @@ describe("cmdAdd", () => {
     const parsed = JSON.parse(result.message)
     expect(parsed.title).toBe("JSON task")
     expect(parsed.id).toBeDefined()
+  })
+
+  test("json format includes tags when --tags is provided", () => {
+    const result = cmdAdd(testDb.db, { title: "Tagged JSON", tags: "alpha,beta" }, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.title).toBe("Tagged JSON")
+    expect(parsed.tags).toEqual(["alpha", "beta"])
   })
 
   test("text format returns success message with task ID", () => {
@@ -336,6 +345,27 @@ describe("cmdList", () => {
     const cards = JSON.parse(result.message)
     expect(cards).toHaveLength(1)
     expect(cards[0].title).toBe("Match")
+  })
+
+  test("filters by --status cancelled returns cancelled tasks", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Cancelled task", status: "backlog" })
+    updateTaskStatus(testDb.db, task.id, "cancelled")
+
+    const result = cmdList(testDb.db, { status: "cancelled" }, "json")
+    expect(result.success).toBe(true)
+    const cards = JSON.parse(result.message)
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Cancelled task")
+    expect(cards[0].status).toBe("cancelled")
+  })
+
+  test("non-existent board ID returns empty results", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Existing task" })
+
+    const result = cmdList(testDb.db, { board: "NONEXISTENT_BOARD_ID" }, "json")
+    expect(result.success).toBe(true)
+    const cards = JSON.parse(result.message)
+    expect(cards).toHaveLength(0)
   })
 })
 
@@ -784,6 +814,52 @@ describe("cmdDelete", () => {
     expect(() => {
       cmdDelete(testDb.db, "nonexistent-id", "text")
     }).toThrow("No task found matching ID")
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// cmdUnarchive
+// ═══════════════════════════════════════════════════════════════════
+
+describe("cmdUnarchive", () => {
+  let testDb: TestDb
+
+  beforeEach(() => {
+    testDb = createTestDb()
+  })
+
+  afterEach(() => {
+    closeTestDb(testDb.sqlite)
+  })
+
+  test("restores an archived task", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Restore me" })
+    archiveTask(testDb.db, task.id)
+    const result = cmdUnarchive(testDb.db, task.id, "text")
+    expect(result.success).toBe(true)
+    expect(result.message).toContain("unarchived")
+  })
+
+  test("json format returns unarchived info", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Restore json" })
+    archiveTask(testDb.db, task.id)
+    const result = cmdUnarchive(testDb.db, task.id, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.unarchived).toBe(true)
+    expect(parsed.id).toBe(task.id)
+  })
+
+  test("throws if task is not archived", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Not archived" })
+    expect(() => {
+      cmdUnarchive(testDb.db, task.id, "text")
+    }).toThrow("not archived")
+  })
+
+  test("returns error if no task ID provided", () => {
+    const result = cmdUnarchive(testDb.db, "", "text")
+    expect(result.success).toBe(false)
   })
 })
 
