@@ -1,7 +1,6 @@
 import React from "react"
 import { TextAttributes } from "@opentui/core"
 import { theme } from "../lib/theme.js"
-import { LOGO_LINES } from "../lib/logo.js"
 
 export function EmptyBoard() {
   return (
@@ -13,12 +12,8 @@ export function EmptyBoard() {
       alignItems="center"
     >
       <box flexDirection="column" alignItems="center">
-        <box flexDirection="column" marginBottom={1}>
-          {LOGO_LINES.map((line) => (
-            <text key={line} fg={theme.fg_0}>
-              {line}
-            </text>
-          ))}
+        <box marginBottom={1}>
+          <ascii-font text="vault0" font="tiny" color={theme.fg_0} />
         </box>
         <text attributes={TextAttributes.BOLD} fg={theme.yellow}>
           No tasks yet
