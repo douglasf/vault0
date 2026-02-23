@@ -25,20 +25,32 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
 
   // Compute combined text attributes for the title
   let titleAttrs = TextAttributes.NONE
-  if (isSelected) titleAttrs |= TextAttributes.INVERSE | TextAttributes.BOLD
+  if (isSelected) titleAttrs |= TextAttributes.BOLD
   if (isArchived) titleAttrs |= TextAttributes.STRIKETHROUGH
 
+  // Prefix and colors
+  const prefix = isSubtask ? "→ " : "● "
+  const prefixColor = isArchived
+    ? theme.dim_0
+    : priorityColor
+  const titleColor = isArchived
+    ? theme.dim_0
+    : theme.fg_1
+
+  // Selected card gets a distinct background across the entire row
+  const cardBg = isSelected ? theme.bg_2 : undefined
+
   return (
-    <box flexDirection="column" paddingLeft={isSubtask ? 1 : 0}>
+    <box flexDirection="column" paddingLeft={isSubtask ? 1 : 0} backgroundColor={cardBg}>
       {/* Title row with priority dot — subtasks get → prefix */}
-      <box>
-        <text fg={isArchived ? theme.dim_0 : priorityColor}>{isSubtask ? "→ " : "● "}</text>
+      <box flexDirection="row">
+        <text fg={prefixColor} attributes={isSelected ? TextAttributes.BOLD : TextAttributes.NONE}>{prefix}</text>
         <box flexGrow={1} flexShrink={1} flexBasis={0} overflow="hidden">
-          <text truncate={true} attributes={titleAttrs} fg={isArchived ? theme.dim_0 : theme.fg_1}>
+          <text truncate={true} attributes={titleAttrs} fg={titleColor}>
             {task.title}
           </text>
         </box>
-        <box flexShrink={0}>
+        <box flexDirection="row" flexShrink={0}>
           {isArchived && <text fg={theme.dim_0}> ⌫</text>}
           {isBlocked && <text fg={theme.red}> 🔒</text>}
           {typeIndicator !== "" && <text fg={typeColor}> {typeIndicator}</text>}
