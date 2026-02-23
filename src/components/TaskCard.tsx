@@ -41,11 +41,11 @@ export function TaskCard({ task, isSelected, isReady, isBlocked, showParentRef =
   const cardBg = isSelected ? theme.bg_2 : undefined
 
   return (
-    <box flexDirection="column" paddingLeft={isSubtask ? 1 : 0} backgroundColor={cardBg}>
+    <box flexDirection="column" paddingLeft={isSubtask ? 1 : 0} backgroundColor={cardBg} overflow="hidden">
       {/* Title row with priority dot — subtasks get → prefix */}
       <box flexDirection="row">
         <text fg={prefixColor} attributes={isSelected ? TextAttributes.BOLD : TextAttributes.NONE}>{prefix}</text>
-        <box flexGrow={1} flexShrink={1} flexBasis={0} overflow="hidden">
+        <box flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} overflow="hidden">
           <text truncate={true} attributes={titleAttrs} fg={titleColor}>
             {task.title}
           </text>
