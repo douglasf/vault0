@@ -297,3 +297,32 @@ export function toRGBA(hex: string, alpha = 255): RGBA {
 export function overlayBg(alpha = 150): RGBA {
   return RGBA.fromInts(0, 0, 0, alpha)
 }
+
+// ── Markdown Syntax Style ───────────────────────────────────────────
+// Lazily-created SyntaxStyle for the <markdown> component, themed to
+// match the active vault0 color palette.
+
+import { SyntaxStyle } from "@opentui/core"
+
+let _markdownSyntaxStyle: SyntaxStyle | null = null
+
+/** Get a SyntaxStyle for the <markdown> component, themed to the active palette. */
+export function getMarkdownSyntaxStyle(): SyntaxStyle {
+  if (_markdownSyntaxStyle) return _markdownSyntaxStyle
+  _markdownSyntaxStyle = SyntaxStyle.fromStyles({
+    "markup.heading.1": { fg: RGBA.fromHex(theme.blue), bold: true },
+    "markup.heading.2": { fg: RGBA.fromHex(theme.blue), bold: true },
+    "markup.heading.3": { fg: RGBA.fromHex(theme.cyan), bold: true },
+    "markup.heading.4": { fg: RGBA.fromHex(theme.cyan) },
+    "markup.heading.5": { fg: RGBA.fromHex(theme.cyan) },
+    "markup.heading.6": { fg: RGBA.fromHex(theme.cyan) },
+    "markup.bold": { fg: RGBA.fromHex(theme.fg_1), bold: true },
+    "markup.italic": { fg: RGBA.fromHex(theme.fg_1), italic: true },
+    "markup.list": { fg: RGBA.fromHex(theme.yellow) },
+    "markup.raw": { fg: RGBA.fromHex(theme.cyan) },
+    "markup.link": { fg: RGBA.fromHex(theme.blue) },
+    "markup.link.url": { fg: RGBA.fromHex(theme.dim_0) },
+    default: { fg: RGBA.fromHex(theme.fg_0) },
+  })
+  return _markdownSyntaxStyle
+}
