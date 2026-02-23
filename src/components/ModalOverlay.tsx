@@ -1,26 +1,58 @@
 import type { ReactNode } from "react"
 import { useTerminalDimensions } from "@opentui/react"
 import { RGBA } from "@opentui/core"
+import type { KeyEvent } from "@opentui/core"
 import { theme, toRGBA } from "../lib/theme.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
-import type { KeyEvent } from "@opentui/core"
 
-export interface ModalOverlayProps {
-  children: ReactNode
-  onClose?: () => void
-  maxWidth?: number
-  size?: "small" | "medium" | "large"
-}
+/** Preset modal size names mapped to max column widths. */
+type ModalSize = "small" | "medium" | "large"
 
-const SIZE_WIDTHS: Record<string, number> = {
+const SIZE_WIDTHS: Record<ModalSize, number> = {
   small: 50,
   medium: 60,
   large: 80,
 }
 
-export function ModalOverlay({ children, onClose, maxWidth, size = "medium" }: ModalOverlayProps) {
+/** Semi-transparent black backdrop covering the full terminal. */
+const BACKDROP_COLOR = RGBA.fromInts(0, 0, 0, 150)
+
+/**
+ * Base modal overlay used by all modal dialogs (StatusPicker, ConfirmDelete, etc.).
+ *
+ * Renders a centered, bordered dialog on top of a semi-transparent backdrop.
+ * Pressing Escape triggers `onClose`. The dialog width is clamped to the
+ * terminal width minus gutters.
+ *
+ * Supports an optional `title` rendered inside the border via the native
+ * `<box title>` prop, so consumers don't need a separate title element.
+ */
+export interface ModalOverlayProps {
+  children: ReactNode
+  /** Called when the user presses Escape. */
+  onClose?: () => void
+  /** Explicit max width in columns — overrides `size`. */
+  maxWidth?: number
+  /** Preset size (default: "medium"). Ignored when `maxWidth` is set. */
+  size?: ModalSize
+  /** Optional title rendered in the modal border. */
+  title?: string
+  /** Alignment of the border title (default: "left"). */
+  titleAlignment?: "left" | "center" | "right"
+}
+
+export function ModalOverlay({
+  children,
+  onClose,
+  maxWidth,
+  size = "medium",
+  title,
+  titleAlignment = "left",
+}: ModalOverlayProps) {
   const { width, height } = useTerminalDimensions()
-  const effectiveMaxWidth = maxWidth ?? SIZE_WIDTHS[size] ?? 60
+  const effectiveMaxWidth = maxWidth ?? SIZE_WIDTHS[size]
+  const modalWidth = Math.min(effectiveMaxWidth, width - 4)
+  const maxModalHeight = height - 4
 
   useActiveKeyboard((event: KeyEvent) => {
     if (event.name === "escape" && onClose) {
@@ -37,7 +69,7 @@ export function ModalOverlay({ children, onClose, maxWidth, size = "medium" }: M
       height={height}
       alignItems="center"
       justifyContent="center"
-      backgroundColor={RGBA.fromInts(0, 0, 0, 150)}
+      backgroundColor={BACKDROP_COLOR}
       zIndex={100}
     >
       <box
@@ -46,8 +78,11 @@ export function ModalOverlay({ children, onClose, maxWidth, size = "medium" }: M
         borderStyle="rounded"
         borderColor={theme.dim_0}
         padding={1}
-        width={Math.min(effectiveMaxWidth, width - 4)}
+        width={modalWidth}
+        maxHeight={maxModalHeight}
         flexDirection="column"
+        title={title}
+        titleAlignment={titleAlignment}
       >
         {children}
       </box>

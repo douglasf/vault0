@@ -1,4 +1,3 @@
-import { useState } from "react"
 import type { KeyEvent } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
@@ -29,10 +28,8 @@ export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps)
   const isHardDelete = task.archivedAt !== null
 
   return (
-    <ModalOverlay onClose={onCancel} size="small">
-      <text fg={theme.red} attributes={TextAttributes.BOLD}>{isHardDelete ? "Permanently Delete Task" : "Archive Task"}</text>
-
-      <box marginTop={1} flexDirection="column">
+    <ModalOverlay onClose={onCancel} size="small" title={isHardDelete ? "Permanently Delete Task" : "Archive Task"}>
+      <box marginTop={0} flexDirection="column">
         {isHardDelete ? (
           <>
             <text fg={theme.fg_1}>Do you want to permanently delete this task?</text>
@@ -48,7 +45,7 @@ export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps)
       </box>
 
       <box marginTop={1}>
-        <text fg={theme.fg_1}>[y]es  [n]o / Esc: cancel</text>
+        <text fg={theme.dim_0}>[y]es  [n]o / Esc: cancel</text>
       </box>
     </ModalOverlay>
   )

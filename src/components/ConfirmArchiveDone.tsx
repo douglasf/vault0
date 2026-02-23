@@ -1,17 +1,21 @@
 import type { KeyEvent } from "@opentui/core"
-import { useKeyboard } from "@opentui/react"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { theme } from "../lib/theme.js"
-import { TextAttributes } from "@opentui/core"
 import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface ConfirmArchiveDoneProps {
+  /** Number of done tasks that will be archived. */
   doneCount: number
   onConfirm: () => void
   onCancel: () => void
 }
 
+/**
+ * Confirmation modal for bulk-archiving all tasks in the Done column.
+ * Accepts y/Y to confirm and n/N/Esc to cancel.
+ */
 export function ConfirmArchiveDone({ doneCount, onConfirm, onCancel }: ConfirmArchiveDoneProps) {
-  useKeyboard((event: KeyEvent) => {
+  useActiveKeyboard((event: KeyEvent) => {
     const input = event.raw || ""
     if (input === "y" || input === "Y") {
       onConfirm()
@@ -21,10 +25,8 @@ export function ConfirmArchiveDone({ doneCount, onConfirm, onCancel }: ConfirmAr
   })
 
   return (
-    <ModalOverlay onClose={onCancel} size="small">
-      <text fg={theme.yellow} attributes={TextAttributes.BOLD}>Archive Done Lane</text>
-
-      <box marginTop={1} flexDirection="column">
+    <ModalOverlay onClose={onCancel} size="small" title="Archive Done Lane">
+      <box marginTop={0} flexDirection="column">
         <text fg={theme.fg_1}>
           Archive all {doneCount} task{doneCount !== 1 ? "s" : ""} in the Done column?
         </text>
@@ -34,7 +36,7 @@ export function ConfirmArchiveDone({ doneCount, onConfirm, onCancel }: ConfirmAr
       </box>
 
       <box marginTop={1}>
-        <text fg={theme.dim_0}>[y]es  [n]o / Esc: cancel</text>
+        <text fg={theme.fg_1}>[y]es  [n]o / Esc: cancel</text>
       </box>
     </ModalOverlay>
   )
