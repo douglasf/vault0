@@ -95,7 +95,7 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
       </text>
 
       {/* Status + Priority + Type badges */}
-      <box gap={1}>
+      <box flexDirection="row" gap={1}>
         <text fg={statusColor}>{statusLabel}</text>
         <text fg={theme.fg_0}>│</text>
         <text fg={priorityColor}>{priorityLabel}</text>

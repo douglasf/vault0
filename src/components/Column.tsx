@@ -116,9 +116,9 @@ function scrollToSelected(scrollRef: RefObject<ScrollBoxRenderable | null>, sele
   const viewportBottom = viewportTop + scrollRef.current.viewport.height
 
   if (childTop < viewportTop) {
-    scrollRef.current.scrollTop = childTop
+    scrollRef.current.scrollTo({ x: 0, y: childTop })
   } else if (childBottom > viewportBottom) {
-    scrollRef.current.scrollTop = childBottom - scrollRef.current.viewport.height
+    scrollRef.current.scrollTo({ x: 0, y: childBottom - scrollRef.current.viewport.height })
   }
 }
 
@@ -166,7 +166,9 @@ export function Column({
 
   // ── Auto-scroll to keep selected row visible ──────────────────────────
   useEffect(() => {
-    if (isActive) scrollToSelected(scrollRef, selectedRow, tasks.length)
+    if (isActive) {
+      scrollToSelected(scrollRef, selectedRow, tasks.length)
+    }
   }, [selectedRow, isActive, tasks])
 
   // ── Width strategy ────────────────────────────────────────────────────
@@ -198,7 +200,7 @@ export function Column({
         {tasks.length === 0 ? (
           <text fg={theme.dim_0}>No tasks</text>
         ) : (
-          <scrollbox ref={scrollRef} scrollY flexGrow={1} height={availableHeight} viewportCulling>
+          <scrollbox ref={scrollRef} scrollY flexGrow={1} height={availableHeight}>
             {tasks.map((task, i) => (
               <TaskRow
                 key={task.id}
@@ -218,7 +220,7 @@ export function Column({
         {/* Orphan parent summaries when subtasks are hidden */}
         {orphanParentSummaries.map((summary) => (
           <box key={summary.id} marginTop={tasks.length > 0 ? 1 : 0} overflow="hidden">
-            <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
+          <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
               {summary.title} ({summary.count})
             </text>
           </box>
@@ -260,12 +262,12 @@ function TaskRow({ task, index: i, isActive, selectedRow, readyIds, blockedIds, 
   const bottomMargin = isFollowedByChild ? 0 : 1
 
   return (
-    <box flexDirection="column" marginBottom={bottomMargin}>
+    <box flexDirection="column" marginBottom={bottomMargin} overflow="hidden">
       {showOrphanHeader && task.parentTitle && (
         <box overflow="hidden">
-          <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
-            ↳ {task.parentTitle}
-          </text>
+            <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
+              ↳ {task.parentTitle}
+            </text>
         </box>
       )}
       <TaskCard

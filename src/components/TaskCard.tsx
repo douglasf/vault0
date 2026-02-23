@@ -52,13 +52,11 @@ export const TaskCard = memo(function TaskCard({
   return (
     <box flexDirection="column" paddingLeft={isSubtask ? 1 : 0} backgroundColor={cardBg} overflow="hidden">
       {/* Title row: priority prefix | title (truncated) | badges */}
-      <box flexDirection="row">
+      <box flexDirection="row" overflow="hidden">
         <text fg={prefixColor} attributes={isSelected ? TextAttributes.BOLD : TextAttributes.NONE}>{prefix}</text>
-        <box flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} overflow="hidden">
-          <text truncate={true} attributes={titleAttrs} fg={titleColor}>
-            {task.title}
-          </text>
-        </box>
+        <text truncate={true} wrapMode="none" flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} attributes={titleAttrs} fg={titleColor}>
+          {task.title}
+        </text>
         <box flexDirection="row" flexShrink={0}>
           {isArchived && <text fg={theme.dim_0}> ⌫</text>}
           {isBlocked && <text fg={theme.red}> 🔒</text>}
@@ -70,7 +68,7 @@ export const TaskCard = memo(function TaskCard({
       {/* Parent reference for subtasks (only when not grouped by column) */}
       {showParentRef && isSubtask && task.parentTitle && (
         <box paddingLeft={2} overflow="hidden">
-          <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
+          <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true} wrapMode="none">
             ↳ {task.parentTitle}
           </text>
         </box>
