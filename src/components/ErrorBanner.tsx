@@ -123,9 +123,9 @@ export function ErrorBanner({ error, onRetry, onDismiss }: ErrorBannerProps) {
 
       <box marginTop={0}>
         <text fg={theme.dim_0}>
-          Press <text attributes={TextAttributes.BOLD} fg={theme.cyan}>r</text> to retry
+          Press <span attributes={TextAttributes.BOLD} fg={theme.cyan}>r</span> to retry
           {onDismiss && (
-            <text> | <text attributes={TextAttributes.BOLD} fg={theme.cyan}>q</text> to quit</text>
+            <span> | <span attributes={TextAttributes.BOLD} fg={theme.cyan}>q</span> to quit</span>
           )}
         </text>
       </box>

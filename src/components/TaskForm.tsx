@@ -248,7 +248,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       <text> </text>
       <text fg={isTitleFocused ? theme.blue : theme.fg_0}>
         {isTitleFocused ? "\u25B8 " : "  "}Title: {titleVisible.slice(0, isTitleFocused ? titleAdjCursor : titleVisible.length)}
-        {isTitleFocused && <text attributes={TextAttributes.INVERSE}>{titleVisible[titleAdjCursor] || " "}</text>}
+        {isTitleFocused && <span attributes={TextAttributes.INVERSE}>{titleVisible[titleAdjCursor] || " "}</span>}
         {isTitleFocused ? titleVisible.slice(titleAdjCursor + 1) : ""}
       </text>
 
@@ -292,7 +292,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
                   }
                   return (
                     <text key={lineKey} truncate={true} fg={theme.fg_0}>
-                      {"  "}{before}<text attributes={TextAttributes.INVERSE}>{cursorChar}</text>{after}
+                      {"  "}{before}<span attributes={TextAttributes.INVERSE}>{cursorChar}</span>{after}
                     </text>
                   )
                 }
@@ -312,34 +312,34 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
       <text> </text>
       <text>
-        <text fg={focusField === "priority" ? theme.blue : theme.fg_0}>
+        <span fg={focusField === "priority" ? theme.blue : theme.fg_0}>
           {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
-        </text>
-        <text fg={getPriorityColor(priority)}>
+        </span>
+        <span fg={getPriorityColor(priority)}>
           {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
-        </text>
+        </span>
       </text>
 
       <text> </text>
       <text>
-        <text fg={focusField === "type" ? theme.blue : theme.fg_0}>
+        <span fg={focusField === "type" ? theme.blue : theme.fg_0}>
           {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
-        </text>
-        <text fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
+        </span>
+        <span fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
           {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
-        </text>
+        </span>
       </text>
 
       {mode === "create" && (
         <>
           <text> </text>
-          <text>
-            <text fg={focusField === "status" ? theme.blue : theme.fg_0}>
+           <text>
+            <span fg={focusField === "status" ? theme.blue : theme.fg_0}>
               {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
-            </text>
-            <text fg={getStatusColor(status)}>
+            </span>
+            <span fg={getStatusColor(status)}>
               {"\u25C0 "}{STATUS_DISPLAY[status] || status}{" \u25B6"}
-            </text>
+            </span>
           </text>
         </>
       )}
