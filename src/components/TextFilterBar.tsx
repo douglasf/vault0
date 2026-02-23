@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react"
+import { useRef, useCallback } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
+import type { InputRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
-import { useTextInput } from "../hooks/useTextInput.js"
 import { theme } from "../lib/theme.js"
 
 export interface TextFilterBarProps {
@@ -22,16 +22,16 @@ export interface TextFilterBarProps {
  * - Escape: close and clear the filter
  */
 export function TextFilterBar({ initialValue, onSearch, onClose }: TextFilterBarProps) {
-  const textInput = useTextInput(initialValue, false)
-  const prevValueRef = useRef(initialValue)
+  const inputRef = useRef<InputRenderable>(null)
 
-  // Sync text input value to the filter whenever it changes
-  useEffect(() => {
-    if (textInput.value !== prevValueRef.current) {
-      prevValueRef.current = textInput.value
-      onSearch(textInput.value)
-    }
-  }, [textInput.value, onSearch])
+  const handleInput = useCallback((value: string) => {
+    onSearch(value)
+  }, [onSearch])
+
+  const handleSubmit = useCallback(() => {
+    // Enter keeps the current search and closes
+    onClose()
+  }, [onClose])
 
   useKeyboard((event: KeyEvent) => {
     if (event.name === "escape") {
@@ -40,22 +40,20 @@ export function TextFilterBar({ initialValue, onSearch, onClose }: TextFilterBar
       onClose()
       return
     }
-    if (event.name === "return") {
-      // Enter keeps the current search and closes
-      onClose()
-      return
-    }
-    textInput.handleKeyEvent(event)
   })
 
   return (
-    <box paddingX={1}>
+    <box paddingX={1} flexDirection="row">
       <text fg={theme.cyan} attributes={TextAttributes.BOLD}>🔍 </text>
-      <text fg={theme.cyan}>
-        {textInput.beforeCursor}
-        <text attributes={TextAttributes.INVERSE}>{textInput.afterCursor[0] || " "}</text>
-        {textInput.afterCursor.slice(1)}
-      </text>
+      <input
+        ref={inputRef}
+        focused={true}
+        value={initialValue}
+        textColor={theme.cyan}
+        onInput={handleInput}
+        onSubmit={handleSubmit}
+        flexGrow={1}
+      />
       <text fg={theme.dim_0}>  Enter keep · Esc clear</text>
     </box>
   )

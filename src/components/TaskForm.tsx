@@ -1,11 +1,11 @@
-import React, { useState } from "react"
+import React, { useState, useRef, useCallback } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
-import { useKeyboard, useTerminalDimensions } from "@opentui/react"
+import type { InputRenderable, TextareaRenderable } from "@opentui/core"
+import { useKeyboard } from "@opentui/react"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, TASK_TYPE_LABELS, TASK_TYPES } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme } from "../lib/theme.js"
-import { useTextInput } from "../hooks/useTextInput.js"
 
 export interface TaskFormProps {
   mode: "create" | "edit"
@@ -36,8 +36,8 @@ const STATUS_DISPLAY: Record<string, string> = {
 const DESC_VIEWPORT = 8
 
 export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFormProps) {
-  const titleInput = useTextInput(task?.title?.replace(/\t/g, "    ") || "", false)
-  const descInput = useTextInput(task?.description?.replace(/\t/g, "    ") || "", true)
+  const titleRef = useRef<InputRenderable>(null)
+  const descRef = useRef<TextareaRenderable>(null)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
   const [status, setStatus] = useState<Status>((task?.status as Status) || "backlog")
@@ -46,6 +46,26 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   const fields: FormField[] = mode === "create"
     ? ["title", "description", "priority", "type", "status", "submit"]
     : ["title", "description", "priority", "type", "submit"]
+
+  const advanceField = useCallback((from?: FormField) => {
+    const currentIndex = fields.indexOf(from || focusField)
+    if (currentIndex < fields.length - 1) {
+      setFocusField(fields[currentIndex + 1])
+    }
+  }, [focusField, fields])
+
+  const handleTitleSubmit = useCallback(() => {
+    // Enter on title → advance to next field
+    advanceField("title")
+  }, [advanceField])
+
+  const handleFormSubmit = useCallback(() => {
+    const titleValue = titleRef.current?.value?.trim() || ""
+    const descValue = descRef.current?.editBuffer?.getText() || ""
+    if (titleValue) {
+      onSubmit({ title: titleValue, description: descValue, priority, status, type: taskType })
+    }
+  }, [onSubmit, priority, status, taskType])
 
   useKeyboard((event: KeyEvent) => {
     if (event.name === "escape") {
@@ -65,28 +85,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
     // Enter on submit button
     if (event.name === "return" && focusField === "submit") {
-      if (titleInput.value.trim()) {
-        onSubmit({ title: titleInput.value.trim(), description: descInput.value, priority, status, type: taskType })
-      }
-      return
-    }
-
-    // Text editing for title (single-line: Enter advances to next field)
-    if (focusField === "title") {
-      if (event.name === "return") {
-        const currentIndex = fields.indexOf("title")
-        if (currentIndex < fields.length - 1) {
-          setFocusField(fields[currentIndex + 1])
-        }
-        return
-      }
-      titleInput.handleKeyEvent(event)
-      return
-    }
-
-    // Text editing for description (multiline: Enter inserts newline via hook)
-    if (focusField === "description") {
-      descInput.handleKeyEvent(event)
+      handleFormSubmit()
       return
     }
 
@@ -103,10 +102,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
           return PRIORITIES[(idx + 1) % PRIORITIES.length]
         })
       } else if (event.name === "return") {
-        const currentIndex = fields.indexOf(focusField)
-        if (currentIndex < fields.length - 1) {
-          setFocusField(fields[currentIndex + 1])
-        }
+        advanceField()
       }
       return
     }
@@ -124,10 +120,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
           return TYPE_OPTIONS[(idx + 1) % TYPE_OPTIONS.length]
         })
       } else if (event.name === "return") {
-        const currentIndex = fields.indexOf(focusField)
-        if (currentIndex < fields.length - 1) {
-          setFocusField(fields[currentIndex + 1])
-        }
+        advanceField()
       }
       return
     }
@@ -145,10 +138,7 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
           return STATUSES[(idx + 1) % STATUSES.length]
         })
       } else if (event.name === "return") {
-        const currentIndex = fields.indexOf(focusField)
-        if (currentIndex < fields.length - 1) {
-          setFocusField(fields[currentIndex + 1])
-        }
+        advanceField()
       }
       return
     }
@@ -156,85 +146,6 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
 
   const isTitleFocused = focusField === "title"
   const isDescFocused = focusField === "description"
-
-  // Terminal-aware width for description to prevent container overflow.
-  // RADICAL SIMPLIFICATION: No outer box, no padding, no border, no margin.
-  // Only overhead is the 4-char indent prefix ("    ") added inline.
-  const { width: termCols } = useTerminalDimensions()
-  const descTextWidth = Math.max(10, (termCols || 80) - 4)
-
-  // Build display lines from tokens: text tokens get word-wrapped,
-  // paste tokens render as a single placeholder line.
-  const descDisplayLines: Array<{ text: string; isPaste: boolean }> = []
-  let cursorDisplayIdx = 0
-  let cursorDisplayCol = 0
-
-  const descTokens = descInput.tokens
-  for (let ti = 0; ti < descTokens.length; ti++) {
-    const token = descTokens[ti]
-
-    if (token.type === "paste") {
-      // The entire paste content becomes one placeholder — no extraction,
-      // no popping display lines, no special newline handling.
-      const lineCount = token.content.split("\n").length
-      descDisplayLines.push({
-        text: `[Pasted ~${lineCount} line${lineCount === 1 ? "" : "s"}]`,
-        isPaste: true,
-      })
-      continue
-    }
-
-    // Text token — skip empty non-cursor tokens to avoid visual noise
-    if (token.content === "" && ti !== descInput.cursorTokenIndex) {
-      continue
-    }
-
-    const logicalLines = token.content.replace(/\t/g, "    ").split("\n")
-    for (let li = 0; li < logicalLines.length; li++) {
-      const line = logicalLines[li]
-      const wrapped = wrapWithOffsets(line, descTextWidth)
-      for (let wi = 0; wi < wrapped.length; wi++) {
-        const part = wrapped[wi]
-        const globalIdx = descDisplayLines.length
-        descDisplayLines.push({
-          text: part.text,
-          isPaste: false,
-        })
-        // Map cursor position: match token index + logical line + wrapped segment
-        if (ti === descInput.cursorTokenIndex && li === descInput.tokenCursorLine) {
-          const nextOffset = wi < wrapped.length - 1 ? wrapped[wi + 1].offset : line.length + 1
-          if (descInput.tokenCursorCol >= part.offset && descInput.tokenCursorCol < nextOffset) {
-            cursorDisplayIdx = globalIdx
-            cursorDisplayCol = descInput.tokenCursorCol - part.offset
-          }
-        }
-      }
-    }
-  }
-
-  // Description viewport: scroll to keep cursor visible (in display-line space)
-  const descTotalDisplayLines = descDisplayLines.length
-  let descScrollStart = 0
-  if (isDescFocused && descTotalDisplayLines > DESC_VIEWPORT) {
-    descScrollStart = Math.max(0, Math.min(
-      cursorDisplayIdx - Math.floor(DESC_VIEWPORT / 2),
-      descTotalDisplayLines - DESC_VIEWPORT,
-    ))
-  }
-  const descVisibleLines = descDisplayLines.slice(descScrollStart, descScrollStart + DESC_VIEWPORT)
-  const descHasMoreAbove = descScrollStart > 0
-  const descHasMoreBelow = descScrollStart + DESC_VIEWPORT < descTotalDisplayLines
-
-  // Title field: no outer box overhead, just prefix "▸ Title: " (9 chars)
-  const titleTextWidth = Math.max(10, (termCols || 80) - 9)
-
-  let titleHStart = 0
-  if (isTitleFocused && titleInput.value.length > titleTextWidth) {
-    titleHStart = Math.max(0, titleInput.cursor - Math.floor(titleTextWidth * 0.7))
-    titleHStart = Math.min(titleHStart, Math.max(0, titleInput.value.length - titleTextWidth))
-  }
-  const titleVisible = titleInput.value.slice(titleHStart, titleHStart + titleTextWidth)
-  const titleAdjCursor = titleInput.cursor - titleHStart
 
   return (
     <box flexDirection="column" paddingX={2}>
@@ -246,69 +157,35 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       )}
 
       <text> </text>
-      <text fg={isTitleFocused ? theme.blue : theme.fg_0}>
-        {isTitleFocused ? "\u25B8 " : "  "}Title: {titleVisible.slice(0, isTitleFocused ? titleAdjCursor : titleVisible.length)}
-        {isTitleFocused && <span attributes={TextAttributes.INVERSE}>{titleVisible[titleAdjCursor] || " "}</span>}
-        {isTitleFocused ? titleVisible.slice(titleAdjCursor + 1) : ""}
-      </text>
+      <box flexDirection="row">
+        <text fg={isTitleFocused ? theme.blue : theme.fg_0}>
+          {isTitleFocused ? "\u25B8 " : "  "}Title:{" "}
+        </text>
+        <input
+          ref={titleRef}
+          focused={isTitleFocused}
+          value={task?.title?.replace(/\t/g, "    ") || ""}
+          textColor={isTitleFocused ? theme.fg_0 : theme.dim_0}
+          onSubmit={handleTitleSubmit}
+          flexGrow={1}
+        />
+      </box>
 
       <text> </text>
       <text fg={isDescFocused ? theme.blue : theme.fg_0}>
         {isDescFocused ? "\u25B8 " : "  "}Description:
       </text>
-
-      {(() => {
-        // Token-based rendering: text tokens are editable, paste tokens show placeholders.
-        // All display lines (from both text and paste tokens) are in a single flat array.
-        return (
-          <>
-            {descHasMoreAbove && (
-              <text fg={theme.dim_0} truncate={true}>  {`↑ ${descScrollStart} more`}</text>
-            )}
-            {descInput.value === "" && !isDescFocused ? (
-              <text fg={theme.dim_0}>  (empty)</text>
-            ) : (
-              descVisibleLines.map((dl, i) => {
-                const globalIdx = descScrollStart + i
-                const lineKey = `dline-${globalIdx}`
-
-                // Paste placeholder lines: always dim, never have cursor
-                if (dl.isPaste) {
-                  return (
-                    <text key={lineKey} fg={theme.dim_0} truncate={true}>
-                      {"    "}{dl.text}
-                    </text>
-                  )
-                }
-
-                // Text display lines: may have cursor highlight
-                const isActiveLine = isDescFocused && globalIdx === cursorDisplayIdx
-                if (isActiveLine) {
-                  let before = dl.text.slice(0, cursorDisplayCol)
-                  const cursorChar = dl.text[cursorDisplayCol] || " "
-                  const after = dl.text.slice(cursorDisplayCol + 1)
-                  if (before.length + 1 + after.length > descTextWidth) {
-                    before = before.slice(0, Math.max(0, descTextWidth - 1 - after.length))
-                  }
-                  return (
-                    <text key={lineKey} truncate={true} fg={theme.fg_0}>
-                      {"  "}{before}<span attributes={TextAttributes.INVERSE}>{cursorChar}</span>{after}
-                    </text>
-                  )
-                }
-                return (
-                  <text key={lineKey} truncate={true} fg={isDescFocused ? theme.fg_0 : theme.dim_0}>
-                    {"  "}{dl.text || " "}
-                  </text>
-                )
-              })
-            )}
-            {descHasMoreBelow && (
-              <text fg={theme.dim_0} truncate={true}>  {`↓ ${descDisplayLines.length - descScrollStart - DESC_VIEWPORT} more`}</text>
-            )}
-          </>
-        )
-      })()}
+      <box paddingLeft={2}>
+        <textarea
+          ref={descRef}
+          focused={isDescFocused}
+          initialValue={task?.description?.replace(/\t/g, "    ") || ""}
+          textColor={isDescFocused ? theme.fg_0 : theme.dim_0}
+          wrapMode="word"
+          height={DESC_VIEWPORT}
+          flexGrow={1}
+        />
+      </box>
 
       <text> </text>
       <text>
@@ -359,52 +236,4 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
       <text fg={theme.dim_0}>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</text>
     </box>
   )
-}
-
-// ── Utility functions ───────────────────────────────────────────────
-
-/**
- * Word-wrap a single line of text, tracking the character offset where each
- * display line starts in the original text. This enables mapping cursor
- * position from logical line coordinates to display line coordinates.
- *
- * Breaks at word boundaries (spaces) when possible; falls back to hard breaks
- * for words longer than maxWidth.
- */
-function wrapWithOffsets(text: string, maxWidth: number): Array<{ text: string; offset: number }> {
-  if (text.length <= maxWidth) {
-    return [{ text, offset: 0 }]
-  }
-
-  const result: Array<{ text: string; offset: number }> = []
-  let pos = 0
-
-  while (pos < text.length) {
-    const remaining = text.length - pos
-    if (remaining <= maxWidth) {
-      result.push({ text: text.slice(pos), offset: pos })
-      break
-    }
-
-    // Scan backward from pos+maxWidth to find the last space for a clean break
-    let breakIdx = -1
-    for (let i = pos + maxWidth; i > pos; i--) {
-      if (text[i] === " ") {
-        breakIdx = i
-        break
-      }
-    }
-
-    if (breakIdx <= pos) {
-      // No space found within the window — hard break at maxWidth
-      result.push({ text: text.slice(pos, pos + maxWidth), offset: pos })
-      pos += maxWidth
-    } else {
-      // Break at the space (the space itself is consumed, not displayed)
-      result.push({ text: text.slice(pos, breakIdx), offset: pos })
-      pos = breakIdx + 1
-    }
-  }
-
-  return result.length > 0 ? result : [{ text: "", offset: 0 }]
 }
