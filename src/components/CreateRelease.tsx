@@ -149,7 +149,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
       const subtaskCount = allBoardTasks.filter((t) => t.parentId === task.id).length
       const suffix = subtaskCount > 0 ? ` (+${subtaskCount} subtask${subtaskCount !== 1 ? "s" : ""})` : ""
       return {
-        name: `${isSelected ? "☑" : "☐"} ${task.title}${suffix}`,
+        name: `${isSelected ? "●" : "○"} ${task.title}${suffix}`,
       description: "",
         value: task.id,
       }

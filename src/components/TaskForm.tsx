@@ -176,7 +176,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
             ref={titleRef}
             focused={isTitleFocused}
             value={task?.title?.replace(/\t/g, "    ") || ""}
-            textColor={isTitleFocused ? theme.fg_0 : theme.dim_0}
+            textColor={theme.dim_0}
+            focusedTextColor={theme.fg_1}
             paddingX={1}
             onSubmit={handleTitleSubmit}
             flexGrow={1}
@@ -193,7 +194,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
             ref={descRef}
             focused={isDescFocused}
             initialValue={task?.description?.replace(/\t/g, "    ") || ""}
-            textColor={isDescFocused ? theme.fg_0 : theme.dim_0}
+            textColor={theme.dim_0}
+            focusedTextColor={theme.fg_1}
             paddingX={1}
             wrapMode="word"
             height={DESC_VIEWPORT}

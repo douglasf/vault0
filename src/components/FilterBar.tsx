@@ -36,7 +36,7 @@ const TOGGLE_LABELS: Record<string, string> = {
 
 function makeStatusOptions(filters: Filters): SelectOption[] {
   return VISIBLE_STATUSES.map((status) => ({
-    name: `${filters.statuses?.includes(status) ? "☑" : "☐"} ${STATUS_LABELS[status]}`,
+    name: `${filters.statuses?.includes(status) ? "●" : "○"} ${STATUS_LABELS[status]}`,
     description: "",
     value: status,
   }))
@@ -44,7 +44,7 @@ function makeStatusOptions(filters: Filters): SelectOption[] {
 
 function makePriorityOptions(filters: Filters): SelectOption[] {
   return PRIORITIES.map((priority) => ({
-    name: `${filters.priorities?.includes(priority) ? "☑" : "☐"} ${PRIORITY_LABELS[priority]}`,
+    name: `${filters.priorities?.includes(priority) ? "●" : "○"} ${PRIORITY_LABELS[priority]}`,
     description: "",
     value: priority,
   }))
@@ -52,7 +52,7 @@ function makePriorityOptions(filters: Filters): SelectOption[] {
 
 function makeSourceOptions(filters: Filters): SelectOption[] {
   return SOURCES.map((source) => ({
-    name: `${filters.sources?.includes(source) ? "☑" : "☐"} ${source}`,
+    name: `${filters.sources?.includes(source) ? "●" : "○"} ${source}`,
     description: "",
     value: source,
   }))
