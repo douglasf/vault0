@@ -14,8 +14,6 @@ export interface HeaderProps {
   activeFilterCount?: number
   /** Current text search term to display in the header */
   searchTerm?: string
-  /** Transient toast message (e.g. "Copied ID!") */
-  toast?: string
   /** Current sort field */
   sortField: SortField
 }
@@ -53,7 +51,7 @@ function useBoardName(boardId: string): string {
  * Uses `flexShrink={0}` so the header always occupies exactly two lines
  * regardless of terminal height.
  */
-export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, toast, sortField }: HeaderProps) {
+export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, sortField }: HeaderProps) {
   const boardName = useBoardName(boardId)
 
   return (
@@ -62,9 +60,6 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, to
       <box flexDirection="row" justifyContent="space-between" paddingX={1}>
         <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>Vault0</text>
         <box flexDirection="row">
-          {toast && (
-            <text fg={theme.green} attributes={TextAttributes.BOLD}> ✓ {toast} </text>
-          )}
           {searchTerm && (
             <text fg={theme.cyan}> 🔍 {searchTerm} </text>
           )}

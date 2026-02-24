@@ -3,6 +3,7 @@ import { useRenderer, useTerminalDimensions } from "@opentui/react"
 import type { KeyEvent } from "@opentui/core"
 import type { Vault0Database } from "../db/connection.js"
 import { DbContext } from "../lib/db-context.js"
+import { ToastContext } from "../lib/toast-context.js"
 import { ErrorBoundary } from "./ErrorBoundary.js"
 import { Header } from "./Header.js"
 import { Board } from "./Board.js"
@@ -19,6 +20,7 @@ import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
 import { CreateRelease } from "./CreateRelease.js"
 import { ReleasesView } from "./ReleasesView.js"
 import { ErrorBanner } from "./ErrorBanner.js"
+import { Toast } from "./Toast.js"
 import { theme, toggleAppearance, getAppearance, getActiveThemeName } from "../lib/theme.js"
 import { saveGlobalConfig } from "../lib/config.js"
 import { ThemePicker } from "./ThemePicker.js"
@@ -26,6 +28,7 @@ import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useToastState } from "../hooks/useToast.js"
 import type { Task, Status, SortField } from "../lib/types.js"
 import type { DbError } from "../hooks/useBoard.js"
 import { getBoards, getTaskCards, getReleases, getReleaseTopLevelTasks, getReleaseTaskSubtasks, createRelease, restoreTaskFromRelease, restoreAllFromRelease, deleteRelease } from "../db/queries.js"
@@ -105,15 +108,9 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
   // Sort field for lane ordering (defaults to priority)
   const [sortField, setSortField] = useState<SortField>("priority")
 
-  // Transient toast message (e.g. "Copied ID!") — auto-clears after a timeout
-  const [toast, setToast] = useState("")
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const showToast = useCallback((message: string, durationMs = 2000) => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast(message)
-    toastTimerRef.current = setTimeout(() => setToast(""), durationMs)
-  }, [])
+  // Toast notification system — context-based so any component can trigger toasts
+  const toastState = useToastState()
+  const { showToast } = toastState
 
   // Database error state — surfaced from Board/NarrowTerminal via onDbError callback
   const [dbError, setDbError] = useState<DbError | null>(null)
@@ -122,12 +119,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
     setDbError(error)
   }, [])
 
-  // Clean up toast timer on unmount
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    }
-  }, [])
+  // Clean up handled by useToastState hook
 
   const handleHighlightTask = useCallback((task: Task | undefined) => {
     highlightedTaskRef.current = task
@@ -228,7 +220,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
       const task = highlightedTaskRef.current
       if (task) {
         const ok = copyToClipboard(task.id)
-        showToast(ok ? `Copied: ${task.id}` : "Copy failed")
+        showToast(ok ? "Copied" : "Copy failed", ok ? task.id : "Could not copy to clipboard")
       }
     } else if (input === "?") {
       setState((prev) => ({ ...prev, uiMode: "help" }))
@@ -249,6 +241,13 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
       setState((prev) => ({ ...prev, uiMode: "releases" }))
     } else if (input === "q") {
       renderer.destroy()
+    }
+  }, appInputActive)
+
+  // Escape dismisses toasts when in board mode (doesn't interfere with modal overlays)
+  useActiveKeyboard((event: KeyEvent) => {
+    if (event.name === "escape" && toastState.toasts.length > 0) {
+      toastState.dismissAll()
     }
   }, appInputActive)
 
@@ -303,8 +302,11 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
     // @ts-expect-error ErrorBoundary class component vs OpenTUI JSX type mismatch (runtime-compatible)
     <ErrorBoundary>
       <DbContext.Provider value={db}>
+        <ToastContext.Provider value={toastState}>
         <box flexDirection="column" width="100%" height={terminalRows} backgroundColor={theme.bg_1}>
-          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} toast={toast} sortField={sortField} />
+          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} sortField={sortField} />
+
+          <Toast />
 
           {dbError && (
             <ErrorBanner
@@ -381,6 +383,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             initialStatus={currentLaneRef.current}
             onSubmit={(data) => {
               const created = actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status, data.type)
+              showToast("Task created", `Title: ${data.title}`)
               setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined, pendingFocusTaskId: created.id }))
             }}
             onCancel={() => setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))}
@@ -394,6 +397,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             onSubmit={(data) => {
               if (state.selectedTask) {
                 actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority, data.type)
+                showToast("Task updated", `Title: ${data.title}`)
               }
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }}
@@ -425,7 +429,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             onPreview={() => setState((prev) => ({ ...prev }))}
             onSelect={(themeName, appearance) => {
               saveGlobalConfig({ theme: { name: themeName, appearance } })
-              showToast(`Theme: ${themeName} (${appearance})`)
+              showToast("Theme changed", `${themeName} (${appearance})`)
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }}
             onCancel={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
@@ -453,6 +457,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
               if (state.selectedTask) {
                 actions.deleteTask(state.selectedTask.id)
                 highlightedTaskRef.current = undefined
+                showToast("Task deleted", `Title: ${state.selectedTask.title}`)
               }
               setState((prev) => ({ ...prev, selectedTask: undefined, uiMode: "board", deleteReturnMode: undefined }))
             }}
@@ -510,7 +515,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
                     : undefined,
                   taskIds: data.taskIds,
                 })
-                showToast(`Release "${data.name}" created`)
+                showToast("Release created", data.name)
               }
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }}
@@ -529,12 +534,12 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             }}
             onRestoreAll={(releaseId) => {
               const count = restoreAllFromRelease(db, releaseId)
-              showToast(`Restored ${count} task${count !== 1 ? "s" : ""} to board`)
+              showToast("Tasks restored", `${count} task${count !== 1 ? "s" : ""} moved to board`)
               setState((prev) => ({ ...prev }))
             }}
             onDeleteRelease={(releaseId) => {
               const count = deleteRelease(db, releaseId)
-              showToast(`Deleted release, restored ${count} task${count !== 1 ? "s" : ""} to board`)
+              showToast("Release deleted", `${count} task${count !== 1 ? "s" : ""} restored to board`)
               setState((prev) => ({ ...prev }))
             }}
             onBack={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
@@ -542,6 +547,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
           />
         )}
       </box>
+    </ToastContext.Provider>
     </DbContext.Provider>
   </ErrorBoundary>
   )
