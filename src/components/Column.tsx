@@ -251,6 +251,43 @@ export function Column({
     [tasks, startIndex, endIndex],
   )
 
+  // ── Orphan parent detection ───────────────────────────────────────────
+  // Build a set of task IDs in this column so we can detect subtasks whose
+  // parent is missing (orphaned). For each orphan group we track whether
+  // a dimmed parent preview has already been shown.
+
+  const taskIdsInColumn = useMemo(
+    () => new Set(tasks.map((t) => t.id)),
+    [tasks],
+  )
+
+  /**
+   * For visible tasks, determine which ones should show a dimmed parent
+   * preview above them — specifically the first orphan subtask of each
+   * parent group in the visible window.
+   */
+  const orphanParentShownFor = useMemo(() => {
+    const shown = new Set<string>()
+    const seenParents = new Set<string>()
+
+    // Walk from the start of the full list up to our visible window to
+    // track which orphan parents were already introduced above the viewport.
+    for (let i = 0; i < startIndex; i++) {
+      const t = tasks[i]
+      if (t && t.parentId !== null && !taskIdsInColumn.has(t.parentId)) {
+        seenParents.add(t.parentId)
+      }
+    }
+
+    for (const t of visibleTasks) {
+      if (t.parentId !== null && !taskIdsInColumn.has(t.parentId) && !seenParents.has(t.parentId)) {
+        seenParents.add(t.parentId)
+        shown.add(t.id)
+      }
+    }
+    return shown
+  }, [visibleTasks, tasks, startIndex, taskIdsInColumn])
+
   // ── Header label ──────────────────────────────────────────────────────
 
   const label = `${STATUS_LABELS[status]} ${tasks.length}${hiddenCount > 0 ? ` (${hiddenCount})` : ""}`
@@ -295,14 +332,30 @@ export function Column({
             <box flexDirection="column" flexGrow={1} overflow="hidden">
               {visibleTasks.map((task, i) => {
                 const globalIndex = startIndex + i
+                // Determine if this subtask is the last one in its parent group
+                const isLastSubtask = task.parentId !== null && (() => {
+                  // Look at the next task in the full task list (not just visible)
+                  const nextTask = tasks[globalIndex + 1]
+                  return !nextTask || nextTask.parentId !== task.parentId
+                })()
+                const showOrphanParent = orphanParentShownFor.has(task.id)
                 return (
-                  <box key={task.id} overflow="hidden">
+                  <box key={task.id} flexDirection="column" overflow="hidden">
+                    {/* Dimmed parent preview for orphaned subtasks */}
+                    {showOrphanParent && task.parentTitle && (
+                      <box overflow="hidden">
+                        <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true} wrapMode="none">
+                          █ {task.parentTitle}
+                        </text>
+                      </box>
+                    )}
                     <TaskCard
                       task={task}
                       isSelected={isActive && selectedRow === globalIndex}
                       isReady={readyIds.has(task.id)}
                       isBlocked={blockedIds.has(task.id)}
                       showParentRef={task.parentId !== null ? false : undefined}
+                      isLastSubtask={isLastSubtask}
                     />
                   </box>
                 )

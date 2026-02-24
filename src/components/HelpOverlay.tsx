@@ -56,7 +56,7 @@ const legendSections: readonly LegendSection[] = [
     entries: [
       { label: "🔒", desc: "Blocked — has unfinished dependencies", color: () => theme.red },
       { label: "◫ 2/5", desc: "Subtask progress (done/total)", color: () => theme.fg_0 },
-      { label: "→", desc: "Subtask — indented child task", color: () => theme.dim_0 },
+      { label: "├/└", desc: "Subtask — tree connector (last uses └)", color: () => theme.dim_0 },
       { label: "↳ Parent", desc: "Shows parent task", color: () => theme.dim_0 },
       { label: "⌫", desc: "Archived task", color: () => theme.dim_0 },
     ],

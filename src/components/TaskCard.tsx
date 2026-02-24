@@ -10,6 +10,8 @@ export interface TaskCardProps {
   isReady: boolean
   isBlocked: boolean
   showParentRef?: boolean
+  /** Whether this is the last subtask in its parent group (for tree connector). */
+  isLastSubtask?: boolean
 }
 
 /**
@@ -26,12 +28,13 @@ export const TaskCard = memo(function TaskCard({
   isSelected,
   isBlocked,
   showParentRef = true,
+  isLastSubtask = false,
 }: TaskCardProps) {
   const isSubtask = task.parentId !== null
   const isArchived = task.archivedAt !== null
 
   // --- Prefix & colors ---
-  const prefix = isSubtask ? "→ " : "● "
+  const prefix = isSubtask ? (isLastSubtask ? "└ " : "├ ") : "█ "
   const prefixColor = isArchived ? theme.dim_0 : getPriorityColor(task.priority)
   const titleColor = isArchived ? theme.dim_0 : theme.fg_1
 
@@ -50,7 +53,7 @@ export const TaskCard = memo(function TaskCard({
   const subtaskBadge = task.subtaskTotal > 0 ? `◫ ${task.subtaskDone}/${task.subtaskTotal}` : ""
 
   return (
-    <box flexDirection="column" paddingLeft={isSubtask ? 1 : 0} backgroundColor={cardBg} overflow="hidden">
+    <box flexDirection="column" backgroundColor={cardBg} overflow="hidden">
       {/* Title row: priority prefix | title (truncated) | badges */}
       <box flexDirection="row" overflow="hidden">
         <text fg={prefixColor} attributes={isSelected ? TextAttributes.BOLD : TextAttributes.NONE}>{prefix}</text>
