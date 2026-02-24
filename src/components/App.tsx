@@ -36,7 +36,7 @@ export interface AppProps {
 export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
-const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker"])
+const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter"])
 
 // Layout thresholds
 const MIN_COLS_NARROW = 80
@@ -300,19 +300,6 @@ export function App({ db, dbPath }: AppProps) {
                   onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
                 />
               )}
-              {state.uiMode === "filter" && (
-                <FilterBar
-                  filters={filterHook.filters}
-                  onToggleStatus={filterHook.toggleStatus}
-                  onTogglePriority={filterHook.togglePriority}
-                  onToggleSource={filterHook.toggleSource}
-                  onToggleReady={filterHook.toggleReady}
-                  onToggleBlocked={filterHook.toggleBlocked}
-                  onToggleArchived={filterHook.toggleArchived}
-                  onClear={filterHook.clearFilters}
-                  onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
-                />
-              )}
               {previewLayout === "side" ? (
                 <box flexDirection="row" flexGrow={1}>
                   <box flexGrow={1}>
@@ -402,6 +389,20 @@ export function App({ db, dbPath }: AppProps) {
 
         {state.uiMode === "help" && (
           <HelpOverlay
+            onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+          />
+        )}
+
+        {state.uiMode === "filter" && (
+          <FilterBar
+            filters={filterHook.filters}
+            onToggleStatus={filterHook.toggleStatus}
+            onTogglePriority={filterHook.togglePriority}
+            onToggleSource={filterHook.toggleSource}
+            onToggleReady={filterHook.toggleReady}
+            onToggleBlocked={filterHook.toggleBlocked}
+            onToggleArchived={filterHook.toggleArchived}
+            onClear={filterHook.clearFilters}
             onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
           />
         )}

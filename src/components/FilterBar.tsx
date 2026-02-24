@@ -3,9 +3,9 @@ import { TextAttributes } from "@opentui/core"
 import type { KeyEvent, SelectOption } from "@opentui/core"
 import type { Filters, Status, Priority, Source } from "../lib/types.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
-import { getStatusColor } from "../lib/theme.js"
 import { theme } from "../lib/theme.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface FilterBarProps {
   filters: Filters
@@ -26,6 +26,8 @@ const SECTIONS: SectionKey[] = ["status", "priority", "source", "toggles", "acti
 const PRIORITIES = Object.keys(PRIORITY_ORDER) as Priority[]
 const SOURCES: Source[] = ["manual", "opencode", "opencode-plan", "todo_md", "import"]
 const TOGGLE_KEYS = ["readyOnly", "blockedOnly", "showArchived"] as const
+const SPACE_SELECT_BINDING = [{ name: "space", action: "select-current" as const }]
+
 const TOGGLE_LABELS: Record<string, string> = {
   readyOnly: "Ready Only",
   blockedOnly: "Blocked Only",
@@ -34,7 +36,7 @@ const TOGGLE_LABELS: Record<string, string> = {
 
 function makeStatusOptions(filters: Filters): SelectOption[] {
   return VISIBLE_STATUSES.map((status) => ({
-    name: `${filters.status === status ? "●" : "○"} ${STATUS_LABELS[status]}`,
+    name: `${filters.statuses?.includes(status) ? "☑" : "☐"} ${STATUS_LABELS[status]}`,
     description: "",
     value: status,
   }))
@@ -42,7 +44,7 @@ function makeStatusOptions(filters: Filters): SelectOption[] {
 
 function makePriorityOptions(filters: Filters): SelectOption[] {
   return PRIORITIES.map((priority) => ({
-    name: `${filters.priority === priority ? "●" : "○"} ${PRIORITY_LABELS[priority]}`,
+    name: `${filters.priorities?.includes(priority) ? "☑" : "☐"} ${PRIORITY_LABELS[priority]}`,
     description: "",
     value: priority,
   }))
@@ -50,7 +52,7 @@ function makePriorityOptions(filters: Filters): SelectOption[] {
 
 function makeSourceOptions(filters: Filters): SelectOption[] {
   return SOURCES.map((source) => ({
-    name: `${filters.source === source ? "●" : "○"} ${source}`,
+    name: `${filters.sources?.includes(source) ? "☑" : "☐"} ${source}`,
     description: "",
     value: source,
   }))
@@ -118,23 +120,24 @@ export function FilterBar({
     else if (key === "showArchived") onToggleArchived()
   }
 
-  const selectHeight = 6
-
   return (
-    <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>⚙ Filters</text>
+    <ModalOverlay onClose={onClose} size="medium" title=" ⚙ Filters ">
+      <text fg={theme.fg_0} marginBottom={1}>
+        Tab/S-Tab section · ↑/↓ item · Enter/Space toggle · c clear · Esc close
+      </text>
 
       {/* Status */}
-      <box marginTop={1} flexDirection="column">
+      <box flexDirection="column" marginBottom={1} flexShrink={0}>
         <text attributes={TextAttributes.BOLD} fg={currentSection === "status" ? theme.blue : theme.fg_0}>
           Status:
         </text>
         <select
           options={makeStatusOptions(filters)}
           focused={currentSection === "status"}
-          height={selectHeight}
+          height={VISIBLE_STATUSES.length}
           showDescription={false}
           onSelect={handleStatusSelect}
+          keyBindings={SPACE_SELECT_BINDING}
           textColor={theme.fg_0}
           selectedTextColor={theme.fg_1}
           selectedBackgroundColor={theme.bg_2}
@@ -143,16 +146,17 @@ export function FilterBar({
       </box>
 
       {/* Priority */}
-      <box marginTop={1} flexDirection="column">
+      <box flexDirection="column" marginBottom={1} flexShrink={0}>
         <text attributes={TextAttributes.BOLD} fg={currentSection === "priority" ? theme.blue : theme.fg_0}>
           Priority:
         </text>
         <select
           options={makePriorityOptions(filters)}
           focused={currentSection === "priority"}
-          height={selectHeight}
+          height={PRIORITIES.length}
           showDescription={false}
           onSelect={handlePrioritySelect}
+          keyBindings={SPACE_SELECT_BINDING}
           textColor={theme.fg_0}
           selectedTextColor={theme.fg_1}
           selectedBackgroundColor={theme.bg_2}
@@ -161,16 +165,17 @@ export function FilterBar({
       </box>
 
       {/* Source */}
-      <box marginTop={1} flexDirection="column">
+      <box flexDirection="column" marginBottom={1} flexShrink={0}>
         <text attributes={TextAttributes.BOLD} fg={currentSection === "source" ? theme.blue : theme.fg_0}>
           Source:
         </text>
         <select
           options={makeSourceOptions(filters)}
           focused={currentSection === "source"}
-          height={selectHeight}
+          height={SOURCES.length}
           showDescription={false}
           onSelect={handleSourceSelect}
+          keyBindings={SPACE_SELECT_BINDING}
           textColor={theme.fg_0}
           selectedTextColor={theme.fg_1}
           selectedBackgroundColor={theme.bg_2}
@@ -179,16 +184,17 @@ export function FilterBar({
       </box>
 
       {/* Toggles */}
-      <box marginTop={1} flexDirection="column">
+      <box flexDirection="column" marginBottom={1} flexShrink={0}>
         <text attributes={TextAttributes.BOLD} fg={currentSection === "toggles" ? theme.blue : theme.fg_0}>
           Toggles:
         </text>
         <select
           options={makeToggleOptions(filters)}
           focused={currentSection === "toggles"}
-          height={4}
+          height={TOGGLE_KEYS.length}
           showDescription={false}
           onSelect={handleToggleSelect}
+          keyBindings={SPACE_SELECT_BINDING}
           textColor={theme.fg_0}
           selectedTextColor={theme.fg_1}
           selectedBackgroundColor={theme.bg_2}
@@ -197,7 +203,7 @@ export function FilterBar({
       </box>
 
       {/* Actions */}
-      <box marginTop={1}>
+      <box>
         <text
           attributes={currentSection === "actions" ? TextAttributes.INVERSE : TextAttributes.NONE}
           fg={currentSection === "actions" ? theme.fg_1 : theme.fg_0}
@@ -205,11 +211,6 @@ export function FilterBar({
           Clear All Filters (c)
         </text>
       </box>
-
-      {/* Help */}
-      <box marginTop={1}>
-        <text fg={theme.fg_0}>Tab/S-Tab section  ↑/↓ item  Enter toggle  c clear  Esc close</text>
-      </box>
-    </box>
+    </ModalOverlay>
   )
 }

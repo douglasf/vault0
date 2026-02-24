@@ -151,14 +151,17 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters,
       let cards = getTaskCards(db, boardId, { includeArchived: filters?.showArchived })
 
       // Apply filters before grouping
-      if (filters?.status) {
-        cards = cards.filter((c) => c.status === filters.status)
+      if (filters?.statuses?.length) {
+        const statuses = filters.statuses
+        cards = cards.filter((c) => statuses.includes(c.status))
       }
-      if (filters?.priority) {
-        cards = cards.filter((c) => c.priority === filters.priority)
+      if (filters?.priorities?.length) {
+        const priorities = filters.priorities
+        cards = cards.filter((c) => priorities.includes(c.priority))
       }
-      if (filters?.source) {
-        cards = cards.filter((c) => c.source === filters.source)
+      if (filters?.sources?.length) {
+        const sources = filters.sources
+        cards = cards.filter((c) => sources.includes(c.source))
       }
       if (filters?.search) {
         const term = filters.search.toLowerCase()

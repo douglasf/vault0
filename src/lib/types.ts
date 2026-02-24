@@ -32,9 +32,9 @@ export type TaskDetail = Task & {
 }
 
 export type Filters = {
-  status?: Status
-  priority?: Priority
-  source?: Source
+  statuses?: Status[]
+  priorities?: Priority[]
+  sources?: Source[]
   readyOnly?: boolean
   blockedOnly?: boolean
   search?: string

@@ -14,27 +14,36 @@ export interface UseFiltersResult {
   clearFilters: () => void
 }
 
+/** Toggle a value in an array — add if absent, remove if present. Returns undefined if result is empty. */
+function toggleInArray<T>(arr: T[] | undefined, value: T): T[] | undefined {
+  const current = arr ?? []
+  const next = current.includes(value)
+    ? current.filter((v) => v !== value)
+    : [...current, value]
+  return next.length > 0 ? next : undefined
+}
+
 export function useFilters(): UseFiltersResult {
   const [filters, setFilters] = useState<Filters>({})
 
   const toggleStatus = useCallback((status: Status) => {
     setFilters((prev) => ({
       ...prev,
-      status: prev.status === status ? undefined : status,
+      statuses: toggleInArray(prev.statuses, status),
     }))
   }, [])
 
   const togglePriority = useCallback((priority: Priority) => {
     setFilters((prev) => ({
       ...prev,
-      priority: prev.priority === priority ? undefined : priority,
+      priorities: toggleInArray(prev.priorities, priority),
     }))
   }, [])
 
   const toggleSource = useCallback((source: Source) => {
     setFilters((prev) => ({
       ...prev,
-      source: prev.source === source ? undefined : source,
+      sources: toggleInArray(prev.sources, source),
     }))
   }, [])
 
@@ -68,9 +77,9 @@ export function useFilters(): UseFiltersResult {
 
   const activeFilterCount = useMemo(() => {
     let count = 0
-    if (filters.status) count++
-    if (filters.priority) count++
-    if (filters.source) count++
+    if (filters.statuses?.length) count += filters.statuses.length
+    if (filters.priorities?.length) count += filters.priorities.length
+    if (filters.sources?.length) count += filters.sources.length
     if (filters.readyOnly) count++
     if (filters.blockedOnly) count++
     if (filters.showArchived) count++
