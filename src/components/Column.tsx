@@ -1,6 +1,5 @@
-import { type RefObject, useRef, useEffect, useMemo } from "react"
+import { useRef, useEffect, useMemo } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import { TaskCard } from "./TaskCard.js"
 import type { TaskCard as TaskCardType, Status } from "../lib/types.js"
@@ -9,10 +8,12 @@ import { getStatusBgColor, theme } from "../lib/theme.js"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-/** Lines reserved for chrome: app header (~3), column header + margin (2), padding (~1), bottom (~1), buffer (~1). */
-const CHROME_OVERHEAD = 8
-/** Minimum content height (lines) so the column never collapses to nothing. */
+/** Lines reserved for chrome above/below the column content area. */
+const CHROME_OVERHEAD = 5
+/** Floor so the column never collapses to zero height. */
 const MIN_CONTENT_HEIGHT = 3
+
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -31,19 +32,25 @@ export interface ColumnProps {
   hideSubtasks?: boolean
 }
 
-// ─── Orphan-header helpers ───────────────────────────────────────────────────
+// ─── Visible-task filtering ─────────────────────────────────────────────────
 
+/** Filter tasks based on hideSubtasks flag, returning only top-level tasks. */
+function filterVisibleTasks(rawTasks: TaskCardType[], hideSubtasks: boolean): TaskCardType[] {
+  if (!hideSubtasks) return rawTasks
+  return rawTasks.filter((t) => t.parentId === null)
+}
+
+/**
+ * Build orphan summaries: when subtasks are hidden, subtasks whose parent
+ * lives in a different column still appear. Group them by parent and return
+ * a summary for each orphan parent.
+ */
 interface OrphanSummary {
   id: string
   title: string
   count: number
 }
 
-/**
- * When subtasks are hidden, some subtasks may still appear in a column because
- * their *parent* lives in a different column (an "orphan group"). This function
- * returns one summary entry per such parent.
- */
 function buildOrphanSummaries(rawTasks: TaskCardType[]): OrphanSummary[] {
   const topLevelIds = new Set<string>()
   for (const t of rawTasks) {
@@ -65,61 +72,52 @@ function buildOrphanSummaries(rawTasks: TaskCardType[]): OrphanSummary[] {
   return Array.from(groups.entries()).map(([id, { title, count }]) => ({ id, title, count }))
 }
 
-/**
- * Returns the set of task-list indices that should display an orphan-group
- * header above them (the first subtask from each orphan parent group).
- */
-function buildOrphanHeaderIndices(tasks: TaskCardType[], parentIdsInColumn: Set<string>): Set<number> {
-  const indices = new Set<number>()
-  const seenOrphanParents = new Set<string>()
-
-  for (let i = 0; i < tasks.length; i++) {
-    const task = tasks[i]
-    if (
-      task.parentId !== null &&
-      !parentIdsInColumn.has(task.parentId) &&
-      !seenOrphanParents.has(task.parentId)
-    ) {
-      if (task.parentTitle) indices.add(i)
-      seenOrphanParents.add(task.parentId)
-    }
-  }
-
-  return indices
-}
-
-// ─── Auto-scroll helper ─────────────────────────────────────────────────────
+// ─── Scroll offset computation (viewport windowing) ─────────────────────────
+//
+// Every task = exactly 1 row. No margins, no variable heights.
+// This makes windowing trivial: tasks.slice(scrollOffset, scrollOffset + maxVisible)
+//
 
 /**
- * Ensures the selected row is visible in the scrollbox viewport.
+ * Compute the scroll offset in task units.
  *
- * We use a ref to the `<scrollbox>` renderable and imperatively adjust
- * `scrollTop` rather than declaratively controlling it, because OpenTUI
- * scrollboxes manage their own scroll state. The ref gives us access to:
- *   - `scrollRef.current.content.getChildren()` — laid-out child renderables
- *   - `scrollRef.current.scrollTop` — current scroll offset (read/write)
- *   - `scrollRef.current.viewport.height` — visible area height
- *
- * The algorithm scrolls the minimum amount needed: if the child is above the
- * viewport, align its top edge; if below, align its bottom edge.
+ * @param selectedIndex   - The index of the selected task
+ * @param totalTasks      - Total number of tasks
+ * @param maxVisible      - How many tasks fit in the viewport
+ * @param previousOffset  - Previous scroll offset
+ * @param block           - "center" for large jumps, "nearest" for arrow nav
  */
-function scrollToSelected(scrollRef: RefObject<ScrollBoxRenderable | null>, selectedRow: number, taskCount: number): void {
-  if (!scrollRef.current || taskCount === 0) return
+function computeScrollOffset(
+  selectedIndex: number,
+  totalTasks: number,
+  maxVisible: number,
+  previousOffset: number,
+  block: "center" | "nearest",
+): number {
+  if (totalTasks === 0 || maxVisible <= 0) return 0
 
-  const children = scrollRef.current.content.getChildren()
-  if (selectedRow < 0 || selectedRow >= children.length) return
+  const maxOffset = Math.max(0, totalTasks - maxVisible)
 
-  const child = children[selectedRow]
-  const childTop = child.y
-  const childBottom = childTop + child.height
-  const viewportTop = scrollRef.current.scrollTop
-  const viewportBottom = viewportTop + scrollRef.current.viewport.height
-
-  if (childTop < viewportTop) {
-    scrollRef.current.scrollTo({ x: 0, y: childTop })
-  } else if (childBottom > viewportBottom) {
-    scrollRef.current.scrollTo({ x: 0, y: childBottom - scrollRef.current.viewport.height })
+  if (block === "center") {
+    const target = selectedIndex - Math.floor(maxVisible / 2)
+    return Math.max(0, Math.min(target, maxOffset))
   }
+
+  // "nearest" — keep selected task ~3 rows from top/bottom edges
+  const margin = 3
+  let offset = previousOffset
+
+  // If selected is too close to the top of the viewport, scroll up
+  if (selectedIndex < offset + margin) {
+    // Pin to 3 rows from top, but allow first few tasks to reach the actual top
+    offset = Math.max(0, selectedIndex - margin)
+  }
+  // If selected is too close to the bottom of the viewport, scroll down
+  else if (selectedIndex >= offset + maxVisible - margin) {
+    // Pin to 3 rows from bottom, but allow last few tasks to reach the actual bottom
+    offset = selectedIndex - maxVisible + margin + 1
+  }
+  return Math.max(0, Math.min(offset, maxOffset))
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -133,150 +131,200 @@ export function Column({
   blockedIds,
   heightReduction = 0,
   columnCount,
-  hideSubtasks,
+  hideSubtasks = false,
 }: ColumnProps) {
-  // Filter out subtasks when globally hidden
+  const { height: terminalRows } = useTerminalDimensions()
+
+  // Track previous state for scroll behavior decisions
+  const wasActiveRef = useRef(false)
+  const prevSelectedRowRef = useRef(selectedRow)
+  const scrollOffsetRef = useRef(0)
+
+  // ── Derived data ──────────────────────────────────────────────────────
+
   const tasks = useMemo(
-    () => (hideSubtasks ? rawTasks.filter((t) => t.parentId === null) : rawTasks),
+    () => filterVisibleTasks(rawTasks, hideSubtasks),
     [hideSubtasks, rawTasks],
   )
+
   const hiddenCount = rawTasks.length - tasks.length
 
-  const { height: terminalRows } = useTerminalDimensions()
-  const scrollRef = useRef<ScrollBoxRenderable>(null)
-
-  // ── Orphan summaries (only when subtasks are hidden) ──────────────────
-  const orphanParentSummaries = useMemo(
+  const orphanSummaries = useMemo(
     () => (hideSubtasks ? buildOrphanSummaries(rawTasks) : []),
     [hideSubtasks, rawTasks],
   )
 
-  const parentIdsInColumn = useMemo(
-    () => new Set(tasks.filter((t) => t.parentId === null).map((t) => t.id)),
-    [tasks],
-  )
-
-  const orphanHeaderIndices = useMemo(
-    () => (hideSubtasks ? buildOrphanHeaderIndices(tasks, parentIdsInColumn) : new Set<number>()),
-    [hideSubtasks, tasks, parentIdsInColumn],
-  )
-
   // ── Layout ────────────────────────────────────────────────────────────
-  const availableHeight = Math.max(MIN_CONTENT_HEIGHT, terminalRows - CHROME_OVERHEAD - heightReduction)
 
-  // ── Auto-scroll to keep selected row visible ──────────────────────────
-  useEffect(() => {
-    if (isActive) {
-      scrollToSelected(scrollRef, selectedRow, tasks.length)
-    }
-  }, [selectedRow, isActive, tasks])
+  const availableHeight = Math.max(
+    MIN_CONTENT_HEIGHT,
+    terminalRows - CHROME_OVERHEAD - heightReduction,
+  )
 
-  // ── Width strategy ────────────────────────────────────────────────────
-  // Fixed percentage when columnCount is known (multi-column board layout),
-  // otherwise flexGrow for single-column usage (NarrowTerminal).
+  // Width: fixed percentage for multi-column board
   const fixedWidth: `${number}%` | undefined = columnCount
     ? (`${Math.floor(100 / columnCount)}%` as const)
     : undefined
 
   const bgColor = getStatusBgColor()
 
+  // ── Viewport windowing (replaces scrollbox) ───────────────────────────
+  //
+  // Compute which tasks are visible based on selectedRow and viewport size.
+  // This is the opencode List scrollIntoView pattern adapted for terminal:
+  //   - "center" when column first gains focus or large jump
+  //   - "nearest" for normal arrow-key navigation
+
+  // Compute scroll offset based on navigation context
+  const justBecameActive = isActive && !wasActiveRef.current
+  const jumped = Math.abs(selectedRow - prevSelectedRowRef.current) > 1
+  const block: "center" | "nearest" = justBecameActive || jumped ? "center" : "nearest"
+
+  // Reserve 1 row each for top/bottom indicators when there's overflow.
+  // We do two passes: first with max indicator reservation (2 rows) to get
+  // a scroll offset, then adjust based on which indicators are actually shown.
+  const totalTasks = tasks.length
+  const rawMaxVisible = availableHeight
+  const needsScroll = totalTasks > rawMaxVisible
+
+  let maxVisible: number
+  let scrollOffset: number
+  let startIndex: number
+  let endIndex: number
+  let showScrollUp: boolean
+  let showScrollDown: boolean
+
+  if (!needsScroll) {
+    maxVisible = rawMaxVisible
+    scrollOffset = 0
+    startIndex = 0
+    endIndex = totalTasks
+    showScrollUp = false
+    showScrollDown = false
+  } else if (!isActive) {
+    // Inactive columns keep their last scroll offset — don't let the active
+    // column's selectedRow drive scrolling here.
+    // Estimate indicator rows using a conservative content size (reserve 2 for indicators).
+    const estimatedContentRows = Math.max(1, rawMaxVisible - 2)
+    const hasMoreAbove = scrollOffsetRef.current > 0
+    const hasMoreBelow = scrollOffsetRef.current + estimatedContentRows < totalTasks
+    const indicatorRows = (hasMoreAbove ? 1 : 0) + (hasMoreBelow ? 1 : 0)
+    maxVisible = Math.max(1, rawMaxVisible - indicatorRows)
+    scrollOffset = Math.max(0, Math.min(scrollOffsetRef.current, Math.max(0, totalTasks - maxVisible)))
+    startIndex = scrollOffset
+    endIndex = Math.min(scrollOffset + maxVisible, totalTasks)
+    showScrollUp = startIndex > 0
+    showScrollDown = endIndex < totalTasks
+  } else {
+    // First pass: assume 2 indicator rows to get approximate scroll position
+    const approxMax = Math.max(1, rawMaxVisible - 2)
+    const approxOffset = computeScrollOffset(
+      selectedRow, totalTasks, approxMax, scrollOffsetRef.current, block,
+    )
+
+    // Determine which indicators are actually needed
+    const willShowUp = approxOffset > 0
+    const willShowDown = approxOffset + approxMax < totalTasks
+
+    const indicatorRows = (willShowUp ? 1 : 0) + (willShowDown ? 1 : 0)
+    maxVisible = Math.max(1, rawMaxVisible - indicatorRows)
+
+    // Second pass: recompute with correct maxVisible
+    scrollOffset = computeScrollOffset(
+      selectedRow, totalTasks, maxVisible, scrollOffsetRef.current, block,
+    )
+    startIndex = scrollOffset
+    endIndex = Math.min(scrollOffset + maxVisible, totalTasks)
+    showScrollUp = startIndex > 0
+    showScrollDown = endIndex < totalTasks
+  }
+
+  // Update refs after computing (for next render)
+  useEffect(() => {
+    wasActiveRef.current = isActive
+    prevSelectedRowRef.current = selectedRow
+    scrollOffsetRef.current = scrollOffset
+  }, [isActive, selectedRow, scrollOffset])
+
+  const visibleTasks = useMemo(
+    () => tasks.slice(startIndex, endIndex),
+    [tasks, startIndex, endIndex],
+  )
+
   // ── Header label ──────────────────────────────────────────────────────
+
   const label = `${STATUS_LABELS[status]} ${tasks.length}${hiddenCount > 0 ? ` (${hiddenCount})` : ""}`
 
+  // ── Render ────────────────────────────────────────────────────────────
+
   return (
-    <box flexDirection="column" width={fixedWidth} flexGrow={fixedWidth ? 0 : 1} paddingX={1} overflow="hidden" backgroundColor={bgColor}>
+    <box
+      flexDirection="column"
+      width={fixedWidth}
+      flexGrow={fixedWidth ? 0 : 1}
+      paddingX={1}
+      overflow="hidden"
+      backgroundColor={bgColor}
+    >
       {/* Column header */}
       <box alignItems="center" marginBottom={1}>
         <text
-          attributes={isActive ? TextAttributes.BOLD | TextAttributes.UNDERLINE : TextAttributes.BOLD}
+          attributes={
+            isActive
+              ? TextAttributes.BOLD | TextAttributes.UNDERLINE
+              : TextAttributes.BOLD
+          }
           fg={isActive ? theme.blue : theme.fg_1}
         >
           {label}
         </text>
       </box>
 
-      {/* Task list */}
-      <box flexDirection="column" flexGrow={1}>
+      {/* Task list with fixed scroll indicators */}
+      <box flexDirection="column" flexGrow={1} height={availableHeight}>
         {tasks.length === 0 ? (
           <text fg={theme.dim_0}>No tasks</text>
         ) : (
-          <scrollbox ref={scrollRef} scrollY flexGrow={1} height={availableHeight}>
-            {tasks.map((task, i) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                index={i}
-                isActive={isActive}
-                selectedRow={selectedRow}
-                readyIds={readyIds}
-                blockedIds={blockedIds}
-                orphanHeaderIndices={orphanHeaderIndices}
-                tasks={tasks}
-              />
-            ))}
-          </scrollbox>
+          <>
+            {/* Top scroll indicator — OUTSIDE scrollable area, cannot be overlapped */}
+            {showScrollUp ? (
+              <text fg={theme.dim_0}>{`  \u25B2 ${startIndex} more`}</text>
+            ) : null}
+
+            {/* Scrollable task area — overflow hidden so tasks clip here */}
+            <box flexDirection="column" flexGrow={1} overflow="hidden">
+              {visibleTasks.map((task, i) => {
+                const globalIndex = startIndex + i
+                return (
+                  <box key={task.id} overflow="hidden">
+                    <TaskCard
+                      task={task}
+                      isSelected={isActive && selectedRow === globalIndex}
+                      isReady={readyIds.has(task.id)}
+                      isBlocked={blockedIds.has(task.id)}
+                      showParentRef={task.parentId !== null ? false : undefined}
+                    />
+                  </box>
+                )
+              })}
+            </box>
+
+            {/* Bottom scroll indicator — OUTSIDE scrollable area, cannot be overlapped */}
+            {showScrollDown ? (
+              <text fg={theme.dim_0}>{`  \u25BC ${tasks.length - endIndex} more`}</text>
+            ) : null}
+          </>
         )}
 
-        {/* Orphan parent summaries when subtasks are hidden */}
-        {orphanParentSummaries.map((summary) => (
+        {/* Orphan parent summaries (visible when subtasks are hidden) */}
+        {orphanSummaries.map((summary) => (
           <box key={summary.id} marginTop={tasks.length > 0 ? 1 : 0} overflow="hidden">
-          <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
+            <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
               {summary.title} ({summary.count})
             </text>
           </box>
         ))}
       </box>
-    </box>
-  )
-}
-
-// ─── TaskRow (extracted for clarity) ─────────────────────────────────────────
-
-interface TaskRowProps {
-  task: TaskCardType
-  index: number
-  isActive: boolean
-  selectedRow: number
-  readyIds: Set<string>
-  blockedIds: Set<string>
-  orphanHeaderIndices: Set<number>
-  tasks: TaskCardType[]
-}
-
-/**
- * Renders a single task row inside the column scrollbox, including optional
- * orphan-group headers and parent–subtask margin collapsing.
- */
-function TaskRow({ task, index: i, isActive, selectedRow, readyIds, blockedIds, orphanHeaderIndices, tasks }: TaskRowProps) {
-  const isSelected = isActive && selectedRow === i
-  const isSubtask = task.parentId !== null
-  const showOrphanHeader = orphanHeaderIndices.has(i)
-
-  // Reduce vertical spacing within parent–subtask groups:
-  // No margin between a parent and its first subtask, or between sibling subtasks.
-  const next = tasks[i + 1]
-  const isFollowedByChild =
-    next !== undefined &&
-    next.parentId !== null &&
-    (next.parentId === task.id || next.parentId === task.parentId)
-  const bottomMargin = isFollowedByChild ? 0 : 1
-
-  return (
-    <box flexDirection="column" marginBottom={bottomMargin} overflow="hidden">
-      {showOrphanHeader && task.parentTitle && (
-        <box overflow="hidden">
-            <text fg={theme.dim_0} attributes={TextAttributes.ITALIC} truncate={true}>
-              ↳ {task.parentTitle}
-            </text>
-        </box>
-      )}
-      <TaskCard
-        task={task}
-        isSelected={isSelected}
-        isReady={readyIds.has(task.id)}
-        isBlocked={blockedIds.has(task.id)}
-        showParentRef={isSubtask ? false : undefined}
-      />
     </box>
   )
 }
