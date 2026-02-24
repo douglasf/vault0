@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react"
+import { useRef, useEffect, useMemo, useCallback } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
@@ -29,6 +29,8 @@ export interface ColumnProps {
   columnCount?: number
   /** Whether subtasks are globally hidden. */
   hideSubtasks?: boolean
+  /** Called when a task row is clicked (mouse). */
+  onTaskClick?: (taskIndex: number) => void
 }
 
 // ─── Visible-task filtering ─────────────────────────────────────────────────
@@ -105,6 +107,7 @@ export function Column({
   heightReduction = 0,
   columnCount,
   hideSubtasks = false,
+  onTaskClick,
 }: ColumnProps) {
   const { height: terminalRows } = useTerminalDimensions()
   const scrollRef = useRef<ScrollBoxRenderable>(null)
@@ -253,7 +256,7 @@ export function Column({
               })()
               const showOrphanParent = orphanParentShownFor.has(task.id)
               return (
-                <box key={task.id} flexDirection="column" overflow="hidden">
+                <box key={task.id} flexDirection="column" overflow="hidden" onMouseDown={() => onTaskClick?.(i)}>
                   {/* Dimmed parent preview for orphaned subtasks */}
                   {showOrphanParent && task.parentTitle && (
                     <box overflow="hidden">

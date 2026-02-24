@@ -281,6 +281,7 @@ async function main() {
     const renderer = await createCliRenderer({
       exitOnCtrlC: true,
       useAlternateScreen: true,
+      useMouse: true,
       targetFps: 30,
       onDestroy: () => {
         clearInterval(walCheckpointTimer)

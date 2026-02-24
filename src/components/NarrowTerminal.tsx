@@ -194,6 +194,7 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
         blockedIds={blockedIds}
         heightReduction={heightReduction}
         hideSubtasks={hideSubtasks}
+        onTaskClick={(rowIndex) => nav.navigateTo(nav.selectedColumn, rowIndex)}
       />
 
       <box marginTop={1} justifyContent="center">

@@ -200,6 +200,7 @@ export function Board({
           heightReduction={heightReduction}
           columnCount={VISIBLE_STATUSES.length}
           hideSubtasks={hideSubtasks}
+          onTaskClick={(rowIndex) => nav.navigateTo(colIndex, rowIndex)}
         />
       ))}
     </box>

@@ -171,7 +171,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
           border={true}
           borderStyle="single"
           borderColor={isTitleFocused ? theme.blue : theme.fg_0}
-          title="Title">
+          title="Title"
+          onMouseDown={() => setFocusField("title")}>
           <input
             ref={titleRef}
             focused={isTitleFocused}
@@ -189,7 +190,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
           border={true}
           borderStyle="single"
           borderColor={isDescFocused ? theme.blue : theme.fg_0}
-          title="Desription">
+          title="Desription"
+          onMouseDown={() => setFocusField("description")}>
           <textarea
             ref={descRef}
             focused={isDescFocused}
@@ -204,7 +206,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
         </box>
 
         <text> </text>
-        <text>
+        <text onMouseDown={() => setFocusField("priority")}>
           <span fg={focusField === "priority" ? theme.blue : theme.fg_0}>
             {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
           </span>
@@ -214,7 +216,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
         </text>
 
         <text> </text>
-        <text>
+        <text onMouseDown={() => setFocusField("type")}>
           <span fg={focusField === "type" ? theme.blue : theme.fg_0}>
             {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
           </span>
@@ -226,7 +228,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
         {mode === "create" && (
           <>
             <text> </text>
-            <text>
+            <text onMouseDown={() => setFocusField("status")}>
               <span fg={focusField === "status" ? theme.blue : theme.fg_0}>
                 {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
               </span>
@@ -242,6 +244,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
         <text
           fg={focusField === "submit" ? theme.bg_1 : theme.fg_0}
           bg={focusField === "submit" ? theme.blue : undefined}
+          onMouseDown={handleFormSubmit}
         >
           {focusField === "submit" ? "\u25B8 " : "  "}
           [{mode === "create" ? "Create" : "Save"}]
