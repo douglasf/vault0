@@ -149,6 +149,9 @@ export function getThemesDir(): string {
 /**
  * Deep-merge a partial theme override into a base theme.
  * Only known keys are merged — unknown keys are ignored.
+ *
+ * The base theme provides defaults for any palette keys missing from the
+ * override, so the result is always a complete ThemeDefinition.
  */
 function deepMergeTheme(base: ThemeDefinition, override: Partial<ThemeDefinition>): ThemeDefinition {
   const result = { ...base }
@@ -162,6 +165,24 @@ function deepMergeTheme(base: ThemeDefinition, override: Partial<ThemeDefinition
   }
 
   return result
+}
+
+/**
+ * Validate that a ThemeDefinition has all required palette keys.
+ * If any are missing, fills them from the fallback theme.
+ * This prevents crashes when user-provided theme files omit required colors.
+ */
+function ensureCompleteTheme(theme: Partial<ThemeDefinition>, fallback: ThemeDefinition): ThemeDefinition {
+  const result = { ...fallback, ...theme }
+  result.name = theme.name || fallback.name
+
+  for (const key of PALETTE_KEYS) {
+    if (!result[key] || typeof result[key] !== "string") {
+      result[key] = fallback[key]
+    }
+  }
+
+  return result as ThemeDefinition
 }
 
 /**
@@ -215,11 +236,28 @@ function parseLegacyName(name: string): { family: string; variant: "dark" | "lig
 /**
  * Resolve a theme family by name, returning both dark and light variants.
  *
+ * Theme files use the **family format**: a single JSON file (e.g. `gruvbox.json`)
+ * containing `"dark"` and/or `"light"` keys, each with palette overrides.
+ *
+ * Expected file structure:
+ * ```json
+ * {
+ *   "name": "my-theme",
+ *   "extends": "selenized",          // optional — base family to inherit from
+ *   "dark":  { "bg_0": "#...", ... },  // palette overrides for dark mode
+ *   "light": { "bg_0": "#...", ... }   // palette overrides for light mode
+ * }
+ * ```
+ *
+ * If a variant key (`dark` or `light`) is missing from the file, the base
+ * family's variant is used as a fallback. If both are missing, the file is
+ * treated as a flat palette applied to both variants.
+ *
  * Loading strategy:
- * 1. Try the new family format: ~/.config/vault0/themes/<name>.json with dark/light keys
- * 2. Try legacy format: separate <name>-dark.json and <name>-light.json files
- * 3. Try built-in family
- * 4. Backward compat: if name is a legacy slug (e.g. "selenized-dark"), parse it
+ * 1. Try loading `<name>.json` as a family-format file
+ * 2. Try built-in family
+ * 3. Handle legacy flat-format file (no dark/light keys)
+ * 4. Backward compat: parse legacy slug (e.g. "selenized-dark")
  * 5. Final fallback: selenized built-in
  */
 function resolveFamily(name: string, visited = new Set<string>()): ThemeFamily {
@@ -244,39 +282,33 @@ function resolveFamily(name: string, visited = new Set<string>()): ThemeFamily {
     }
     return {
       name,
-      dark: fileData.dark ? deepMergeTheme(base.dark, fileData.dark) : base.dark,
-      light: fileData.light ? deepMergeTheme(base.light, fileData.light) : base.light,
+      dark: ensureCompleteTheme(
+        fileData.dark ? deepMergeTheme(base.dark, fileData.dark) : base.dark,
+        SELENIZED_DARK_THEME,
+      ),
+      light: ensureCompleteTheme(
+        fileData.light ? deepMergeTheme(base.light, fileData.light) : base.light,
+        SELENIZED_LIGHT_THEME,
+      ),
     }
   }
 
-  // 2. Try loading legacy separate files (<name>-dark.json and <name>-light.json)
-  const darkFile = loadThemeFile(`${name}-dark`)
-  const lightFile = loadThemeFile(`${name}-light`)
-  if (darkFile || lightFile) {
-    const base = BUILTIN_FAMILIES[name] || BUILTIN_FAMILIES[DEFAULT_THEME_NAME]
-    return {
-      name,
-      dark: darkFile ? deepMergeTheme(base.dark, darkFile as Partial<ThemeDefinition>) : base.dark,
-      light: lightFile ? deepMergeTheme(base.light, lightFile as Partial<ThemeDefinition>) : base.light,
-    }
-  }
-
-  // 3. Try built-in family
+  // 2. Try built-in family
   if (BUILTIN_FAMILIES[name]) return BUILTIN_FAMILIES[name]
 
-  // 4. Handle legacy flat-format file (e.g. a single file with palette keys but no dark/light)
+  // 3. Handle legacy flat-format file (e.g. a single file with palette keys but no dark/light)
   if (fileData) {
     const base = BUILTIN_FAMILIES[DEFAULT_THEME_NAME]
     const partial = fileData as Partial<ThemeDefinition>
     // Apply as both dark and light (user can override one variant later)
     return {
       name,
-      dark: deepMergeTheme(base.dark, partial),
-      light: deepMergeTheme(base.light, partial),
+      dark: ensureCompleteTheme(deepMergeTheme(base.dark, partial), SELENIZED_DARK_THEME),
+      light: ensureCompleteTheme(deepMergeTheme(base.light, partial), SELENIZED_LIGHT_THEME),
     }
   }
 
-  // 5. Backward compat: parse legacy slug like "selenized-dark"
+  // 4. Backward compat: parse legacy slug like "selenized-dark"
   const legacy = parseLegacyName(name)
   if (legacy) {
     const family = resolveFamily(legacy.family, visited)
@@ -284,7 +316,7 @@ function resolveFamily(name: string, visited = new Set<string>()): ThemeFamily {
     return family
   }
 
-  // 6. Final fallback
+  // 5. Final fallback
   if (name !== DEFAULT_THEME_NAME) {
     return resolveFamily(DEFAULT_THEME_NAME, visited)
   }
@@ -371,6 +403,25 @@ export function initTheme(themeName?: string, appearance?: Appearance): void {
 }
 
 /**
+ * Get the name of the currently active theme family.
+ */
+export function getActiveThemeName(): string {
+  return activeFamily?.name || DEFAULT_THEME_NAME
+}
+
+/**
+ * Switch to a different theme family at runtime.
+ * Keeps the current appearance (dark/light).
+ *
+ * @param themeName - Theme family name (e.g. "selenized", "solarized")
+ */
+export function setTheme(themeName: string): void {
+  activeFamily = resolveFamily(themeName)
+  activeTheme = resolvedAppearance === "light" ? activeFamily.light : activeFamily.dark
+  invalidateThemeCaches()
+}
+
+/**
  * Toggle the appearance between dark and light at runtime.
  * Returns the new resolved appearance.
  */
@@ -419,7 +470,7 @@ export function listThemes(): { name: string; source: "builtin" | "file" }[] {
     themes.set(name, "builtin")
   }
 
-  // Overlay with filesystem themes — normalize legacy filenames to family names
+  // Overlay with filesystem themes — only family-format files (not legacy -dark/-light variants)
   const dir = getThemesDir()
   if (existsSync(dir)) {
     try {
@@ -427,9 +478,9 @@ export function listThemes(): { name: string; source: "builtin" | "file" }[] {
       for (const file of files) {
         if (file.endsWith(".json")) {
           const slug = file.replace(/\.json$/, "")
-          const legacy = parseLegacyName(slug)
-          const familyName = legacy ? legacy.family : slug
-          themes.set(familyName, "file")
+          // Skip legacy variant files — only family files are supported
+          if (parseLegacyName(slug)) continue
+          themes.set(slug, "file")
         }
       }
     } catch {

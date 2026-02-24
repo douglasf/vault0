@@ -100,3 +100,20 @@ export function loadConfig(repoRoot: string): Vault0Config {
   const project = loadConfigFile(getProjectConfigPath(repoRoot))
   return mergeConfigs(global, project)
 }
+
+/**
+ * Update the global config file with the given partial config.
+ * Deep-merges with the existing global config and writes back to disk.
+ */
+export function saveGlobalConfig(updates: Partial<Vault0Config>): void {
+  const configPath = getGlobalConfigPath()
+  const existing = loadConfigFile(configPath)
+
+  // Deep-merge theme section
+  if (updates.theme) {
+    existing.theme = { ...existing.theme, ...updates.theme }
+  }
+
+  ensureGlobalConfig()
+  writeFileSync(configPath, `${JSON.stringify(existing, null, 2)}\n`, "utf-8")
+}

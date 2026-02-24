@@ -17,7 +17,9 @@ import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
 import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
 import { ErrorBanner } from "./ErrorBanner.js"
-import { theme, toggleAppearance, getAppearance } from "../lib/theme.js"
+import { theme, toggleAppearance, getAppearance, getActiveThemeName } from "../lib/theme.js"
+import { saveGlobalConfig } from "../lib/config.js"
+import { ThemePicker } from "./ThemePicker.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
@@ -33,10 +35,10 @@ export interface AppProps {
   dbPath: string
 }
 
-export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done"
+export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done" | "theme-picker"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
-const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter"])
+const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter", "theme-picker"])
 
 // Layout thresholds
 const MIN_COLS_NARROW = 80
@@ -220,9 +222,7 @@ export function App({ db, dbPath }: AppProps) {
     } else if (input === "v") {
       setPreviewVisible((prev) => !prev)
     } else if (input === "t") {
-      toggleAppearance()
-      showToast(`Appearance: ${getAppearance()}`)
-      setState((prev) => ({ ...prev })) // force re-render
+      setState((prev) => ({ ...prev, uiMode: "theme-picker" }))
     } else if (input === "q") {
       renderer.destroy()
     }
@@ -390,6 +390,18 @@ export function App({ db, dbPath }: AppProps) {
         {state.uiMode === "help" && (
           <HelpOverlay
             onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+          />
+        )}
+
+        {state.uiMode === "theme-picker" && (
+          <ThemePicker
+            onPreview={() => setState((prev) => ({ ...prev }))}
+            onSelect={(themeName, appearance) => {
+              saveGlobalConfig({ theme: { name: themeName, appearance } })
+              showToast(`Theme: ${themeName} (${appearance})`)
+              setState((prev) => ({ ...prev, uiMode: "board" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
           />
         )}
 
