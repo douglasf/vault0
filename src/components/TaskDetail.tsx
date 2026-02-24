@@ -254,14 +254,14 @@ function SectionLine({ line }: { line: LineData }) {
       )
     case "field":
       return (
-        <box>
+        <box flexDirection="row">
           <text fg={theme.dim_0}>{line.label}: </text>
           <text fg={line.color ?? theme.fg_1} attributes={line.bold ? TextAttributes.BOLD : TextAttributes.NONE}>{line.value}</text>
         </box>
       )
     case "dep":
       return (
-        <box>
+        <box flexDirection="row">
           <text fg={theme.fg_1}>{line.label === "depends_on" ? "  → " : "  ← "}</text>
           <text fg={theme.fg_1}>{line.value}</text>
           <text fg={theme.dim_0}> </text>
@@ -270,14 +270,14 @@ function SectionLine({ line }: { line: LineData }) {
       )
     case "subtask":
       return (
-        <box>
+        <box flexDirection="row">
           <text fg={theme.fg_1}>  {line.done ? "[x]" : "[ ]"} </text>
           <text fg={line.done ? theme.dim_0 : theme.fg_1}>{line.value}</text>
         </box>
       )
     case "history":
       return (
-        <box>
+        <box flexDirection="row">
           <text fg={theme.dim_0}>  {line.label}  </text>
           <text fg={theme.fg_1}>{line.value}</text>
         </box>
