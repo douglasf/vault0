@@ -26,7 +26,11 @@ export function StatusPicker({ task, onSelectStatus, onCancel }: StatusPickerPro
       <select
         marginTop={1}
         options={selectOptions}
+        focused={true}
+        height={selectOptions.length}
         selectedIndex={initialIndex}
+        showDescription={false}
+        backgroundColor={theme.bg_1}
         selectedBackgroundColor={getStatusColor(task.status as Status)}
         selectedTextColor={theme.bg_1}
         textColor={theme.fg_0}
