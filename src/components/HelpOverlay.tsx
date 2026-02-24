@@ -109,6 +109,7 @@ const shortcutSections: readonly ShortcutSection[] = [
   {
     title: "General",
     shortcuts: [
+      ["t", "Toggle dark/light appearance"],
       ["?", "Show / close this help"],
       ["q", "Quit application"],
       ["Ctrl+C", "Emergency exit"],

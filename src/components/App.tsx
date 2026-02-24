@@ -17,7 +17,7 @@ import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
 import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
 import { ErrorBanner } from "./ErrorBanner.js"
-import { theme } from "../lib/theme.js"
+import { theme, toggleAppearance, getAppearance } from "../lib/theme.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
@@ -219,6 +219,10 @@ export function App({ db, dbPath }: AppProps) {
       })
     } else if (input === "v") {
       setPreviewVisible((prev) => !prev)
+    } else if (input === "t") {
+      toggleAppearance()
+      showToast(`Appearance: ${getAppearance()}`)
+      setState((prev) => ({ ...prev })) // force re-render
     } else if (input === "q") {
       renderer.destroy()
     }

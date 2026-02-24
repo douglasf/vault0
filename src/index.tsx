@@ -166,7 +166,7 @@ async function main() {
     try {
       ensureGlobalConfig()
       const _config = loadConfig(repoRoot)
-      initTheme(_config.theme?.name)
+      initTheme(_config.theme?.name, _config.theme?.appearance)
       const { db, sqlite } = initDatabase(repoRoot)
       runEmbeddedMigrations(sqlite)
       seedDefaultBoard(db)
@@ -250,7 +250,7 @@ async function main() {
     // Initialize config
     ensureGlobalConfig()
     const _config = loadConfig(repoRoot)
-    initTheme(_config.theme?.name)
+    initTheme(_config.theme?.name, _config.theme?.appearance)
 
     // Initialize database
     const { db, sqlite, dbPath } = initDatabase(repoRoot)

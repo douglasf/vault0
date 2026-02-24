@@ -4,14 +4,18 @@ import { homedir } from "node:os"
 
 // ── Config Types ────────────────────────────────────────────────────────
 
+export type Appearance = "dark" | "light" | "os"
+
 export interface Vault0Config {
   /**
-   * Theme overrides.
-   * Reserved for future use — will be expanded with the themes feature.
+   * Theme configuration.
+   * `name` is the theme family (e.g. "selenized"), `appearance` controls light/dark variant.
    */
   theme?: {
-    /** Name of a built-in theme or path to a custom theme file */
+    /** Name of a theme family (e.g. "selenized", "solarized") or a custom theme file name */
     name?: string
+    /** Appearance mode: "dark", "light", or "os" (auto-detect from OS). Defaults to "dark". */
+    appearance?: Appearance
   }
 }
 

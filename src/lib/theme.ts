@@ -6,11 +6,12 @@
 //   red, orange, yellow, green, cyan, blue, violet, magenta: accent colors
 
 import { RGBA } from "@opentui/core"
+import type { Appearance } from "./config.js"
 
 export interface ThemeDefinition {
   /** Human-readable theme name */
   name: string
-  /** Base theme to extend from (e.g. "solarized-dark") — loads that theme file and merges overrides */
+  /** Base theme to extend from (e.g. "solarized") — loads that theme and merges overrides */
   extends?: string
 
   // ── Background & foreground shades ────────────────────────────────
@@ -30,6 +31,17 @@ export interface ThemeDefinition {
   blue: string    // Info, todo
   violet: string  // In-review
   magenta: string // (available for future use)
+}
+
+/**
+ * A theme family contains both dark and light palettes.
+ * Theme files can provide one or both variants.
+ */
+export interface ThemeFamily {
+  name: string
+  extends?: string
+  dark: ThemeDefinition
+  light: ThemeDefinition
 }
 
 // Palette key type for iteration
@@ -81,21 +93,38 @@ const SELENIZED_LIGHT_THEME: ThemeDefinition = {
   magenta: "#cb4c99",
 }
 
-/** Built-in themes keyed by slug. These are the code-level defaults. */
-const BUILTIN_THEMES: Record<string, ThemeDefinition> = {
+/** Built-in theme families keyed by family name. */
+const BUILTIN_FAMILIES: Record<string, ThemeFamily> = {
+  selenized: {
+    name: "selenized",
+    dark: SELENIZED_DARK_THEME,
+    light: SELENIZED_LIGHT_THEME,
+  },
+}
+
+/**
+ * Legacy built-in themes keyed by old-style slug (e.g. "selenized-dark").
+ * Supports backward compatibility with existing config files.
+ */
+const LEGACY_BUILTIN_THEMES: Record<string, ThemeDefinition> = {
   "selenized-dark": SELENIZED_DARK_THEME,
   "selenized-light": SELENIZED_LIGHT_THEME,
 }
 
-const DEFAULT_THEME_NAME = "selenized-dark"
+const DEFAULT_THEME_NAME = "selenized"
+const DEFAULT_APPEARANCE: Appearance = "dark"
 
 // ── Active Theme (mutable module state) ─────────────────────────────
 
 let activeTheme: ThemeDefinition = SELENIZED_DARK_THEME
+let activeFamily: ThemeFamily | null = null
+let activeAppearance: Appearance = DEFAULT_APPEARANCE
+let resolvedAppearance: "dark" | "light" = "dark"
 
 /**
  * The current active theme. All components should read colors from this object.
- * Call `initTheme()` at startup to load the configured theme.
+ * Thanks to the Proxy, switching the active theme at runtime automatically
+ * propagates to all consumers without any re-wiring.
  */
 export const theme: ThemeDefinition = new Proxy({} as ThemeDefinition, {
   get(_target, prop, receiver) {
@@ -136,10 +165,23 @@ function deepMergeTheme(base: ThemeDefinition, override: Partial<ThemeDefinition
 }
 
 /**
- * Load a theme file from the themes directory.
- * Returns the raw parsed JSON (partial), or null if the file doesn't exist.
+ * Raw theme file format — supports both the new family format (with dark/light keys)
+ * and the legacy flat format (single palette).
  */
-function loadThemeFile(name: string): Partial<ThemeDefinition> | null {
+interface ThemeFileData {
+  name?: string
+  extends?: string
+  dark?: Partial<ThemeDefinition>
+  light?: Partial<ThemeDefinition>
+  // Legacy flat palette keys (when dark/light are absent)
+  [key: string]: unknown
+}
+
+/**
+ * Load a theme file from the themes directory.
+ * Returns the raw parsed JSON, or null if the file doesn't exist.
+ */
+function loadThemeFile(name: string): ThemeFileData | null {
   const themesDir = getThemesDir()
   const filePath = join(themesDir, `${name}.json`)
 
@@ -147,25 +189,40 @@ function loadThemeFile(name: string): Partial<ThemeDefinition> | null {
     if (!existsSync(filePath)) return null
     const raw = readFileSync(filePath, "utf-8").trim()
     if (!raw) return null
-    return JSON.parse(raw) as Partial<ThemeDefinition>
+    return JSON.parse(raw) as ThemeFileData
   } catch {
     return null
   }
 }
 
 /**
- * Resolve a theme by name.
+ * Check if a theme file uses the new family format (has dark and/or light keys).
+ */
+function isFamilyFormat(data: ThemeFileData): boolean {
+  return data.dark !== undefined || data.light !== undefined
+}
+
+/**
+ * Parse a legacy theme name like "selenized-dark" into { family, variant }.
+ * Returns null if the name doesn't match the pattern.
+ */
+function parseLegacyName(name: string): { family: string; variant: "dark" | "light" } | null {
+  if (name.endsWith("-dark")) return { family: name.slice(0, -5), variant: "dark" }
+  if (name.endsWith("-light")) return { family: name.slice(0, -6), variant: "light" }
+  return null
+}
+
+/**
+ * Resolve a theme family by name, returning both dark and light variants.
  *
  * Loading strategy:
- * 1. Check filesystem (~/.config/vault0/themes/<name>.json)
- * 2. If found, deep-merge the file contents onto the built-in base theme
- *    - If the file specifies `extends`, that named theme is resolved first as the base
- *    - Otherwise the built-in theme with the same name is used as base (if it exists)
- *    - If no built-in exists for this name, selenized-dark is the base
- * 3. If no file found, use the built-in theme directly (if it exists)
- * 4. Final fallback: selenized-dark built-in
+ * 1. Try the new family format: ~/.config/vault0/themes/<name>.json with dark/light keys
+ * 2. Try legacy format: separate <name>-dark.json and <name>-light.json files
+ * 3. Try built-in family
+ * 4. Backward compat: if name is a legacy slug (e.g. "selenized-dark"), parse it
+ * 5. Final fallback: selenized built-in
  */
-function resolveTheme(name: string, visited = new Set<string>()): ThemeDefinition {
+function resolveFamily(name: string, visited = new Set<string>()): ThemeFamily {
   if (visited.has(name)) {
     throw new Error(
       `Circular theme extends detected: ${[...visited].join(" -> ")} -> ${name}`,
@@ -173,63 +230,206 @@ function resolveTheme(name: string, visited = new Set<string>()): ThemeDefinitio
   }
   visited.add(name)
 
+  // 1. Try loading a family-format theme file
   const fileData = loadThemeFile(name)
-
-  if (fileData) {
-    // Determine the base theme to merge onto
-    let base: ThemeDefinition
+  if (fileData && isFamilyFormat(fileData)) {
+    // Determine base family
+    let base: ThemeFamily
     if (fileData.extends) {
-      // Recursively resolve the extended theme
-      base = resolveTheme(fileData.extends, visited)
-    } else if (BUILTIN_THEMES[name]) {
-      base = BUILTIN_THEMES[name]
+      base = resolveFamily(fileData.extends, visited)
+    } else if (BUILTIN_FAMILIES[name]) {
+      base = BUILTIN_FAMILIES[name]
     } else {
-      base = SELENIZED_DARK_THEME
+      base = BUILTIN_FAMILIES[DEFAULT_THEME_NAME]
     }
-    return deepMergeTheme(base, fileData)
+    return {
+      name,
+      dark: fileData.dark ? deepMergeTheme(base.dark, fileData.dark) : base.dark,
+      light: fileData.light ? deepMergeTheme(base.light, fileData.light) : base.light,
+    }
   }
 
-  // No file — use built-in if available
-  if (BUILTIN_THEMES[name]) return BUILTIN_THEMES[name]
+  // 2. Try loading legacy separate files (<name>-dark.json and <name>-light.json)
+  const darkFile = loadThemeFile(`${name}-dark`)
+  const lightFile = loadThemeFile(`${name}-light`)
+  if (darkFile || lightFile) {
+    const base = BUILTIN_FAMILIES[name] || BUILTIN_FAMILIES[DEFAULT_THEME_NAME]
+    return {
+      name,
+      dark: darkFile ? deepMergeTheme(base.dark, darkFile as Partial<ThemeDefinition>) : base.dark,
+      light: lightFile ? deepMergeTheme(base.light, lightFile as Partial<ThemeDefinition>) : base.light,
+    }
+  }
 
-  // Unknown theme name with no file — fall back to default
+  // 3. Try built-in family
+  if (BUILTIN_FAMILIES[name]) return BUILTIN_FAMILIES[name]
+
+  // 4. Handle legacy flat-format file (e.g. a single file with palette keys but no dark/light)
+  if (fileData) {
+    const base = BUILTIN_FAMILIES[DEFAULT_THEME_NAME]
+    const partial = fileData as Partial<ThemeDefinition>
+    // Apply as both dark and light (user can override one variant later)
+    return {
+      name,
+      dark: deepMergeTheme(base.dark, partial),
+      light: deepMergeTheme(base.light, partial),
+    }
+  }
+
+  // 5. Backward compat: parse legacy slug like "selenized-dark"
+  const legacy = parseLegacyName(name)
+  if (legacy) {
+    const family = resolveFamily(legacy.family, visited)
+    // Return the family — the appearance will select the right variant
+    return family
+  }
+
+  // 6. Final fallback
   if (name !== DEFAULT_THEME_NAME) {
-    return resolveTheme(DEFAULT_THEME_NAME, visited)
+    return resolveFamily(DEFAULT_THEME_NAME, visited)
   }
 
-  return SELENIZED_DARK_THEME
+  return BUILTIN_FAMILIES[DEFAULT_THEME_NAME]
 }
+
+// ── OS Appearance Detection ─────────────────────────────────────────
+
+/**
+ * Detect the OS appearance (dark or light mode).
+ *
+ * Strategy (macOS-first, then cross-platform fallbacks):
+ * 1. macOS: `defaults read -g AppleInterfaceStyle` — returns "Dark" in dark mode, errors in light mode
+ * 2. COLORFGBG environment variable — common in terminal emulators
+ * 3. Default to "dark" if detection fails
+ */
+export function detectOsAppearance(): "dark" | "light" {
+  // macOS: check AppleInterfaceStyle
+  try {
+    const result = Bun.spawnSync(["defaults", "read", "-g", "AppleInterfaceStyle"])
+    const output = result.stdout.toString().trim()
+    if (output === "Dark") return "dark"
+    // If the command succeeds but doesn't say "Dark", or if it fails (light mode),
+    // the exit code is non-zero in light mode
+    if (result.exitCode === 0) return "dark"
+    return "light"
+  } catch {
+    // Not macOS or command failed
+  }
+
+  // COLORFGBG: "fg;bg" format, bg > 6 usually means light background
+  const colorfgbg = process.env.COLORFGBG
+  if (colorfgbg) {
+    const parts = colorfgbg.split(";")
+    const bg = Number.parseInt(parts[parts.length - 1], 10)
+    if (!Number.isNaN(bg)) {
+      return bg > 6 ? "light" : "dark"
+    }
+  }
+
+  return "dark"
+}
+
+/**
+ * Resolve an appearance setting to a concrete "dark" or "light" value.
+ */
+function resolveAppearance(appearance: Appearance): "dark" | "light" {
+  if (appearance === "os") return detectOsAppearance()
+  return appearance
+}
+
+// ── Invalidation ────────────────────────────────────────────────────
+
+/** Invalidate caches that depend on the active theme colors. */
+function invalidateThemeCaches(): void {
+  _markdownSyntaxStyle = null
+}
+
+// ── Public API ──────────────────────────────────────────────────────
 
 /**
  * Initialize the theme system. Call once at startup after loading config.
  *
- * @param themeName - Theme name from config (e.g. "selenized-dark", "solarized-light", or a custom theme file name)
+ * @param themeName - Theme family name (e.g. "selenized", "solarized") or legacy slug (e.g. "selenized-dark")
+ * @param appearance - Appearance mode: "dark", "light", or "os" (auto-detect). Defaults to "dark".
  */
-export function initTheme(themeName?: string): void {
-  activeTheme = resolveTheme(themeName || DEFAULT_THEME_NAME)
+export function initTheme(themeName?: string, appearance?: Appearance): void {
+  const name = themeName || DEFAULT_THEME_NAME
+  activeAppearance = appearance || DEFAULT_APPEARANCE
+  resolvedAppearance = resolveAppearance(activeAppearance)
+
+  // Backward compat: if a legacy name like "selenized-dark" is passed,
+  // extract the appearance from the suffix
+  const legacy = parseLegacyName(name)
+  if (legacy && !appearance) {
+    activeAppearance = legacy.variant
+    resolvedAppearance = legacy.variant
+  }
+
+  activeFamily = resolveFamily(legacy ? legacy.family : name)
+  activeTheme = resolvedAppearance === "light" ? activeFamily.light : activeFamily.dark
+  invalidateThemeCaches()
 }
 
 /**
- * List available themes — combines built-in themes with any filesystem themes.
- * Filesystem themes that share a name with a built-in are listed as "file" source.
+ * Toggle the appearance between dark and light at runtime.
+ * Returns the new resolved appearance.
+ */
+export function toggleAppearance(): "dark" | "light" {
+  resolvedAppearance = resolvedAppearance === "dark" ? "light" : "dark"
+  activeAppearance = resolvedAppearance
+
+  if (activeFamily) {
+    activeTheme = resolvedAppearance === "light" ? activeFamily.light : activeFamily.dark
+  }
+  invalidateThemeCaches()
+  return resolvedAppearance
+}
+
+/**
+ * Set the appearance explicitly at runtime.
+ * Returns the new resolved appearance.
+ */
+export function setAppearance(appearance: Appearance): "dark" | "light" {
+  activeAppearance = appearance
+  resolvedAppearance = resolveAppearance(appearance)
+
+  if (activeFamily) {
+    activeTheme = resolvedAppearance === "light" ? activeFamily.light : activeFamily.dark
+  }
+  invalidateThemeCaches()
+  return resolvedAppearance
+}
+
+/**
+ * Get the current resolved appearance ("dark" or "light").
+ */
+export function getAppearance(): "dark" | "light" {
+  return resolvedAppearance
+}
+
+/**
+ * List available theme families — combines built-in families with filesystem themes.
+ * Returns family names (e.g. "selenized", "solarized"), not variant slugs.
  */
 export function listThemes(): { name: string; source: "builtin" | "file" }[] {
   const themes = new Map<string, "builtin" | "file">()
 
-  // Add built-in themes first
-  for (const name of Object.keys(BUILTIN_THEMES)) {
+  // Add built-in families
+  for (const name of Object.keys(BUILTIN_FAMILIES)) {
     themes.set(name, "builtin")
   }
 
-  // Overlay with filesystem themes
+  // Overlay with filesystem themes — normalize legacy filenames to family names
   const dir = getThemesDir()
   if (existsSync(dir)) {
     try {
       const files = readdirSync(dir)
       for (const file of files) {
         if (file.endsWith(".json")) {
-          const name = file.replace(/\.json$/, "")
-          themes.set(name, "file")
+          const slug = file.replace(/\.json$/, "")
+          const legacy = parseLegacyName(slug)
+          const familyName = legacy ? legacy.family : slug
+          themes.set(familyName, "file")
         }
       }
     } catch {

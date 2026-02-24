@@ -1,0 +1,37 @@
+{
+  "name": "selenized",
+  "dark": {
+    "name": "Selenized Dark",
+    "bg_0": "#053d48",
+    "bg_1": "#0e4956",
+    "bg_2": "#275b69",
+    "dim_0": "#718b90",
+    "fg_0": "#adbcbc",
+    "fg_1": "#c8d7d8",
+    "red": "#fd564e",
+    "orange": "#f38649",
+    "yellow": "#e3b230",
+    "green": "#80b83c",
+    "cyan": "#39c7b9",
+    "blue": "#0096f5",
+    "violet": "#a58cec",
+    "magenta": "#f176bd"
+  },
+  "light": {
+    "name": "Selenized Light",
+    "bg_0": "#fef3da",
+    "bg_1": "#f0e4cc",
+    "bg_2": "#d6cbb4",
+    "dim_0": "#8f9894",
+    "fg_0": "#52666d",
+    "fg_1": "#384c52",
+    "red": "#d4212b",
+    "orange": "#c75d20",
+    "yellow": "#b38800",
+    "green": "#539100",
+    "cyan": "#009c8f",
+    "blue": "#0073d2",
+    "violet": "#7d64c5",
+    "magenta": "#cb4c99"
+  }
+}
