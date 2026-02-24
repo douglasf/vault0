@@ -14,6 +14,7 @@ import {
   cmdDepRemove,
   cmdDepList,
   cmdBoardList,
+  cmdSubtasks,
 } from "./commands.js"
 
 // ── Argument Parser ─────────────────────────────────────────────────
@@ -177,6 +178,11 @@ function handleTask(args: string[], db: Vault0Database): number {
       result = cmdUnarchive(db, parsed.positional[0] || parsed.flags.id || "", parsed.format)
       break
 
+    case "subtasks":
+    case "subs":
+      result = cmdSubtasks(db, parsed.positional[0] || parsed.flags.id || "", parsed.flags, parsed.format)
+      break
+
     case "dep": {
       const sub = parsed.subsubcommand || ""
       const targetId = parsed.positional[0] || parsed.flags.id || ""
@@ -269,6 +275,7 @@ Commands:
   complete, done <ID>           Mark task as done
   delete, rm    <ID>            Delete a task (archive first, hard-delete if already archived)
   archive-done                  Archive all tasks in Done lane
+  subtasks, subs <ID>           List subtasks for a task
   dep add       <ID>            Add a dependency
   dep rm        <ID>            Remove a dependency
   dep list      <ID>            List dependencies
@@ -308,6 +315,9 @@ Move Options:
 Dependency Options:
   --on <ID>                     Dependency target task ID (required for add/rm)
 
+Subtasks Options:
+  --ready                       Show only ready subtasks (no unmet dependencies, backlog/todo status)
+
 Examples:
   vault0 task add --title "Fix login bug" --priority high --type bug --status todo
   vault0 task add --title "Implement auth" --type feature --source opencode --source-ref "session-123"
@@ -321,6 +331,8 @@ Examples:
   vault0 task delete abc12345
   vault0 task dep add abc12345 --on def67890
   vault0 task dep list abc12345
+  vault0 task subtasks abc12345
+  vault0 task subtasks abc12345 --ready
 
 Note: Task IDs can be shortened — use the last 8+ characters.
 `)

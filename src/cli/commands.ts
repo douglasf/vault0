@@ -477,6 +477,36 @@ export function cmdDepList(db: Vault0Database, taskId: string, format: OutputFor
 }
 
 /**
+ * vault0 task subtasks <ID> [--ready]
+ */
+export function cmdSubtasks(db: Vault0Database, taskId: string, flags: Record<string, string>, format: OutputFormat): CommandResult {
+  if (!taskId) {
+    return { success: false, message: formatError("Task ID is required. Usage: vault0 task subtasks <ID> [--ready]") }
+  }
+
+  const resolvedId = resolveTaskId(db, taskId)
+  const boardId = getDefaultBoardId(db)
+  const allCards = getTaskCards(db, boardId)
+
+  let subtasks = allCards.filter((c) => c.parentId === resolvedId)
+
+  if (flags.ready === "true" || flags.ready === "") {
+    subtasks = subtasks.filter((c) => c.isReady)
+  }
+
+  if (format === "json") {
+    return { success: true, message: jsonOutput(subtasks), data: subtasks }
+  }
+
+  if (subtasks.length === 0) {
+    const label = flags.ready !== undefined ? "No ready subtasks found." : "No subtasks found."
+    return { success: true, message: label }
+  }
+
+  return { success: true, message: formatTaskList(subtasks), data: subtasks }
+}
+
+/**
  * vault0 task archive-done [--board ID]
  */
 export function cmdArchiveDone(db: Vault0Database, flags: Record<string, string>, format: OutputFormat): CommandResult {
