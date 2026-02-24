@@ -53,6 +53,8 @@ export interface AppState {
   createParent?: Task
   /** The UI mode to return to if the user cancels a delete confirmation */
   deleteReturnMode?: UIMode
+  /** When set, the board will focus this task after the next render */
+  pendingFocusTaskId?: string
 }
 
 export function App({ db, dbPath }: AppProps) {
@@ -66,6 +68,13 @@ export function App({ db, dbPath }: AppProps) {
   const actions = useTaskActions(db)
   const filterHook = useFilters()
 
+  // Clear pendingFocusTaskId after it's been passed to the board components
+  useEffect(() => {
+    if (state.pendingFocusTaskId) {
+      setState((prev) => ({ ...prev, pendingFocusTaskId: undefined }))
+    }
+  }, [state.pendingFocusTaskId])
+
   // Watch the SQLite database for external changes (e.g., CLI operations in
   // another terminal) and force a re-render so inline DB queries pick up fresh data.
   const forceRefresh = useCallback(() => {
@@ -77,6 +86,9 @@ export function App({ db, dbPath }: AppProps) {
   // Track the currently highlighted task in board view via a ref
   // (avoids re-render loops — Board updates this after every render)
   const highlightedTaskRef = useRef<Task | undefined>(undefined)
+
+  // Track the currently selected lane (status column) so new tasks default to it
+  const currentLaneRef = useRef<Status>("backlog")
 
   // State-tracked version of the highlighted task for the preview panel.
   // Only updates when the task ID actually changes, breaking the render loop.
@@ -120,6 +132,10 @@ export function App({ db, dbPath }: AppProps) {
       if (prev?.id === task?.id) return prev
       return task
     })
+  }, [])
+
+  const handleHighlightColumn = useCallback((status: Status) => {
+    currentLaneRef.current = status
   }, [])
 
   const handleMoveTask = useCallback((task: Task, targetStatus: Status) => {
@@ -240,8 +256,10 @@ export function App({ db, dbPath }: AppProps) {
       boardId: state.currentBoardId,
       filters: filterHook.filters,
       focusTaskId: state.selectedTask?.id,
+      pendingFocusTaskId: state.pendingFocusTaskId,
       onSelectTask,
       onHighlightTask: handleHighlightTask,
+      onHighlightColumn: handleHighlightColumn,
       onMoveTask: handleMoveTask,
       inputActive: boardInputActive,
       hideSubtasks,
@@ -352,9 +370,10 @@ export function App({ db, dbPath }: AppProps) {
           <TaskForm
             mode="create"
             parentTitle={state.createParent?.title}
+            initialStatus={currentLaneRef.current}
             onSubmit={(data) => {
-              actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status, data.type)
-              setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))
+              const created = actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status, data.type)
+              setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined, pendingFocusTaskId: created.id }))
             }}
             onCancel={() => setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined }))}
           />

@@ -21,11 +21,14 @@ export interface BoardProps {
   heightReduction?: number
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
+  onHighlightColumn?: (status: Status) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
   /** Whether subtasks are globally hidden */
   hideSubtasks?: boolean
   /** Sort field for lane ordering */
   sortField?: SortField
+  /** When set, the board will navigate to this task after the next data refresh */
+  pendingFocusTaskId?: string
   /** Called when a database error is detected */
   onDbError?: (error: DbError | null) => void
 }
@@ -45,9 +48,11 @@ export function Board({
   heightReduction,
   onSelectTask,
   onHighlightTask,
+  onHighlightColumn,
   onMoveTask,
   hideSubtasks,
   sortField,
+  pendingFocusTaskId: pendingFocusTaskIdProp,
   onDbError,
 }: BoardProps) {
   const db = useDb()
@@ -102,6 +107,13 @@ export function Board({
   // Track a task that was just moved so we can follow it with the cursor after re-render
   const pendingFocusTaskId = useRef<string | null>(null)
 
+  // Accept external focus requests (e.g. after task creation)
+  useEffect(() => {
+    if (pendingFocusTaskIdProp) {
+      pendingFocusTaskId.current = pendingFocusTaskIdProp
+    }
+  }, [pendingFocusTaskIdProp])
+
   // After data refreshes, resolve the pending focus task to its new position
   useEffect(() => {
     const taskId = pendingFocusTaskId.current
@@ -124,6 +136,11 @@ export function Board({
   useEffect(() => {
     onHighlightTask?.(highlightedTask)
   }, [highlightedTask, onHighlightTask])
+
+  // Report current column (lane) to parent when it changes
+  useEffect(() => {
+    onHighlightColumn?.(VISIBLE_STATUSES[nav.selectedColumn])
+  }, [nav.selectedColumn, onHighlightColumn])
 
   /**
    * Move the highlighted task one column in the given direction (-1 = left, +1 = right).

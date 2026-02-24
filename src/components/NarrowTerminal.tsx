@@ -22,11 +22,14 @@ export interface NarrowTerminalProps {
   heightReduction?: number
   onSelectTask: (task: Task) => void
   onHighlightTask?: (task: Task | undefined) => void
+  onHighlightColumn?: (status: Status) => void
   onMoveTask?: (task: Task, targetStatus: Status) => void
   /** Whether subtasks are globally hidden */
   hideSubtasks?: boolean
   /** Sort field for lane ordering */
   sortField?: SortField
+  /** When set, the view will navigate to this task after the next data refresh */
+  pendingFocusTaskId?: string
   /** Called when a database error is detected */
   onDbError?: (error: DbError | null) => void
 }
@@ -35,7 +38,7 @@ export interface NarrowTerminalProps {
  * Degraded single-column view for narrow terminals (< 80 columns).
  * Shows one status column at a time with left/right arrows to switch.
  */
-export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onMoveTask, hideSubtasks, sortField, onDbError }: NarrowTerminalProps) {
+export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, heightReduction, onSelectTask, onHighlightTask, onHighlightColumn, onMoveTask, hideSubtasks, sortField, pendingFocusTaskId: pendingFocusTaskIdProp, onDbError }: NarrowTerminalProps) {
   const db = useDb()
   const { tasksByStatus, readyIds, blockedIds, dbError, refetch } = useBoard(db, boardId, filters, sortField)
 
@@ -76,6 +79,13 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
 
   // Track a task that was just moved so we can follow it with the cursor after re-render
   const pendingFocusTaskId = useRef<string | null>(null)
+
+  // Accept external focus requests (e.g. after task creation)
+  useEffect(() => {
+    if (pendingFocusTaskIdProp) {
+      pendingFocusTaskId.current = pendingFocusTaskIdProp
+    }
+  }, [pendingFocusTaskIdProp])
   const tabSelectRef = useRef<TabSelectRenderable>(null)
 
   // Sync useNavigation's selectedColumn → tab-select when changed externally (e.g. pendingFocus)
@@ -106,6 +116,11 @@ export function NarrowTerminal({ boardId, filters, focusTaskId, inputActive, hei
   useEffect(() => {
     onHighlightTask?.(highlightedTask)
   }, [highlightedTask, onHighlightTask])
+
+  // Report current column (lane) to parent when it changes
+  useEffect(() => {
+    onHighlightColumn?.(VISIBLE_STATUSES[nav.selectedColumn])
+  }, [nav.selectedColumn, onHighlightColumn])
 
   // Keyboard handler — same as Board but also handles enter for selection
   useActiveKeyboard((event: KeyEvent) => {

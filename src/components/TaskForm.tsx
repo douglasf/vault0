@@ -22,6 +22,8 @@ export interface TaskFormProps {
   task?: Task
   /** When creating a subtask, the parent task's title (for display) */
   parentTitle?: string
+  /** Default status for the new task (defaults to "backlog") */
+  initialStatus?: Status
   onSubmit: (data: TaskFormData) => void
   onCancel: () => void
 }
@@ -54,12 +56,12 @@ function cycleOption<T>(options: readonly T[], current: T, delta: 1 | -1): T {
  * for priority, type, and (in create mode) status. Tab/Shift+Tab navigates
  * between fields; Enter advances or submits.
  */
-export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFormProps) {
+export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onCancel }: TaskFormProps) {
   const titleRef = useRef<InputRenderable>(null)
   const descRef = useRef<TextareaRenderable>(null)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
-  const [status, setStatus] = useState<Status>((task?.status as Status) || "backlog")
+  const [status, setStatus] = useState<Status>((task?.status as Status) || initialStatus || "backlog")
   const [focusField, setFocusField] = useState<FormField>("title")
 
   const fields: FormField[] = mode === "create"
