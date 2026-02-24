@@ -109,6 +109,8 @@ const shortcutSections: readonly ShortcutSection[] = [
   {
     title: "General",
     shortcuts: [
+      ["R (Shift+r)", "Create a new release from done tasks"],
+      ["W (Shift+w)", "View releases (archives)"],
       ["t", "Open theme picker (select theme + dark/light)"],
       ["?", "Show / close this help"],
       ["q", "Quit application"],

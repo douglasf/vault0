@@ -1,7 +1,7 @@
 import type { Vault0Database } from "./connection.js"
-import type { Status, Task, TaskDetail, TaskCard } from "../lib/types.js"
-import { tasks, taskDependencies, taskStatusHistory, boards } from "./schema.js"
-import { and, eq, isNull, or, sql, inArray } from "drizzle-orm"
+import type { Status, Task, TaskDetail, TaskCard, Release, ReleaseWithTaskCount, VersionInfo } from "../lib/types.js"
+import { tasks, taskDependencies, taskStatusHistory, boards, releases } from "./schema.js"
+import { and, eq, isNull, or, sql, inArray, desc } from "drizzle-orm"
 import { wouldCreateCycle } from "../lib/dag.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 
@@ -35,7 +35,7 @@ export function getTasksByStatus(db: Vault0Database, boardId: string): Map<Statu
   const result = db
     .select()
     .from(tasks)
-    .where(and(eq(tasks.boardId, boardId), isNull(tasks.archivedAt)))
+    .where(and(eq(tasks.boardId, boardId), isNull(tasks.archivedAt), isNull(tasks.releaseId)))
     .all()
 
   const grouped = new Map<Status, Task[]>()
@@ -62,10 +62,13 @@ export function getTasksByStatus(db: Vault0Database, boardId: string): Map<Statu
  * - isBlocked: has at least one incomplete dependency
  * - parentTitle: title of the parent task (for subtasks)
  */
-export function getTaskCards(db: Vault0Database, boardId: string, opts?: { includeArchived?: boolean }): TaskCard[] {
+export function getTaskCards(db: Vault0Database, boardId: string, opts?: { includeArchived?: boolean; includeReleased?: boolean }): TaskCard[] {
   const conditions = [eq(tasks.boardId, boardId)]
   if (!opts?.includeArchived) {
     conditions.push(isNull(tasks.archivedAt))
+  }
+  if (!opts?.includeReleased) {
+    conditions.push(isNull(tasks.releaseId))
   }
 
   const allTasks = db
@@ -585,4 +588,214 @@ export function getStatusHistory(db: Vault0Database, taskId: string) {
     .where(eq(taskStatusHistory.taskId, taskId))
     .orderBy(sql`${taskStatusHistory.changedAt} DESC`)
     .all()
+}
+
+// ── Release Queries ─────────────────────────────────────────────────
+
+/**
+ * Get all releases for a board, newest first.
+ * Each release includes a count of associated tasks.
+ */
+export function getReleases(db: Vault0Database, boardId: string): ReleaseWithTaskCount[] {
+  const allReleases = db
+    .select()
+    .from(releases)
+    .where(eq(releases.boardId, boardId))
+    .orderBy(desc(releases.createdAt), desc(releases.id))
+    .all()
+
+  return allReleases.map((release) => {
+    const taskCount = db
+      .select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(eq(tasks.releaseId, release.id))
+      .get()
+
+    return {
+      ...release,
+      taskCount: taskCount?.count ?? 0,
+    }
+  })
+}
+
+/**
+ * Get a single release by ID.
+ */
+export function getRelease(db: Vault0Database, releaseId: string): Release | undefined {
+  return db.select().from(releases).where(eq(releases.id, releaseId)).get()
+}
+
+/**
+ * Get all tasks belonging to a release.
+ */
+export function getReleaseTasks(db: Vault0Database, releaseId: string): Task[] {
+  return db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.releaseId, releaseId))
+    .all()
+}
+
+/**
+ * Validate that all selected top-level tasks and their subtasks are done.
+ * Returns an array of error messages (empty if valid).
+ */
+export function validateReleaseTasks(db: Vault0Database, taskIds: string[]): string[] {
+  const errors: string[] = []
+  for (const taskId of taskIds) {
+    const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+    if (!task) continue
+    if (task.status !== "done") {
+      errors.push(`Task "${task.title}" has status ${task.status} — all work must be complete`)
+    }
+    const subtasks = db
+      .select()
+      .from(tasks)
+      .where(and(eq(tasks.parentId, taskId), isNull(tasks.archivedAt)))
+      .all()
+    for (const sub of subtasks) {
+      if (sub.status !== "done") {
+        errors.push(`Task "${task.title}" has subtask "${sub.title}" with status ${sub.status} — all work must be complete`)
+      }
+    }
+  }
+  return errors
+}
+
+/**
+ * Create a release and assign selected top-level tasks (and their subtasks) to it.
+ * Returns the created release.
+ */
+export function createRelease(
+  db: Vault0Database,
+  data: {
+    boardId: string
+    name: string
+    description?: string
+    versionInfo?: VersionInfo
+    taskIds: string[]
+  },
+): Release {
+  return db.transaction((tx) => {
+    const release = tx
+      .insert(releases)
+      .values({
+        boardId: data.boardId,
+        name: data.name,
+        description: data.description,
+        versionInfo: data.versionInfo,
+      })
+      .returning()
+      .get()
+
+    // Assign selected tasks and their subtasks to the release
+    for (const taskId of data.taskIds) {
+      tx.update(tasks)
+        .set({ releaseId: release.id, updatedAt: new Date() })
+        .where(eq(tasks.id, taskId))
+        .run()
+
+      // Also include all subtasks of this task
+      const subtasks = tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(eq(tasks.parentId, taskId), isNull(tasks.archivedAt)))
+        .all()
+      for (const sub of subtasks) {
+        tx.update(tasks)
+          .set({ releaseId: release.id, updatedAt: new Date() })
+          .where(eq(tasks.id, sub.id))
+          .run()
+      }
+    }
+
+    return release
+  })
+}
+
+/**
+ * Get only top-level tasks (no subtasks) belonging to a release.
+ */
+export function getReleaseTopLevelTasks(db: Vault0Database, releaseId: string): Task[] {
+  return db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.releaseId, releaseId), isNull(tasks.parentId)))
+    .all()
+}
+
+/**
+ * Get subtasks of a specific task within a release.
+ */
+export function getReleaseTaskSubtasks(db: Vault0Database, taskId: string): Task[] {
+  return db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.parentId, taskId))
+    .all()
+}
+
+/**
+ * Delete a release record and restore all its tasks to the board.
+ * Sets releaseId = null on all tasks (and subtasks) in the release,
+ * then deletes the release record itself.
+ * Returns the number of tasks restored.
+ */
+export function deleteRelease(db: Vault0Database, releaseId: string): number {
+  return db.transaction((tx) => {
+    const releaseTasks = tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.releaseId, releaseId))
+      .all()
+
+    for (const task of releaseTasks) {
+      tx.update(tasks)
+        .set({ releaseId: null, updatedAt: new Date() })
+        .where(eq(tasks.id, task.id))
+        .run()
+    }
+
+    tx.delete(releases)
+      .where(eq(releases.id, releaseId))
+      .run()
+
+    return releaseTasks.length
+  })
+}
+
+/**
+ * Restore a task from a release back to the main board.
+ * Sets releaseId to null — the task keeps its original status.
+ */
+export function restoreTaskFromRelease(db: Vault0Database, taskId: string): void {
+  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (!task) throw new Error(`Task ${taskId} not found`)
+  if (!task.releaseId) throw new Error(`Task ${taskId} is not in a release`)
+
+  db.update(tasks)
+    .set({ releaseId: null, updatedAt: new Date() })
+    .where(eq(tasks.id, taskId))
+    .run()
+}
+
+/**
+ * Restore all tasks from a release back to the main board.
+ * Returns the number of tasks restored.
+ */
+export function restoreAllFromRelease(db: Vault0Database, releaseId: string): number {
+  const releaseTasks = db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.releaseId, releaseId))
+    .all()
+
+  for (const task of releaseTasks) {
+    db.update(tasks)
+      .set({ releaseId: null, updatedAt: new Date() })
+      .where(eq(tasks.id, task.id))
+      .run()
+  }
+
+  return releaseTasks.length
 }

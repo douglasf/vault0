@@ -1,5 +1,5 @@
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm"
-import type { boards, tasks, taskDependencies, taskStatusHistory } from "../db/schema.js"
+import type { boards, tasks, taskDependencies, taskStatusHistory, releases } from "../db/schema.js"
 
 export type Board = InferSelectModel<typeof boards>
 export type NewBoard = InferInsertModel<typeof boards>
@@ -7,6 +7,8 @@ export type Task = InferSelectModel<typeof tasks>
 export type NewTask = InferInsertModel<typeof tasks>
 export type TaskDependency = InferSelectModel<typeof taskDependencies>
 export type TaskStatusHistoryEntry = InferSelectModel<typeof taskStatusHistory>
+export type Release = InferSelectModel<typeof releases>
+export type NewRelease = InferInsertModel<typeof releases>
 
 export type Status = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled"
 export type Priority = "critical" | "high" | "normal" | "low"
@@ -39,4 +41,14 @@ export type Filters = {
   blockedOnly?: boolean
   search?: string
   showArchived?: boolean
+}
+
+export type VersionInfo = {
+  file: string
+  oldVersion: string
+  newVersion: string
+}
+
+export type ReleaseWithTaskCount = Release & {
+  taskCount: number
 }

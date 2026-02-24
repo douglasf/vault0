@@ -89,6 +89,25 @@ UPDATE \`tasks\` SET \`source\` = 'opencode-plan' WHERE \`source\` = 'plan';`,
     sql: `-- Add task type column (feature, bug, analysis). Nullable — existing tasks have no type.
 ALTER TABLE \`tasks\` ADD COLUMN \`type\` text;`,
   },
+  {
+    tag: "0003_add_releases",
+    sql: `-- Create releases table for grouping completed tasks into releases.
+CREATE TABLE IF NOT EXISTS \`releases\` (
+\t\`id\` text PRIMARY KEY NOT NULL,
+\t\`board_id\` text NOT NULL,
+\t\`name\` text NOT NULL,
+\t\`description\` text,
+\t\`version_info\` text,
+\t\`created_at\` integer NOT NULL,
+\tFOREIGN KEY (\`board_id\`) REFERENCES \`boards\`(\`id\`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS \`idx_releases_board\` ON \`releases\` (\`board_id\`);
+--> statement-breakpoint
+ALTER TABLE \`tasks\` ADD COLUMN \`release_id\` text REFERENCES \`releases\`(\`id\`);
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS \`idx_tasks_release\` ON \`tasks\` (\`release_id\`);`,
+  },
 ]
 
 // ── Migration Runner ────────────────────────────────────────────────

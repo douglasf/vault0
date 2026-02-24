@@ -35,6 +35,7 @@ export const tasks = sqliteTable("tasks", {
   }).notNull().default("manual"),
   sourceRef: text("source_ref"),
   tags: text("tags", { mode: "json" }).$type<string[]>().default([]),
+  releaseId: text("release_id").references(() => releases.id),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
@@ -44,6 +45,20 @@ export const tasks = sqliteTable("tasks", {
   index("idx_tasks_parent").on(table.parentId),
   index("idx_tasks_priority").on(table.priority),
   index("idx_tasks_source").on(table.source),
+  index("idx_tasks_release").on(table.releaseId),
+])
+
+// ── Releases ────────────────────────────────────────────────────────
+
+export const releases = sqliteTable("releases", {
+  id: text("id").primaryKey().$defaultFn(() => ulid()),
+  boardId: text("board_id").notNull().references(() => boards.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  versionInfo: text("version_info", { mode: "json" }).$type<{ file: string; oldVersion: string; newVersion: string }>(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (table) => [
+  index("idx_releases_board").on(table.boardId),
 ])
 
 // ── Task Dependencies ───────────────────────────────────────────────
@@ -77,12 +92,19 @@ export const taskStatusHistory = sqliteTable("task_status_history", {
 
 export const boardsRelations = relations(boards, ({ many }) => ({
   tasks: many(tasks),
+  releases: many(releases),
+}))
+
+export const releasesRelations = relations(releases, ({ one, many }) => ({
+  board: one(boards, { fields: [releases.boardId], references: [boards.id] }),
+  tasks: many(tasks),
 }))
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
   board: one(boards, { fields: [tasks.boardId], references: [boards.id] }),
   parent: one(tasks, { fields: [tasks.parentId], references: [tasks.id], relationName: "subtasks" }),
   subtasks: many(tasks, { relationName: "subtasks" }),
+  release: one(releases, { fields: [tasks.releaseId], references: [releases.id] }),
   dependsOn: many(taskDependencies, { relationName: "taskDeps" }),
   dependedOnBy: many(taskDependencies, { relationName: "reverseDeps" }),
   statusHistory: many(taskStatusHistory),

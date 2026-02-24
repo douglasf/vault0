@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { useRenderer, useTerminalDimensions } from "@opentui/react"
 import type { KeyEvent } from "@opentui/core"
 import type { Vault0Database } from "../db/connection.js"
@@ -16,6 +16,8 @@ import { TextFilterBar } from "./TextFilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
 import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
+import { CreateRelease } from "./CreateRelease.js"
+import { ReleasesView } from "./ReleasesView.js"
 import { ErrorBanner } from "./ErrorBanner.js"
 import { theme, toggleAppearance, getAppearance, getActiveThemeName } from "../lib/theme.js"
 import { saveGlobalConfig } from "../lib/config.js"
@@ -26,19 +28,21 @@ import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { Task, Status, SortField } from "../lib/types.js"
 import type { DbError } from "../hooks/useBoard.js"
-import { getBoards, getTaskCards } from "../db/queries.js"
+import { getBoards, getTaskCards, getReleases, getReleaseTopLevelTasks, getReleaseTaskSubtasks, createRelease, restoreTaskFromRelease, restoreAllFromRelease, deleteRelease } from "../db/queries.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { SORT_FIELDS } from "../lib/constants.js"
+import { detectVersionFiles, writeVersion } from "../lib/version-detect.js"
 
 export interface AppProps {
   db: Vault0Database
   dbPath: string
+  repoRoot: string
 }
 
-export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done" | "theme-picker"
+export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done" | "theme-picker" | "create-release"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
-const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter", "theme-picker", "create", "edit"])
+const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter", "theme-picker", "create", "edit", "create-release"])
 
 // Layout thresholds
 const MIN_COLS_NARROW = 80
@@ -57,7 +61,7 @@ export interface AppState {
   pendingFocusTaskId?: string
 }
 
-export function App({ db, dbPath }: AppProps) {
+export function App({ db, dbPath, repoRoot }: AppProps) {
   const renderer = useRenderer()
   const { width: terminalColumns, height: terminalRows } = useTerminalDimensions()
   const [state, setState] = useState<AppState>({
@@ -159,7 +163,7 @@ export function App({ db, dbPath }: AppProps) {
   const isModalOverlay = MODAL_OVERLAY_MODES.has(state.uiMode)
 
   // Board-like modes where the board/narrow terminal is visible
-  const isBoardVisible = state.uiMode === "board" || state.uiMode === "text-filter" || state.uiMode === "filter" || isModalOverlay
+  const isBoardVisible = (state.uiMode === "board" || state.uiMode === "text-filter" || state.uiMode === "filter" || isModalOverlay) && state.uiMode !== "releases"
 
   // App-level input is active only in board mode (not during overlays).
   const appInputActive = state.uiMode === "board"
@@ -239,6 +243,10 @@ export function App({ db, dbPath }: AppProps) {
       setPreviewVisible((prev) => !prev)
     } else if (input === "t") {
       setState((prev) => ({ ...prev, uiMode: "theme-picker" }))
+    } else if (input === "R") {
+      setState((prev) => ({ ...prev, uiMode: "create-release" }))
+    } else if (input === "W") {
+      setState((prev) => ({ ...prev, uiMode: "releases" }))
     } else if (input === "q") {
       renderer.destroy()
     }
@@ -471,6 +479,66 @@ export function App({ db, dbPath }: AppProps) {
             onCancel={() => {
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }}
+          />
+        )}
+
+        {state.uiMode === "create-release" && (
+          <CreateRelease
+            doneTasks={
+              state.currentBoardId
+                ? getTaskCards(db, state.currentBoardId).filter((c) => c.status === "done" && c.parentId === null)
+                : []
+            }
+            allBoardTasks={
+              state.currentBoardId
+                ? getTaskCards(db, state.currentBoardId)
+                : []
+            }
+            versionFiles={detectVersionFiles(repoRoot)}
+            onSubmit={(data) => {
+              if (state.currentBoardId) {
+                // Write version if bump was requested
+                if (data.versionBump) {
+                  writeVersion(data.versionBump.path, data.versionBump.file, data.versionBump.newVersion)
+                }
+                createRelease(db, {
+                  boardId: state.currentBoardId,
+                  name: data.name,
+                  description: data.description || undefined,
+                  versionInfo: data.versionBump
+                    ? { file: data.versionBump.file, oldVersion: data.versionBump.oldVersion, newVersion: data.versionBump.newVersion }
+                    : undefined,
+                  taskIds: data.taskIds,
+                })
+                showToast(`Release "${data.name}" created`)
+              }
+              setState((prev) => ({ ...prev, uiMode: "board" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+          />
+        )}
+
+        {state.uiMode === "releases" && (
+          <ReleasesView
+            releases={state.currentBoardId ? getReleases(db, state.currentBoardId) : []}
+            getReleaseTasks={(releaseId) => getReleaseTopLevelTasks(db, releaseId)}
+            getTaskSubtasks={(taskId) => getReleaseTaskSubtasks(db, taskId)}
+            onRestoreTask={(taskId) => {
+              restoreTaskFromRelease(db, taskId)
+              setState((prev) => ({ ...prev }))
+            }}
+            onRestoreAll={(releaseId) => {
+              const count = restoreAllFromRelease(db, releaseId)
+              showToast(`Restored ${count} task${count !== 1 ? "s" : ""} to board`)
+              setState((prev) => ({ ...prev }))
+            }}
+            onDeleteRelease={(releaseId) => {
+              const count = deleteRelease(db, releaseId)
+              showToast(`Deleted release, restored ${count} task${count !== 1 ? "s" : ""} to board`)
+              setState((prev) => ({ ...prev }))
+            }}
+            onBack={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+            inputActive={state.uiMode === "releases"}
           />
         )}
       </box>

@@ -78,7 +78,7 @@ describe("runEmbeddedMigrations", () => {
 
     const hashes = getAppliedHashes(sqlite)
     // There are 3 migrations in the embedded array
-    expect(hashes).toHaveLength(3)
+    expect(hashes).toHaveLength(4)
     // Each hash should be a 64-char hex string (SHA-256)
     for (const hash of hashes) {
       expect(hash).toMatch(/^[0-9a-f]{64}$/)
@@ -96,7 +96,7 @@ describe("runEmbeddedMigrations", () => {
     const hashesAfterSecond = getAppliedHashes(sqlite)
 
     expect(hashesAfterSecond).toEqual(hashesAfterFirst)
-    expect(hashesAfterSecond).toHaveLength(3)
+    expect(hashesAfterSecond).toHaveLength(4)
   })
 
   test("statement-breakpoint splitting works (multiple SQL statements per migration)", () => {
@@ -238,20 +238,22 @@ describe("migration error handling", () => {
       .prepare('SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY id')
       .all() as { id: number; hash: string; created_at: number }[]
 
-    // Should have exactly 3 migrations in order
-    expect(rows).toHaveLength(3)
+    // Should have exactly 4 migrations in order
+    expect(rows).toHaveLength(4)
 
-    // IDs should be sequential (1, 2, 3)
-    expect(rows[0].id).toBeLessThan(rows[1].id)
-    expect(rows[1].id).toBeLessThan(rows[2].id)
+    // IDs should be sequential
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].id).toBeLessThan(rows[i].id)
+    }
 
     // Timestamps should be non-decreasing (applied in order)
-    expect(rows[0].created_at).toBeLessThanOrEqual(rows[1].created_at)
-    expect(rows[1].created_at).toBeLessThanOrEqual(rows[2].created_at)
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].created_at).toBeLessThanOrEqual(rows[i].created_at)
+    }
 
     // All hashes should be distinct
     const hashes = rows.map((r) => r.hash)
-    expect(new Set(hashes).size).toBe(3)
+    expect(new Set(hashes).size).toBe(4)
   })
 
   test("migration hashes are deterministic (SHA-256 of SQL content)", () => {

@@ -300,7 +300,7 @@ async function main() {
       },
     })
 
-    createRoot(renderer).render(<App db={db} dbPath={dbPath} />)
+    createRoot(renderer).render(<App db={db} dbPath={dbPath} repoRoot={repoRoot} />)
   } catch (error) {
     console.error("\nError starting Vault0:")
 
