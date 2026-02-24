@@ -301,17 +301,13 @@ export function Column({
       flexGrow={fixedWidth ? 0 : 1}
       paddingX={1}
       overflow="hidden"
-      backgroundColor={bgColor}
+      backgroundColor={isActive ? bgColor : theme.bg_2}
     >
       {/* Column header */}
       <box alignItems="center" marginBottom={1}>
         <text
-          attributes={
-            isActive
-              ? TextAttributes.BOLD | TextAttributes.UNDERLINE
-              : TextAttributes.BOLD
-          }
-          fg={isActive ? theme.blue : theme.fg_1}
+          attributes={TextAttributes.BOLD}
+          fg={theme.fg_1}
         >
           {label}
         </text>
