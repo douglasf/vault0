@@ -47,7 +47,7 @@ export function ModalOverlay({
   maxWidth,
   size = "medium",
   title,
-  titleAlignment = "left",
+  titleAlignment = "center",
 }: ModalOverlayProps) {
   const { width, height } = useTerminalDimensions()
   const effectiveMaxWidth = maxWidth ?? SIZE_WIDTHS[size]
@@ -74,16 +74,12 @@ export function ModalOverlay({
     >
       <box
         backgroundColor={toRGBA(theme.bg_1)}
-        border={true}
-        borderStyle="rounded"
-        borderColor={theme.dim_0}
         padding={1}
         width={modalWidth}
         maxHeight={maxModalHeight}
         flexDirection="column"
-        title={title}
-        titleAlignment={titleAlignment}
       >
+        {title ? <text fg={theme.fg_1}>{title}</text> : ""}
         {children}
       </box>
     </box>

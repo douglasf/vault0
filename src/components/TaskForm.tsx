@@ -1,12 +1,12 @@
 import type React from "react"
 import { useState, useRef, useCallback } from "react"
-import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
 import type { InputRenderable, TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, STATUS_LABELS, TASK_TYPE_LABELS, TASK_TYPES, VISIBLE_STATUSES } from "../lib/constants.js"
-import { getPriorityColor, getStatusColor, getTaskTypeColor, theme } from "../lib/theme.js"
+import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, toRGBA } from "../lib/theme.js"
+import { ModalOverlay } from "./ModalOverlay.js"
 
 /** Form data submitted on create or edit */
 export interface TaskFormData {
@@ -150,93 +150,102 @@ export function TaskForm({ mode, task, parentTitle, onSubmit, onCancel }: TaskFo
   const isTitleFocused = focusField === "title"
   const isDescFocused = focusField === "description"
 
+  const fieldBg = toRGBA(theme.bg_0)
+  const fieldFocusedBg = toRGBA(theme.bg_2)
+
+  const modalTitle = mode === "create"
+    ? (parentTitle ? "Create Subtask" : "Create Task")
+    : "Edit Task"
+
   return (
-    <box flexDirection="column" paddingX={2}>
-      <text attributes={TextAttributes.BOLD} fg={theme.blue}>
-        {mode === "create" ? (parentTitle ? "Create Subtask" : "Create Task") : "Edit Task"}
-      </text>
-      {parentTitle && (
-        <text fg={theme.dim_0}>Parent: {parentTitle}</text>
-      )}
+    <ModalOverlay onClose={onCancel} size="large" title={modalTitle}>
+      <box flexDirection="column">
+        {parentTitle && (
+          <text fg={theme.dim_0}>Parent: {parentTitle}</text>
+        )}
 
-      <text> </text>
-      <box flexDirection="row">
-        <text fg={isTitleFocused ? theme.blue : theme.fg_0}>
-          {isTitleFocused ? "\u25B8 " : "  "}Title:{" "}
+        <text> </text>
+        <box
+          border={true}
+          borderStyle="single"
+          borderColor={isTitleFocused ? theme.blue : theme.fg_0}
+          title="Title">
+          <input
+            ref={titleRef}
+            focused={isTitleFocused}
+            value={task?.title?.replace(/\t/g, "    ") || ""}
+            textColor={isTitleFocused ? theme.fg_0 : theme.dim_0}
+            paddingX={1}
+            onSubmit={handleTitleSubmit}
+            flexGrow={1}
+          />
+        </box>
+
+        <text> </text>
+        <box 
+          border={true}
+          borderStyle="single"
+          borderColor={isDescFocused ? theme.blue : theme.fg_0}
+          title="Desription">
+          <textarea
+            ref={descRef}
+            focused={isDescFocused}
+            initialValue={task?.description?.replace(/\t/g, "    ") || ""}
+            textColor={isDescFocused ? theme.fg_0 : theme.dim_0}
+            paddingX={1}
+            wrapMode="word"
+            height={DESC_VIEWPORT}
+            flexGrow={1}
+          />
+        </box>
+
+        <text> </text>
+        <text>
+          <span fg={focusField === "priority" ? theme.blue : theme.fg_0}>
+            {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
+          </span>
+          <span fg={getPriorityColor(priority)}>
+            {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
+          </span>
         </text>
-        <input
-          ref={titleRef}
-          focused={isTitleFocused}
-          value={task?.title?.replace(/\t/g, "    ") || ""}
-          textColor={isTitleFocused ? theme.fg_0 : theme.dim_0}
-          onSubmit={handleTitleSubmit}
-          flexGrow={1}
-        />
+
+        <text> </text>
+        <text>
+          <span fg={focusField === "type" ? theme.blue : theme.fg_0}>
+            {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
+          </span>
+          <span fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
+            {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
+          </span>
+        </text>
+
+        {mode === "create" && (
+          <>
+            <text> </text>
+            <text>
+              <span fg={focusField === "status" ? theme.blue : theme.fg_0}>
+                {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
+              </span>
+              <span fg={getStatusColor(status)}>
+                {"\u25C0 "}{STATUS_LABELS[status]}{" \u25B6"}
+              </span>
+            </text>
+          </>
+        )}
+
+        <text> </text>
+        <text> </text>
+        <text
+          fg={focusField === "submit" ? theme.bg_1 : theme.fg_0}
+          bg={focusField === "submit" ? theme.blue : undefined}
+        >
+          {focusField === "submit" ? "\u25B8 " : "  "}
+          [{mode === "create" ? "Create" : "Save"}]
+        </text>
+
+        <text> </text>
+        <text fg={theme.dim_0}>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</text>
       </box>
-
-      <text> </text>
-      <text fg={isDescFocused ? theme.blue : theme.fg_0}>
-        {isDescFocused ? "\u25B8 " : "  "}Description:
-      </text>
-      <box paddingLeft={2}>
-        <textarea
-          ref={descRef}
-          focused={isDescFocused}
-          initialValue={task?.description?.replace(/\t/g, "    ") || ""}
-          textColor={isDescFocused ? theme.fg_0 : theme.dim_0}
-          wrapMode="word"
-          height={DESC_VIEWPORT}
-          flexGrow={1}
-        />
-      </box>
-
-      <text> </text>
-      <text>
-        <span fg={focusField === "priority" ? theme.blue : theme.fg_0}>
-          {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
-        </span>
-        <span fg={getPriorityColor(priority)}>
-          {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
-        </span>
-      </text>
-
-      <text> </text>
-      <text>
-        <span fg={focusField === "type" ? theme.blue : theme.fg_0}>
-          {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
-        </span>
-        <span fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
-          {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
-        </span>
-      </text>
-
-      {mode === "create" && (
-        <>
-          <text> </text>
-          <text>
-            <span fg={focusField === "status" ? theme.blue : theme.fg_0}>
-              {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
-            </span>
-            <span fg={getStatusColor(status)}>
-              {"\u25C0 "}{STATUS_LABELS[status]}{" \u25B6"}
-            </span>
-          </text>
-        </>
-      )}
-
-      <text> </text>
-      <text> </text>
-      <text
-        fg={focusField === "submit" ? theme.bg_1 : theme.fg_0}
-        bg={focusField === "submit" ? theme.blue : undefined}
-      >
-        {focusField === "submit" ? "\u25B8 " : "  "}
-        [{mode === "create" ? "Create" : "Save"}]
-      </text>
-
-      <text> </text>
-      <text fg={theme.dim_0}>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</text>
-      <text fg={theme.dim_0}>Ctrl: A start  E end  U clear left  K clear right  W del word  Del fwd-del</text>
-    </box>
+    </ModalOverlay>
   )
 }

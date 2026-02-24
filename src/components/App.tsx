@@ -38,7 +38,7 @@ export interface AppProps {
 export type UIMode = "board" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done" | "theme-picker"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
-const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter", "theme-picker"])
+const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter", "theme-picker", "create", "edit"])
 
 // Layout thresholds
 const MIN_COLS_NARROW = 80
