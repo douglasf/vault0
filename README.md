@@ -19,6 +19,8 @@ A local-first, per-repo terminal UI kanban board with hierarchical tasks, depend
 - **Auto-Refresh**: Watches database file for external changes (e.g., CLI in another terminal)
 - **Audit Trail**: Full status history for every task change
 - **Terminal-Aware**: Graceful degradation for narrow terminals, resize support
+- **Custom Themes**: Bundled Selenized and Solarized theme families with light/dark variants
+- **Config File Support**: Global (`~/.config/vault0/config.json`) and per-project (`.vault0/config.json`) configuration with deep merge
 - **OpenCode Integration**: CLI supports `opencode` and `opencode-plan` task sources for AI tool integration
 
 ## Installation
@@ -79,30 +81,7 @@ The CLI outputs plain text by default. Pass `--format json` for machine-readable
 
 ### Keyboard Shortcuts
 
-Press `?` inside the app to see a full list. Quick reference:
-
-| Key | Action |
-|-----|--------|
-| `←`/`→` | Move between columns |
-| `↑`/`↓` | Move between tasks within column |
-| `<`/`>` | Move task to previous/next lane |
-| `Enter` | Open task detail view |
-| `Esc` | Return to board view |
-| `a` | Create new task |
-| `A` | Create subtask under selected task |
-| `s` | Change task status |
-| `p` | Cycle priority: normal → high → critical → low |
-| `d` | Delete task (archive, or permanent if already archived) |
-| `D` | Archive all tasks in Done lane |
-| `e` | Edit task title/description |
-| `+` / `-` | Add/remove dependencies (in detail view) |
-| `f` | Search tasks by title / description (live filter) |
-| `F` | Open filter menu (status, priority, source) |
-| `r` | Toggle "ready only" filter |
-| `b` | Toggle "blocked only" filter |
-| `?` | Show help |
-| `q` | Quit |
-| `Ctrl+C` | Emergency exit |
+Press `?` inside the app to see a full list
 
 ### Data Storage
 
@@ -124,123 +103,12 @@ The `.vault0/` directory is automatically git-ignored on creation and is safe to
 
 | Layer | Technology |
 |-------|-----------|
-| UI Framework | [Ink](https://github.com/vadimdemedes/ink) v6 (React for CLIs) |
+| UI Framework | [@opentui/react](https://opentui.dev/) (React 19 for terminal UIs) |
 | Database | SQLite via [Drizzle ORM](https://orm.drizzle.team/) |
 | Language | TypeScript (strict mode) |
 | Runtime | [Bun](https://bun.sh/) (or Node 20+) |
 | ID Generation | [ULID](https://github.com/ulid/spec) (time-sortable unique IDs) |
 
-### Project Structure
-
-```
-vault0/
-  src/
-    index.tsx                # Entry point (CLI routing, DB init, TUI render)
-    cli/
-      index.ts               # CLI argument parser & command router
-      commands.ts            # Command handlers (add, list, view, edit, move, etc.)
-      format.ts              # Text & JSON output formatters
-    components/
-      App.tsx                # Root component — mode routing & global keys
-      Board.tsx              # 5-column kanban board layout
-      Column.tsx             # Single column with scroll & task cards
-      TaskCard.tsx           # Compact task card (priority, deps, subtasks)
-      TaskDetail.tsx         # Full task detail view with scrolling
-      TaskForm.tsx           # Create/edit form with field navigation
-      StatusPicker.tsx       # Status transition selector
-      DependencyPicker.tsx   # Add dependency with search filtering
-      FilterBar.tsx          # Multi-section filter menu
-      TextFilterBar.tsx      # Inline live text search bar
-      HelpOverlay.tsx        # Paginated keyboard shortcut reference
-      ConfirmDelete.tsx      # Delete confirmation dialog
-      ConfirmArchiveDone.tsx # Archive-done-lane confirmation dialog
-      ErrorBoundary.tsx      # React error boundary for graceful failures
-      EmptyBoard.tsx         # Empty state with onboarding hint
-      NarrowTerminal.tsx     # Single-column fallback for <80-col terminals
-      Header.tsx             # Top bar with git status, board info & filters
-      index.ts               # Barrel export
-    db/
-      schema.ts              # Drizzle ORM schema (boards, tasks, deps, history)
-      connection.ts          # SQLite init with WAL mode & optimal PRAGMAs
-      queries.ts             # All query helpers & mutation functions
-      migrations.ts          # Embedded SQL migrations (works in compiled binary)
-      seed.ts                # Default board seeding on first launch
-      index.ts               # Barrel export
-    hooks/
-      useBoard.ts            # Board data fetching with filter application
-      useNavigation.ts       # 2D grid keyboard navigation state
-      useTaskActions.ts      # Task CRUD mutations (create, update, delete)
-      useFilters.ts          # Filter state management & counting
-      useDbWatcher.ts        # SQLite file watcher for auto-refresh on external changes
-      useTextInput.ts        # Controlled text input with cursor management
-      useGitStatus.ts        # Git branch & working tree status polling
-      index.ts               # Barrel export
-    lib/
-      types.ts               # TypeScript types (inferred from Drizzle schema)
-      constants.ts           # Status/priority labels, visible statuses
-      theme.ts               # Color definitions for priorities & statuses
-      db-context.ts          # React context for database access
-      dag.ts                 # Dependency graph: cycle detection, topo sort
-      index.ts               # Barrel export
-    test-db.ts               # Manual database setup test
-    test-queries.ts          # Manual query & DAG operation tests
-  drizzle/                   # Generated SQL migrations
-  Makefile                   # Build, install, dev commands
-  package.json
-  tsconfig.json
-  drizzle.config.ts
-```
-
-### Data Model
-
-**Boards** — Containers for tasks. Currently single board per repo (multi-board planned).
-
-**Tasks** — Items with status, priority, description, and metadata:
-- **Status**: backlog | todo | in_progress | in_review | done | cancelled
-  > **Note:** Cancelled tasks are hidden from the TUI board (which uses a 5-column kanban layout). To view or filter cancelled tasks, use the CLI: `vault0 task list --status cancelled`.
-- **Priority**: critical | high | normal | low
-- **Source**: manual | todo_md | opencode | opencode-plan | import
-- **Hierarchy**: Tasks can have subtasks via `parentId`
-
-**Dependencies** — Directed acyclic graph (DAG) of task relationships:
-- Prevents cycles with DFS reachability checking before every insert
-- Computes "ready" (all deps done) and "blocked" (any dep incomplete) states
-- Supports transitive dependency/dependent queries
-
-**Status History** — Immutable audit trail of every status transition, with timestamps.
-
-### Key Design Decisions
-
-- **Synchronous SQLite** — All DB operations are sync (Bun's `bun:sqlite`). No async state management complexity. React re-renders trigger fresh queries.
-- **No caching layer** — The DB is local and fast. Queries run on every render for simplicity and guaranteed freshness.
-- **WAL mode** — Write-Ahead Logging for concurrent read safety and durability.
-- **Soft deletes** — Tasks are archived (set `archivedAt`), never hard-deleted. Cascade to subtasks.
-- **ULID primary keys** — Time-sortable, globally unique, no sequence conflicts.
-- **Embedded migrations** — SQL migrations are compiled into the source so they work in both dev mode and standalone binaries.
-
-### Database Migrations
-
-Vault0 uses a **custom embedded migration runner** instead of Drizzle's default filesystem-based migrator. This is necessary because compiled Bun binaries (`bun build --compile`) cannot read migration SQL files from disk at runtime — all code must be self-contained.
-
-#### How It Works
-
-- Migration SQL is stored as string literals in `src/db/migrations.ts` (the `MIGRATIONS` array).
-- Each migration is hashed (SHA-256) and tracked in the `__drizzle_migrations` table — the same table Drizzle's filesystem migrator uses, so the two are **fully compatible**. Migrations applied by either runner are recognized by the other.
-- Migrations are split on Drizzle's `statement-breakpoint` markers and executed statement-by-statement.
-- An "already exists" safety net catches duplicate DDL errors gracefully, making re-runs idempotent even if hash mismatches occur (e.g., transitioning between migration runners).
-
-#### Adding a New Migration
-
-1. **Modify the schema** in `src/db/schema.ts`
-2. **Generate SQL** — run `bun run db:generate` to create the migration file in `drizzle/`
-3. **Embed the SQL** — copy the generated SQL content into a new entry in the `MIGRATIONS` array in `src/db/migrations.ts`
-4. **Rebuild** — run `make install` to compile the updated binary
-
-#### Conventions
-
-- Migration tags follow Drizzle's naming pattern: `0000_name`, `0001_name`, etc.
-- Use `IF NOT EXISTS` in DDL statements for safety.
-- Multi-statement migrations use Drizzle's `--> statement-breakpoint` delimiter.
 
 ## Development
 
@@ -269,12 +137,15 @@ bun run db:studio         # Open Drizzle Studio (web-based DB browser)
 
 ### Running Tests
 
-Manual test scripts are included for verifying database and query operations:
+Vault0 uses Bun's built-in test runner with real in-memory SQLite databases (no mocks):
 
 ```bash
-bun src/test-db.ts        # Test database setup, CRUD, and migrations
-bun src/test-queries.ts   # Test all query helpers, DAG ops, and edge cases
+bun test                              # Run all tests
+bun test src/test/queries.test.ts     # Run a single test file
+bun test --grep "createTask"          # Run tests matching a pattern
 ```
+
+Test files are located in `src/test/` and cover queries, DAG operations, CLI commands, CLI parsing, formatting, migrations, transaction safety, and smoke tests.
 
 ### TypeScript
 
@@ -285,54 +156,6 @@ bun run typecheck         # or: make typecheck
 ```
 
 > **Note**: `schema.ts` produces 2 expected warnings due to Drizzle ORM's self-referential table pattern (tasks.parentId references tasks.id). These are harmless.
-
-### Building a Standalone Binary
-
-No build step is normally required — Bun loads TypeScript directly. For distribution as a single binary:
-
-```bash
-make build                # builds and signs the binary as ./vault0
-make install              # builds, signs, and installs to ~/.local/bin
-```
-
-Or manually:
-
-```bash
-bun build --compile src/index.tsx --outfile vault0
-codesign --sign - --force vault0    # required on macOS/Apple Silicon
-```
-
-## Future Plans
-
-### Near-term
-
-- [ ] Multi-board support (switch between boards)
-- [ ] Tag autocomplete in task form
-- [ ] Task templates (e.g., "Bug Report" template)
-
-### Medium-term
-
-- [ ] FTS5 full-text search for fast querying
-- [ ] Import/export (JSON, Markdown, CSV)
-- [ ] Undo/redo functionality
-- [ ] Mouse support & drag-drop
-- [ ] Custom themes & color configuration
-- [ ] Automated test suite (Vitest)
-- [ ] Config file support (`vault0.config.json`)
-
-### Long-term
-
-- [ ] Cloud sync (Turso/libSQL backend)
-- [ ] Real-time collaboration
-- [ ] Web UI companion (read-only or synced)
-- [ ] AI integration (auto-prioritization, smart suggestions)
-
-## Known Limitations
-
-- **Single Board**: Only one board per repo currently (multi-board planned)
-- **No Mouse Support**: Keyboard-first design
-- **No Custom Themes**: Single default color scheme
-- **Self-Referential Schema Warning**: TypeScript reports 2 harmless warnings in `schema.ts` (Drizzle ORM limitation with self-referencing foreign keys)
 
 ## Troubleshooting
 
@@ -370,7 +193,7 @@ MIT
 
 ## Acknowledgments
 
-- Built with [Ink](https://github.com/vadimdemedes/ink) (React for CLIs), [Drizzle ORM](https://orm.drizzle.team/), and SQLite
+- Built with [@opentui/react](https://opentui.dev/) (React 19 for terminal UIs), [Drizzle ORM](https://orm.drizzle.team/), and SQLite
 - Named after [Vault 0](https://fallout.fandom.com/wiki/Vault_0) from the Fallout universe
 
 ---
