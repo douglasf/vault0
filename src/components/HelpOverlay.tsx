@@ -279,34 +279,36 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
   const isFiltered = filter.length > 0
 
   return (
-    <ModalOverlay onClose={onClose} size="large">
-      {/* Title bar */}
-      <box justifyContent="space-between" marginBottom={1}>
-        <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>
-          Vault0 — Help
-        </text>
-        {isFiltered && (
-          <text fg={theme.fg_0}>
-            {matchCount}/{totalContentCount} matches
-          </text>
-        )}
-      </box>
-
+    <ModalOverlay onClose={onClose} title="Vault0 — Help" size="large">
+      <text> </text>
       {/* Filter input */}
-      <box flexDirection="row">
-        <text fg={theme.fg_0}>Filter: </text>
+      <box
+        flexDirection="row"
+        border={true}
+        borderStyle="single"
+        borderColor={theme.fg_1}
+        title="Filter"
+      >
         <input
           ref={inputRef}
           focused
           value={filter}
           placeholder="type to filter…"
-          textColor={theme.fg_1}
+          textColor={theme.fg_0}
+          paddingX={1}
           onInput={(value: string) => {
             setFilter(value)
             resetScroll()
           }}
+          flexGrow={1}
         />
       </box>
+
+      {isFiltered ? (
+        <text fg={theme.fg_0}>
+          {matchCount}/{totalContentCount} matches
+        </text>
+      ) : <text> </text> }
 
       {/* Scrollable shortcut list */}
       <scrollbox ref={scrollRef} scrollY flexGrow={1} marginTop={1} height={contentHeight}>
