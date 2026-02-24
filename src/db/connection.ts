@@ -4,6 +4,22 @@ import * as schema from "./schema.js"
 import { existsSync, mkdirSync, appendFileSync } from "node:fs"
 import { join } from "node:path"
 
+/**
+ * Tracks whether the database connection has been closed.
+ * Used as a guard to prevent accessing a closed SQLite handle
+ * during process shutdown (e.g., bun --watch restart), which
+ * can cause a segmentation fault in Bun's native SQLite bindings.
+ */
+let _dbClosed = false
+
+export function isDbClosed(): boolean {
+  return _dbClosed
+}
+
+export function markDbClosed(): void {
+  _dbClosed = true
+}
+
 export function initDatabase(repoRoot: string) {
   const vault0Dir = join(repoRoot, ".vault0")
   const dbPath = join(vault0Dir, "vault0.db")
@@ -18,6 +34,9 @@ export function initDatabase(repoRoot: string) {
   if (!existsSync(gitignorePath)) {
     appendFileSync(gitignorePath, "*\n")
   }
+
+  // Reset close guard (relevant for bun --watch restarts in the same process)
+  _dbClosed = false
 
   // Open SQLite database
   const sqlite = new Database(dbPath)

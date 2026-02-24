@@ -1,4 +1,4 @@
-export { initDatabase, type Vault0Database } from "./connection.js"
+export { initDatabase, isDbClosed, markDbClosed, type Vault0Database } from "./connection.js"
 export { runEmbeddedMigrations } from "./migrations.js"
 export { seedDefaultBoard } from "./seed.js"
 export * from "./schema.js"

@@ -21,9 +21,17 @@ export function useDbWatcher(dbPath: string, onRefresh: () => void): void {
     const dir = dirname(dbPath)
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
     let watcher: FSWatcher | null = null
+    // Suppress events during startup: migrations and seed writes trigger
+    // rapid FS events that overlap with the initial React render, creating
+    // a burst of synchronous DB queries that can crash Bun's runtime.
+    let ready = false
+    const startupTimer = setTimeout(() => { ready = true }, 500)
 
-    // Only fire the callback for database-related file changes
-    const DB_FILE_PATTERN = /vault0\.db(-wal|-shm)?$/
+    // Only fire the callback for meaningful database file changes.
+    // Exclude -shm (shared memory): SQLite reads can update the SHM index,
+    // which would create a watcher → re-render → read → SHM update → watcher
+    // feedback loop that hammers the runtime and can trigger Bun segfaults.
+    const DB_FILE_PATTERN = /vault0\.db(-wal)?$/
 
     const handleChange = (_event: string, filename: string | null) => {
       // Filter: only react to DB file mutations, ignore unrelated files
@@ -31,6 +39,9 @@ export function useDbWatcher(dbPath: string, onRefresh: () => void): void {
       if (filename && !DB_FILE_PATTERN.test(filename)) {
         return
       }
+
+      // Skip events during startup grace period
+      if (!ready) return
 
       // Debounce: a single CLI operation (e.g., `vault0 task add`) produces
       // multiple rapid FS events (WAL write, index update, possible checkpoint).
@@ -59,6 +70,7 @@ export function useDbWatcher(dbPath: string, onRefresh: () => void): void {
     }
 
     return () => {
+      clearTimeout(startupTimer)
       if (debounceTimer) {
         clearTimeout(debounceTimer)
       }

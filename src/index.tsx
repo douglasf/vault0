@@ -3,7 +3,7 @@ import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import React from "react"
 import { App } from "./components/App.js"
-import { initDatabase } from "./db/connection.js"
+import { initDatabase, markDbClosed } from "./db/connection.js"
 import { seedDefaultBoard } from "./db/seed.js"
 import { runCli } from "./cli/index.js"
 import { runEmbeddedMigrations } from "./db/migrations.js"
@@ -270,6 +270,11 @@ async function main() {
         // Checkpoint failure is non-fatal — will retry next interval
       }
     }, WAL_CHECKPOINT_INTERVAL_MS)
+    // Unref the timer so it doesn't keep the process alive during
+    // bun --watch restarts (prevents stale process blocking the new instance)
+    if (typeof walCheckpointTimer === "object" && "unref" in walCheckpointTimer) {
+      walCheckpointTimer.unref()
+    }
 
     // ── Launch OpenTUI renderer ───────────────────────────────────────────
     // OpenTUI handles alternate screen, raw mode, and cleanup automatically.
@@ -279,6 +284,10 @@ async function main() {
       targetFps: 30,
       onDestroy: () => {
         clearInterval(walCheckpointTimer)
+
+        // Mark DB as closed BEFORE closing — prevents in-flight React renders
+        // from accessing the closed handle (which causes Bun segfaults)
+        markDbClosed()
 
         try {
           renderExitScreen()

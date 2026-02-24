@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react"
 import type { Vault0Database } from "../db/connection.js"
+import { isDbClosed } from "../db/connection.js"
 import type { Filters, Status, SortField, TaskCard, Priority } from "../lib/types.js"
 import { getTaskCards } from "../db/queries.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, TASK_TYPE_ORDER, TASK_TYPE_ORDER_NONE } from "../lib/constants.js"
@@ -146,7 +147,17 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters,
   const blockedIds = new Set<string>()
   let dbError: DbError | null = null
 
+  const refetch = useCallback(() => {
+    setVersion((v) => v + 1)
+  }, [])
+
   if (boardId) {
+    // Guard: skip DB queries if the connection has been closed (e.g., during
+    // bun --watch restart). Accessing a closed bun:sqlite handle segfaults.
+    if (isDbClosed()) {
+      return { tasksByStatus, readyIds, blockedIds, dbError: null, version, refetch }
+    }
+
     try {
       let cards = getTaskCards(db, boardId, { includeArchived: filters?.showArchived })
 
@@ -197,10 +208,6 @@ export function useBoard(db: Vault0Database, boardId: string, filters?: Filters,
       )
     }
   }
-
-  const refetch = useCallback(() => {
-    setVersion((v) => v + 1)
-  }, [])
 
   // version is used to force re-renders when refetch is called
   void version
