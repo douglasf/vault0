@@ -7,10 +7,8 @@ import {
   cmdView,
   cmdEdit,
   cmdMove,
-  cmdComplete,
   cmdDelete,
   cmdUnarchive,
-  cmdArchiveDone,
   cmdDepAdd,
   cmdDepRemove,
   cmdDepList,
@@ -45,7 +43,7 @@ export function parseArgs(args: string[]): ParsedArgs {
   // First non-flag arg is the subcommand
   let i = 0
 
-  // Get subcommand (add, list, view, edit, move, complete, delete, dep)
+  // Get subcommand (add, list, view, edit, move, delete, dep)
   if (i < args.length && !args[i].startsWith("--")) {
     subcommand = args[i]
     i++
@@ -159,19 +157,10 @@ function handleTask(args: string[], db: Vault0Database): number {
       result = cmdMove(db, parsed.positional[0] || parsed.flags.id || "", parsed.flags, parsed.format)
       break
 
-    case "complete":
-    case "done":
-      result = cmdComplete(db, parsed.positional[0] || parsed.flags.id || "", parsed.format)
-      break
-
     case "delete":
     case "rm":
     case "archive":
       result = cmdDelete(db, parsed.positional[0] || parsed.flags.id || "", parsed.format)
-      break
-
-    case "archive-done":
-      result = cmdArchiveDone(db, parsed.flags, parsed.format)
       break
 
     case "unarchive":
@@ -273,9 +262,8 @@ Commands:
   view, show    <ID>            View detailed task information
   edit, update  <ID>            Update task metadata
   move, mv      <ID>            Change task status
-  complete, done <ID>           Mark task as done
   delete, rm    <ID>            Delete a task (archive first, hard-delete if already archived)
-  archive-done                  Archive all tasks in Done lane
+
   subtasks, subs <ID>           List subtasks for a task
   dep add       <ID>            Add a dependency
   dep rm        <ID>            Remove a dependency
@@ -309,9 +297,11 @@ Edit Options:
   --priority <level>            New priority
   --type <type>                 New type (feature | bug | analysis, or empty to clear)
   --tags <t1,t2,...>            New tags (replaces existing)
+  --solution <string>           Solution notes (or empty to clear)
 
 Move Options:
   --status <status>             Target status (required)
+  --solution <string>           Solution notes (set when moving to done)
 
 Dependency Options:
   --on <ID>                     Dependency target task ID (required for add/rm)
@@ -328,7 +318,7 @@ Examples:
   vault0 task view abc12345
   vault0 task edit abc12345 --priority critical
   vault0 task move abc12345 --status done
-  vault0 task complete abc12345
+  vault0 task move abc12345 --status done --solution "Fixed by updating the auth config"
   vault0 task delete abc12345
   vault0 task dep add abc12345 --on def67890
   vault0 task dep list abc12345

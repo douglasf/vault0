@@ -7,7 +7,6 @@ import {
   cmdView,
   cmdEdit,
   cmdMove,
-  cmdComplete,
   cmdDelete,
   cmdUnarchive,
   cmdDepAdd,
@@ -673,75 +672,6 @@ describe("cmdMove", () => {
     expect(result.success).toBe(true)
     const parsed = JSON.parse(result.message)
     expect(parsed.status).toBe("todo")
-  })
-})
-
-// ═══════════════════════════════════════════════════════════════════
-// cmdComplete
-// ═══════════════════════════════════════════════════════════════════
-
-describe("cmdComplete", () => {
-  let testDb: TestDb
-
-  beforeEach(() => {
-    testDb = createTestDb()
-  })
-
-  afterEach(() => {
-    closeTestDb(testDb.sqlite)
-  })
-
-  test("marks task as done", () => {
-    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task", status: "in_progress" })
-    const result = cmdComplete(testDb.db, task.id, "text")
-    expect(result.success).toBe(true)
-    expect(result.message).toContain("Task completed")
-    expect(getData(result).status).toBe("done")
-  })
-
-  test("reports parent auto-completion in text format", () => {
-    const parent = createTask(testDb.db, { boardId: testDb.boardId, title: "Parent", status: "in_progress" })
-    const child = createTask(testDb.db, { boardId: testDb.boardId, parentId: parent.id, title: "Only child", status: "in_progress" })
-
-    const result = cmdComplete(testDb.db, child.id, "text")
-    expect(result.success).toBe(true)
-    expect(result.message).toContain("auto-completed")
-    expect(result.message).toContain("Parent")
-  })
-
-  test("reports parent auto-completion in json format", () => {
-    const parent = createTask(testDb.db, { boardId: testDb.boardId, title: "Parent", status: "in_progress" })
-    const child = createTask(testDb.db, { boardId: testDb.boardId, parentId: parent.id, title: "Only child", status: "in_progress" })
-
-    const result = cmdComplete(testDb.db, child.id, "json")
-    expect(result.success).toBe(true)
-    const parsed = JSON.parse(result.message)
-    expect(parsed.parentAutoCompleted).toBeDefined()
-    expect(parsed.parentAutoCompleted.id).toBe(parent.id)
-  })
-
-  test("requires task ID", () => {
-    const result = cmdComplete(testDb.db, "", "text")
-    expect(result.success).toBe(false)
-    expect(result.message).toContain("Task ID is required")
-  })
-
-  test("json format returns task with parentAutoCompleted", () => {
-    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task", status: "in_progress" })
-    const result = cmdComplete(testDb.db, task.id, "json")
-    expect(result.success).toBe(true)
-    const parsed = JSON.parse(result.message)
-    expect(parsed.status).toBe("done")
-    expect(parsed.title).toBe("Task")
-  })
-
-  test("supports partial ID", () => {
-    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task", status: "in_progress" })
-    const suffix = task.id.slice(-8)
-    const result = cmdComplete(testDb.db, suffix, "json")
-    expect(result.success).toBe(true)
-    const parsed = JSON.parse(result.message)
-    expect(parsed.status).toBe("done")
   })
 })
 

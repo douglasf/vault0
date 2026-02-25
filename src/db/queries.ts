@@ -196,7 +196,7 @@ export function createTask(
 export function updateTask(
   db: Vault0Database,
   taskId: string,
-  data: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[] }>,
+  data: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[]; solution: string | null }>,
 ) {
   return db.transaction((tx) => {
     const current = tx.select().from(tasks).where(eq(tasks.id, taskId)).get()

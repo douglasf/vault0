@@ -15,6 +15,13 @@
       "when": 1771685400000,
       "tag": "0001_update_source_enum",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772047288578,
+      "tag": "0002_productive_leader",
+      "breakpoints": true
     }
   ]
 }

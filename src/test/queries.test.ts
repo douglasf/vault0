@@ -238,6 +238,21 @@ describe("updateTask", () => {
       updateTask(testDb.db, task.id, { title: "Nope" })
     }).toThrow("archived")
   })
+
+  test("updates solution field", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task with solution" })
+    expect(task.solution).toBeNull()
+
+    const updated = updateTask(testDb.db, task.id, { solution: "Fixed by updating the config" })
+    expect(updated.solution).toBe("Fixed by updating the config")
+  })
+
+  test("clears solution field when set to null", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task" })
+    updateTask(testDb.db, task.id, { solution: "A solution" })
+    const cleared = updateTask(testDb.db, task.id, { solution: null })
+    expect(cleared.solution).toBeNull()
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════

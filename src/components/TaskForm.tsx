@@ -16,6 +16,7 @@ import { Button } from "./Button.js"
 export interface TaskFormData {
   title: string
   description: string
+  solution: string
   priority: Priority
   status: Status
   type: TaskType | null
@@ -32,7 +33,7 @@ export interface TaskFormProps {
   onCancel: () => void
 }
 
-type FormField = "title" | "description" | "priority" | "type" | "status" | "submit"
+type FormField = "title" | "description" | "solution" | "priority" | "type" | "status" | "submit"
 
 const PRIORITIES: Priority[] = ["low", "normal", "high", "critical"]
 
@@ -63,21 +64,23 @@ function cycleOption<T>(options: readonly T[], current: T, delta: 1 | -1): T {
 export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onCancel }: TaskFormProps) {
   const titleRef = useRef<FormInputHandle>(null)
   const descRef = useRef<TextareaRenderable>(null)
+  const solutionRef = useRef<TextareaRenderable>(null)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
   const [status, setStatus] = useState<Status>((task?.status as Status) || initialStatus || "backlog")
 
   const fields: FormField[] = mode === "create"
     ? ["title", "description", "priority", "type", "status", "submit"]
-    : ["title", "description", "priority", "type", "submit"]
+    : ["title", "description", "solution", "priority", "type", "submit"]
 
   const { focusField, setFocusField, advance, isFocused } = useFormNavigation(fields, "title" as FormField)
 
   const handleFormSubmit = useCallback(() => {
     const titleValue = titleRef.current?.input?.value?.trim() || ""
     const descValue = descRef.current?.editBuffer?.getText() || ""
+    const solutionValue = solutionRef.current?.editBuffer?.getText() || ""
     if (titleValue) {
-      onSubmit({ title: titleValue, description: descValue, priority, status, type: taskType })
+      onSubmit({ title: titleValue, description: descValue, solution: solutionValue, priority, status, type: taskType })
     }
   }, [onSubmit, priority, status, taskType])
 
@@ -139,6 +142,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
   })
 
   const isDescFocused = isFocused("description")
+  const isSolutionFocused = isFocused("solution")
 
   const fieldBg = toRGBA(theme.bg_0)
   const fieldFocusedBg = toRGBA(theme.bg_2)
@@ -183,6 +187,30 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
             flexGrow={1}
           />
         </box>
+
+        {mode === "edit" && (
+          <>
+            <text> </text>
+            <box 
+              border={true}
+              borderStyle="single"
+              borderColor={isSolutionFocused ? theme.blue : theme.fg_0}
+              title="Solution"
+              onMouseDown={() => setFocusField("solution")}>
+              <textarea
+                ref={solutionRef}
+                focused={isSolutionFocused}
+                initialValue={task?.solution?.replace(/\t/g, "    ") || ""}
+                textColor={theme.dim_0}
+                focusedTextColor={theme.fg_1}
+                paddingX={1}
+                wrapMode="word"
+                height={DESC_VIEWPORT}
+                flexGrow={1}
+              />
+            </box>
+          </>
+        )}
 
         <text> </text>
         <text onMouseDown={() => setFocusField("priority")}>

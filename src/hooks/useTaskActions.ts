@@ -1,19 +1,18 @@
 import { useCallback } from "react"
 import type { Vault0Database } from "../db/connection.js"
 import type { Status, Priority, TaskType } from "../lib/types.js"
-import { createTask, updateTask, updateTaskStatus, archiveTask, unarchiveTask, archiveDoneTasks } from "../db/queries.js"
+import { createTask, updateTask, updateTaskStatus, archiveTask, unarchiveTask } from "../db/queries.js"
 import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
 import { recordTaskCreated, recordStatusChange } from "../lib/session-stats.js"
 
 export interface UseTaskActionsResult {
   createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => ReturnType<typeof createTask>
-  updateTaskData: (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null) => ReturnType<typeof updateTask>
+  updateTaskData: (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null, solution?: string | null) => ReturnType<typeof updateTask>
   updateStatus: (taskId: string, newStatus: Status) => void
   cyclePriority: (taskId: string) => void
   deleteTask: (taskId: string) => void
   undeleteTask: (taskId: string) => void
-  archiveDoneLane: (boardId: string) => number
 }
 
 export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
@@ -35,12 +34,13 @@ export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
   )
 
   const updateTaskData = useCallback(
-    (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null) => {
+    (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null, solution?: string | null) => {
       return updateTask(db, taskId, {
         title,
         description,
         priority,
         type: type !== undefined ? type : undefined,
+        solution: solution !== undefined ? solution : undefined,
       })
     },
     [db],
@@ -81,13 +81,6 @@ export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
     [db],
   )
 
-  const archiveDoneLane = useCallback(
-    (boardId: string) => {
-      return archiveDoneTasks(db, boardId)
-    },
-    [db],
-  )
-
   return {
     createNewTask,
     updateTaskData,
@@ -95,6 +88,5 @@ export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
     cyclePriority,
     deleteTask,
     undeleteTask,
-    archiveDoneLane,
   }
 }

@@ -133,6 +133,15 @@ export function formatTaskDetail(detail: TaskDetail): string {
     }
   }
 
+  if (detail.solution) {
+    lines.push(`╠${"─".repeat(78)}╣`)
+    lines.push(`║  Solution:${"".padEnd(66)}║`)
+    const solLines = detail.solution.split("\n")
+    for (const sl of solLines) {
+      lines.push(`║    ${truncateText(sl, 72).padEnd(74)}║`)
+    }
+  }
+
   if (detail.subtasks.length > 0) {
     lines.push(`╠${"─".repeat(78)}╣`)
     lines.push(`║  Subtasks (${detail.subtasks.length}):${"".padEnd(60 - String(detail.subtasks.length).length)}║`)

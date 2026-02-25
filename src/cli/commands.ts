@@ -8,7 +8,6 @@ import {
   updateTaskStatus,
   archiveTask,
   unarchiveTask,
-  archiveDoneTasks,
   getTaskCards,
   getTaskDetail,
   getBoards,
@@ -229,7 +228,7 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
   }
 
   const resolvedId = resolveTaskId(db, taskId)
-  const updates: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[] }> = {}
+  const updates: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[]; solution: string | null }> = {}
 
   if (flags.title) updates.title = flags.title
   if (flags.description !== undefined) updates.description = flags.description
@@ -240,9 +239,12 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
   if (flags.tags !== undefined) {
     updates.tags = flags.tags.split(",").map((t) => t.trim()).filter(Boolean)
   }
+  if (flags.solution !== undefined) {
+    updates.solution = flags.solution || null
+  }
 
   if (Object.keys(updates).length === 0) {
-    return { success: false, message: formatError("No updates specified. Use --title, --description, --priority, --type, or --tags.") }
+    return { success: false, message: formatError("No updates specified. Use --title, --description, --priority, --type, --tags, or --solution.") }
   }
 
   const updated = updateTask(db, resolvedId, updates)
@@ -274,6 +276,11 @@ export function cmdMove(db: Vault0Database, taskId: string, flags: Record<string
 
   const { parentAutoCompleted } = updateTaskStatus(db, resolvedId, newStatus)
 
+  // If a solution was provided, save it on the task
+  if (flags.solution !== undefined) {
+    updateTask(db, resolvedId, { solution: flags.solution || null })
+  }
+
   // Fetch updated task for output
   const task = db.select().from(tasks).where(eq(tasks.id, resolvedId)).get()
 
@@ -282,35 +289,6 @@ export function cmdMove(db: Vault0Database, taskId: string, flags: Record<string
   }
 
   let msg = formatSuccess(`Task [${resolvedId.slice(-8)}] moved to ${newStatus}`)
-  if (parentAutoCompleted) {
-    msg += `\n${formatSuccess(`Parent task [${parentAutoCompleted.id.slice(-8)}] ${parentAutoCompleted.title} auto-completed (all subtasks done)`)}`
-  }
-
-  return {
-    success: true,
-    message: msg,
-    data: task,
-  }
-}
-
-/**
- * vault0 task complete <ID>
- */
-export function cmdComplete(db: Vault0Database, taskId: string, format: OutputFormat): CommandResult {
-  if (!taskId) {
-    return { success: false, message: formatError("Task ID is required. Usage: vault0 task complete <ID>") }
-  }
-
-  const resolvedId = resolveTaskId(db, taskId)
-  const { parentAutoCompleted } = updateTaskStatus(db, resolvedId, "done")
-
-  const task = db.select().from(tasks).where(eq(tasks.id, resolvedId)).get()
-
-  if (format === "json") {
-    return { success: true, message: jsonOutput({ ...task, parentAutoCompleted }), data: task }
-  }
-
-  let msg = formatSuccess(`Task completed: [${resolvedId.slice(-8)}] ${task?.title}`)
   if (parentAutoCompleted) {
     msg += `\n${formatSuccess(`Parent task [${parentAutoCompleted.id.slice(-8)}] ${parentAutoCompleted.title} auto-completed (all subtasks done)`)}`
   }
@@ -504,27 +482,6 @@ export function cmdSubtasks(db: Vault0Database, taskId: string, flags: Record<st
   }
 
   return { success: true, message: formatTaskList(subtasks), data: subtasks }
-}
-
-/**
- * vault0 task archive-done [--board ID]
- */
-export function cmdArchiveDone(db: Vault0Database, flags: Record<string, string>, format: OutputFormat): CommandResult {
-  const boardId = flags.board || getDefaultBoardId(db)
-  const count = archiveDoneTasks(db, boardId)
-
-  if (format === "json") {
-    return { success: true, message: jsonOutput({ archived: count, boardId }), data: { archived: count } }
-  }
-
-  if (count === 0) {
-    return { success: true, message: "No tasks in Done lane to archive." }
-  }
-
-  return {
-    success: true,
-    message: formatSuccess(`Archived ${count} task${count !== 1 ? "s" : ""} from Done lane`),
-  }
 }
 
 /**

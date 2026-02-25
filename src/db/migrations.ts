@@ -109,6 +109,11 @@ ALTER TABLE \`tasks\` ADD COLUMN \`release_id\` text REFERENCES \`releases\`(\`i
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS \`idx_tasks_release\` ON \`tasks\` (\`release_id\`);`,
   },
+  {
+    tag: "0004_add_solution",
+    sql: `-- Add solution field for recording how a task was resolved.
+ALTER TABLE \`tasks\` ADD COLUMN \`solution\` text;`,
+  },
 ]
 
 // ── Migration Runner ────────────────────────────────────────────────

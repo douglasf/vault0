@@ -83,7 +83,6 @@ const shortcutSections: readonly ShortcutSection[] = [
       ["p", "Cycle task priority"],
       ["d", "Delete task (archive, or permanent if already archived)"],
       ["u", "Unarchive task (restore archived task)"],
-      ["D (Shift+d)", "Archive all tasks in Done lane"],
       ["e", "Edit task"],
       ["c", "Copy task ID to clipboard"],
       ["h", "Toggle show/hide all subtasks"],

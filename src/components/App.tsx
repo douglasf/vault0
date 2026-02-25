@@ -16,7 +16,6 @@ import { FilterBar } from "./FilterBar.js"
 import { TextFilterBar } from "./TextFilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
-import { ConfirmArchiveDone } from "./ConfirmArchiveDone.js"
 import { CreateRelease } from "./CreateRelease.js"
 import { ReleasesView } from "./ReleasesView.js"
 import { ErrorBanner } from "./ErrorBanner.js"
@@ -42,10 +41,10 @@ export interface AppProps {
   repoRoot: string
 }
 
-export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "confirm-archive-done" | "theme-picker" | "create-release"
+export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "theme-picker" | "create-release"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
-const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "confirm-archive-done", "status-picker", "filter", "theme-picker", "create", "edit", "create-release"])
+const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "status-picker", "filter", "theme-picker", "create", "edit", "create-release"])
 
 // Layout thresholds
 const MIN_COLS_NARROW = 80
@@ -187,14 +186,6 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
       if (task && task.archivedAt !== null) {
         actions.undeleteTask(task.id)
         forceRefresh()
-      }
-    } else if (input === "D") {
-      // Archive all tasks in the Done lane
-      if (state.currentBoardId) {
-        const doneCards = getTaskCards(db, state.currentBoardId).filter((c) => c.status === "done")
-        if (doneCards.length > 0) {
-          setState((prev) => ({ ...prev, uiMode: "confirm-archive-done" }))
-        }
       }
     } else if (input === "s") {
       const task = highlightedTaskRef.current
@@ -396,7 +387,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             task={state.selectedTask}
             onSubmit={(data) => {
               if (state.selectedTask) {
-                actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority, data.type)
+                actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority, data.type, data.solution || null)
                 showToast("Task updated", `Title: ${data.title}`)
               }
               setState((prev) => ({ ...prev, uiMode: "board" }))
@@ -468,24 +459,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
           />
         )}
 
-        {state.uiMode === "confirm-archive-done" && (
-          <ConfirmArchiveDone
-            doneCount={
-              state.currentBoardId
-                ? getTaskCards(db, state.currentBoardId).filter((c) => c.status === "done").length
-                : 0
-            }
-            onConfirm={() => {
-              if (state.currentBoardId) {
-                actions.archiveDoneLane(state.currentBoardId)
-              }
-              setState((prev) => ({ ...prev, uiMode: "board" }))
-            }}
-            onCancel={() => {
-              setState((prev) => ({ ...prev, uiMode: "board" }))
-            }}
-          />
-        )}
+
 
         {state.uiMode === "create-release" && (
           <CreateRelease

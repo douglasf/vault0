@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { parseArgs, runCli } from "../cli/index.js"
-import { cmdView, cmdEdit, cmdComplete } from "../cli/commands.js"
+import { cmdView, cmdEdit, cmdMove } from "../cli/commands.js"
 import { createTestDb, closeTestDb, type TestDb } from "./helpers.js"
 import { tasks } from "../db/schema.js"
 
@@ -50,11 +50,6 @@ describe("parseArgs", () => {
     test("extracts 'dep' subcommand", () => {
       const result = parseArgs(["dep"])
       expect(result.subcommand).toBe("dep")
-    })
-
-    test("extracts 'archive-done' subcommand", () => {
-      const result = parseArgs(["archive-done"])
-      expect(result.subcommand).toBe("archive-done")
     })
 
     test("extracts 'unarchive' subcommand", () => {
@@ -492,8 +487,8 @@ describe("resolveTaskId (via commands)", () => {
     expect(data.title).toBe("Updated title")
   })
 
-  test("resolveTaskId works through cmdComplete with suffix", () => {
-    const result = cmdComplete(testDb.db, "FFF333444", "json")
+  test("resolveTaskId works through cmdMove with suffix", () => {
+    const result = cmdMove(testDb.db, "FFF333444", { status: "done" }, "json")
     expect(result.success).toBe(true)
     const data = JSON.parse(result.message)
     expect(data.id).toBe(taskId2)

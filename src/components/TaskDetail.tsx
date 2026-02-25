@@ -371,6 +371,13 @@ function buildSections(detail: TaskDetailType): LineData[] {
     lines.push({ type: "markdown", value: detail.description })
   }
 
+  // Solution
+  if (detail.solution) {
+    lines.push({ type: "blank" })
+    lines.push({ type: "heading", label: "Solution" })
+    lines.push({ type: "markdown", value: detail.solution })
+  }
+
   // Dependencies
   if (detail.dependsOn.length > 0) {
     lines.push({ type: "blank" })

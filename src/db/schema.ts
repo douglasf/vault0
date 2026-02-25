@@ -36,6 +36,7 @@ export const tasks = sqliteTable("tasks", {
   sourceRef: text("source_ref"),
   tags: text("tags", { mode: "json" }).$type<string[]>().default([]),
   releaseId: text("release_id").references(() => releases.id),
+  solution: text("solution"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
