@@ -92,6 +92,7 @@ function getRowOffset(index: number, orphanParentShownFor: Set<string>, tasks: T
  * Calculate the rendered height of a specific task row.
  */
 function getRowHeight(index: number, orphanParentShownFor: Set<string>, tasks: TaskCardType[]): number {
+  if (index < 0 || index >= tasks.length) return 1
   return orphanParentShownFor.has(tasks[index].id) ? 2 : 1
 }
 
@@ -197,8 +198,9 @@ export function Column({
     const SCROLL_BUFFER = 3
 
     const sb = scrollRef.current
-    const rowTop = getRowOffset(selectedRow, orphanParentShownFor, tasks)
-    const rowH = getRowHeight(selectedRow, orphanParentShownFor, tasks)
+    const clampedRow = Math.min(selectedRow, tasks.length - 1)
+    const rowTop = getRowOffset(clampedRow, orphanParentShownFor, tasks)
+    const rowH = getRowHeight(clampedRow, orphanParentShownFor, tasks)
     const rowBottom = rowTop + rowH
     const viewportH = availableHeight
 
