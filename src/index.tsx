@@ -312,6 +312,14 @@ async function main() {
       }
     })
 
+    // Copy-on-select: automatically copy highlighted text to clipboard via OSC 52
+    renderer.on("selection", (selection: { getSelectedText: () => string }) => {
+      const text = selection.getSelectedText()
+      if (text) {
+        renderer.copyToClipboardOSC52(text)
+      }
+    })
+
     createRoot(renderer).render(<App db={db} dbPath={dbPath} repoRoot={repoRoot} />)
   } catch (error) {
     console.error("\nError starting Vault0:")
