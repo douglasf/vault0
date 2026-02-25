@@ -22,7 +22,6 @@ export interface ButtonProps {
  */
 export const Button = memo(function Button({ label, onPress, hotkey, fg, bg }: ButtonProps) {
   useKeyboard(useCallback((event: KeyEvent) => {
-    console.log("Key pressed:", JSON.stringify(event.raw))
     if (!hotkey) return
     const input = event.raw || ""
     if (input === hotkey) {

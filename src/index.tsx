@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { createCliRenderer } from "@opentui/core"
+import { createCliRenderer, ConsolePosition } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import React from "react"
 import { App } from "./components/App.js"
@@ -283,6 +283,10 @@ async function main() {
       useAlternateScreen: true,
       useMouse: true,
       targetFps: 30,
+      consoleOptions: {
+        position: ConsolePosition.BOTTOM,
+        sizePercent: 30,
+      },
       onDestroy: () => {
         clearInterval(walCheckpointTimer)
 
@@ -299,6 +303,13 @@ async function main() {
         sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
         sqlite.close()
       },
+    })
+
+    // Toggle console overlay with § key
+    renderer.keyInput.on("keypress", (key: { raw?: string }) => {
+      if (key.raw === "§") {
+        renderer.console.toggle()
+      }
     })
 
     createRoot(renderer).render(<App db={db} dbPath={dbPath} repoRoot={repoRoot} />)
