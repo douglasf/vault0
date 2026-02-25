@@ -1,5 +1,6 @@
 import type { Vault0Database } from "../db/connection.js"
 import type { OutputFormat } from "./format.js"
+import { errorMessage } from "../lib/format.js"
 import {
   cmdAdd,
   cmdList,
@@ -117,7 +118,7 @@ export function runCli(entity: string, args: string[], db: Vault0Database): numb
     printUsage()
     return 1
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = errorMessage(error)
     console.error(`Error: ${message}`)
     return 1
   }

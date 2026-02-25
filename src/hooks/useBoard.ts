@@ -4,13 +4,8 @@ import { isDbClosed } from "../db/connection.js"
 import type { Filters, Status, SortField, TaskCard, Priority } from "../lib/types.js"
 import { getTaskCards } from "../db/queries.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, TASK_TYPE_ORDER, TASK_TYPE_ORDER_NONE } from "../lib/constants.js"
-
-export type DbErrorKind = "connection" | "corruption" | "locked" | "unknown"
-
-export interface DbError {
-  kind: DbErrorKind
-  message: string
-}
+import type { DbError } from "../lib/db-errors.js"
+import { classifyDbError } from "../lib/db-errors.js"
 
 export interface UseBoardResult {
   tasksByStatus: Map<Status, TaskCard[]>
@@ -109,34 +104,6 @@ function groupByParent(cards: TaskCard[], sortField?: SortField): TaskCard[] {
   }
 
   return result
-}
-
-function classifyDbError(error: unknown): DbError {
-  const msg = error instanceof Error ? error.message : String(error)
-  const lower = msg.toLowerCase()
-
-  if (lower.includes("database is locked") || lower.includes("sqlite_busy")) {
-    return { kind: "locked", message: msg }
-  }
-  if (
-    lower.includes("malformed") ||
-    lower.includes("corrupt") ||
-    lower.includes("not a database") ||
-    lower.includes("disk image is malformed") ||
-    lower.includes("database disk image is malformed")
-  ) {
-    return { kind: "corruption", message: msg }
-  }
-  if (
-    lower.includes("unable to open") ||
-    lower.includes("enoent") ||
-    lower.includes("eacces") ||
-    lower.includes("permission denied") ||
-    lower.includes("no such file")
-  ) {
-    return { kind: "connection", message: msg }
-  }
-  return { kind: "unknown", message: msg }
 }
 
 export function useBoard(db: Vault0Database, boardId: string, filters?: Filters, sortField?: SortField): UseBoardResult {

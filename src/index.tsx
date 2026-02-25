@@ -9,6 +9,7 @@ import { runCli } from "./cli/index.js"
 import { runEmbeddedMigrations } from "./db/migrations.js"
 import { ensureGlobalConfig, loadConfig } from "./lib/config.js"
 import { initTheme } from "./lib/theme.js"
+import { errorMessage } from "./lib/format.js"
 import { renderExitScreen } from "./lib/exit-screen.js"
 import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
@@ -177,7 +178,7 @@ async function main() {
       sqlite.close()
       process.exit(exitCode)
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = errorMessage(error)
       console.error(`Error: ${message}`)
       process.exit(1)
     }

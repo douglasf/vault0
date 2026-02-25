@@ -2,6 +2,7 @@ import React, { memo } from "react"
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import { theme } from "../lib/theme.js"
+import { truncateText } from "../lib/format.js"
 import { useToast } from "../lib/toast-context.js"
 import type { ToastType } from "../lib/toast-context.js"
 
@@ -21,12 +22,6 @@ const MAX_TOAST_WIDTH = 50
 
 /** Max width for the text content (accounting for border + padding + icon) */
 const MAX_TEXT_WIDTH = MAX_TOAST_WIDTH - 6
-
-/** Truncate a string to fit within a max character width, adding ellipsis if needed */
-function truncateText(text: string, maxWidth: number): string {
-  if (text.length <= maxWidth) return text
-  return `${text.slice(0, maxWidth - 1)}…`
-}
 
 // ── Component ───────────────────────────────────────────────────────
 

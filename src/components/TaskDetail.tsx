@@ -2,10 +2,10 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import type { Task, Status, Priority, TaskType, TaskDetail as TaskDetailType } from "../lib/types.js"
+import type { Task, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTaskDetail, addDependency, removeDependency } from "../db/queries.js"
-import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
+import { getStatusLabel, getPriorityLabel, getTypeLabel, formatDate, formatDateTime, isResolvedStatus, errorMessage, truncateText } from "../lib/format.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
@@ -145,7 +145,7 @@ export function TaskDetail({
               addDependency(db, detail.id, depId)
               setDependencyError("")
             } catch (error) {
-              setDependencyError(error instanceof Error ? error.message : "Failed to add dependency")
+              setDependencyError(errorMessage(error))
             }
             setShowDependencyPicker(false)
           }}
@@ -162,7 +162,7 @@ export function TaskDetail({
             height={Math.min(detail.dependsOn.length * 2, 16)}
             showDescription={false}
             options={detail.dependsOn.map((dep) => ({
-              name: `${dep.title.substring(0, 45)} [${STATUS_LABELS[dep.status as Status] || dep.status}]`,
+              name: `${truncateText(dep.title, 45)} [${getStatusLabel(dep.status)}]`,
               description: "",
               value: dep.id,
             }))}
@@ -176,7 +176,7 @@ export function TaskDetail({
                   removeDependency(db, detail.id, option.value)
                   setDependencyError("")
                 } catch (error) {
-                  setDependencyError(error instanceof Error ? error.message : "Failed to remove dependency")
+                  setDependencyError(errorMessage(error))
                 }
               }
               setShowDependencyRemover(false)
@@ -265,7 +265,7 @@ function SectionLine({ line }: { line: LineData }) {
           <text fg={theme.fg_1}>{line.label === "depends_on" ? "  → " : "  ← "}</text>
           <text fg={theme.fg_1}>{line.value}</text>
           <text fg={theme.dim_0}> </text>
-          <text fg={getStatusColor(line.status || "")}>[{STATUS_LABELS[line.status as Status] || line.status}]</text>
+          <text fg={getStatusColor(line.status || "")}>[{getStatusLabel(line.status || "")}]</text>
         </box>
       )
     case "subtask":
@@ -317,20 +317,20 @@ function buildSections(detail: TaskDetailType): LineData[] {
   lines.push({
     type: "field",
     label: "Status",
-    value: STATUS_LABELS[detail.status as Status] || detail.status,
+    value: getStatusLabel(detail.status),
     color: getStatusColor(detail.status),
   })
   lines.push({
     type: "field",
     label: "Priority",
-    value: PRIORITY_LABELS[detail.priority as Priority] || detail.priority,
+    value: getPriorityLabel(detail.priority),
     color: getPriorityColor(detail.priority),
   })
   if (detail.type) {
     lines.push({
       type: "field",
       label: "Type",
-      value: TASK_TYPE_LABELS[detail.type as TaskType] || detail.type,
+      value: getTypeLabel(detail.type) ?? detail.type,
       color: getTaskTypeColor(detail.type),
     })
   }
@@ -358,7 +358,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
   })
 
   // Blocked banner
-  const blockerCount = detail.dependsOn.filter((d) => d.status !== "done" && d.status !== "in_review").length
+  const blockerCount = detail.dependsOn.filter((d) => !isResolvedStatus(d.status)).length
   if (blockerCount > 0) {
     lines.push({ type: "blank" })
     lines.push({ type: "blocked-banner", value: String(blockerCount) })
@@ -418,8 +418,8 @@ function buildSections(detail: TaskDetailType): LineData[] {
     lines.push({ type: "blank" })
     lines.push({ type: "heading", label: "History" })
     for (const h of detail.statusHistory) {
-      const fromLabel = h.fromStatus ? (STATUS_LABELS[h.fromStatus as Status] || h.fromStatus) : "—"
-      const toLabel = STATUS_LABELS[h.toStatus as Status] || h.toStatus
+      const fromLabel = h.fromStatus ? getStatusLabel(h.fromStatus) : "—"
+      const toLabel = getStatusLabel(h.toStatus)
       lines.push({
         type: "history",
         label: formatDateTime(h.changedAt),
@@ -431,21 +431,4 @@ function buildSections(detail: TaskDetailType): LineData[] {
   return lines
 }
 
-// ── Utility functions ───────────────────────────────────────────────
 
-function formatDate(date: Date | string | number | null | undefined): string {
-  if (!date) return "—"
-  const d = date instanceof Date ? date : new Date(date)
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
-}
-
-function formatDateTime(date: Date | string | number | null | undefined): string {
-  if (!date) return "—"
-  const d = date instanceof Date ? date : new Date(date)
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}

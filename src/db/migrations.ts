@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import type { Database } from "bun:sqlite"
+import { errorMessage } from "../lib/format.js"
 
 // ── Embedded Migrations ─────────────────────────────────────────────
 //
@@ -154,7 +155,7 @@ export function runEmbeddedMigrations(sqlite: Database) {
           // transitioning from drizzle's filesystem migrator (which uses
           // different hashes) to embedded migrations. The DDL uses
           // IF NOT EXISTS, but this catch is a safety net.
-          const message = error instanceof Error ? error.message : String(error)
+          const message = errorMessage(error)
           if (message.includes("already exists")) {
             continue
           }

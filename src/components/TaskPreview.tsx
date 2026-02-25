@@ -1,6 +1,6 @@
 import { TextAttributes } from "@opentui/core"
-import type { Task, Priority, Status, TaskType } from "../lib/types.js"
-import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS } from "../lib/constants.js"
+import type { Task } from "../lib/types.js"
+import { getStatusLabel, getPriorityLabel, getTypeLabel } from "../lib/format.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor } from "../lib/theme.js"
 import { theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 
@@ -73,11 +73,11 @@ export function TaskPreview({ task, maxHeight, orientation }: TaskPreviewProps) 
     )
   }
 
-  const priorityLabel = PRIORITY_LABELS[task.priority as Priority] ?? task.priority
+  const priorityLabel = getPriorityLabel(task.priority)
   const priorityColor = getPriorityColor(task.priority)
-  const statusLabel = STATUS_LABELS[task.status as Status] ?? task.status
+  const statusLabel = getStatusLabel(task.status)
   const statusColor = getStatusColor(task.status)
-  const typeLabel = task.type ? (TASK_TYPE_LABELS[task.type as TaskType] ?? task.type) : null
+  const typeLabel = getTypeLabel(task.type)
   const typeColor = task.type ? getTaskTypeColor(task.type) : undefined
 
   const descMaxHeight = getDescriptionMaxHeight(orientation, maxHeight)

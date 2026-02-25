@@ -1,5 +1,6 @@
-import type { Task, TaskCard, TaskDetail, Status, Priority, TaskType, Board } from "../lib/types.js"
-import { STATUS_LABELS, PRIORITY_LABELS, TASK_TYPE_LABELS, TASK_TYPE_INDICATORS } from "../lib/constants.js"
+import type { Task, TaskCard, TaskDetail, TaskType, Board } from "../lib/types.js"
+import { TASK_TYPE_INDICATORS } from "../lib/constants.js"
+import { getStatusLabel, getPriorityLabel, getTypeLabel, truncateText, formatDateISO, isResolvedStatus } from "../lib/format.js"
 
 // ── Output Mode ─────────────────────────────────────────────────────
 
@@ -35,11 +36,6 @@ function statusIcon(status: string): string {
   }
 }
 
-function truncate(str: string, max: number): string {
-  if (str.length <= max) return str
-  return `${str.slice(0, max - 1)}…`
-}
-
 function pad(str: string, len: number): string {
   return str.padEnd(len)
 }
@@ -50,12 +46,12 @@ export function formatTaskRow(task: Task | TaskCard): string {
   const id = task.id.slice(-8)
   const pri = priorityIcon(task.priority)
   const st = statusIcon(task.status)
-  const statusLabel = pad(STATUS_LABELS[task.status as Status] || task.status, 12)
+  const statusLabel = pad(getStatusLabel(task.status), 12)
   const isSubtask = task.parentId !== null
   const prefix = isSubtask ? "  → " : ""
   const typeIndicator = task.type ? ` ${TASK_TYPE_INDICATORS[task.type as TaskType] || ""}` : ""
   const titleMax = isSubtask ? 46 : 50
-  const title = truncate(task.title, titleMax)
+  const title = truncateText(task.title, titleMax)
 
   let extras = ""
   if ("isBlocked" in task && task.isBlocked) extras += " [BLOCKED]"
@@ -63,7 +59,7 @@ export function formatTaskRow(task: Task | TaskCard): string {
     extras += ` [${task.subtaskDone}/${task.subtaskTotal} subtasks]`
   }
   if ("parentTitle" in task && task.parentTitle) {
-    extras += ` (↳ ${truncate(task.parentTitle as string, 20)})`
+    extras += ` (↳ ${truncateText(task.parentTitle as string, 20)})`
   }
 
   return `${id}  ${pri} ${st} ${statusLabel}  ${prefix}${title}${typeIndicator}${extras}`
@@ -111,10 +107,10 @@ export function formatTaskDetail(detail: TaskDetail): string {
   lines.push(`║  Task: ${detail.title.padEnd(68)}║`)
   lines.push(`╠${"═".repeat(78)}╣`)
   lines.push(`║  ID:       ${detail.id.padEnd(64)}║`)
-  lines.push(`║  Status:   ${statusIcon(detail.status)} ${(STATUS_LABELS[detail.status as Status] || detail.status).padEnd(61)}║`)
-  lines.push(`║  Priority: ${priorityIcon(detail.priority)} ${(PRIORITY_LABELS[detail.priority as Priority] || detail.priority).padEnd(61)}║`)
+  lines.push(`║  Status:   ${statusIcon(detail.status)} ${(getStatusLabel(detail.status)).padEnd(61)}║`)
+  lines.push(`║  Priority: ${priorityIcon(detail.priority)} ${(getPriorityLabel(detail.priority)).padEnd(61)}║`)
   if (detail.type) {
-    const typeLabel = TASK_TYPE_LABELS[detail.type as TaskType] || detail.type
+    const typeLabel = getTypeLabel(detail.type) ?? detail.type
     const typeIcon = TASK_TYPE_INDICATORS[detail.type as TaskType] || ""
     lines.push(`║  Type:     ${typeIcon} ${typeLabel.padEnd(62)}║`)
   }
@@ -133,7 +129,7 @@ export function formatTaskDetail(detail: TaskDetail): string {
     lines.push(`║  Description:${"".padEnd(63)}║`)
     const descLines = detail.description.split("\n")
     for (const dl of descLines) {
-      lines.push(`║    ${truncate(dl, 72).padEnd(74)}║`)
+      lines.push(`║    ${truncateText(dl, 72).padEnd(74)}║`)
     }
   }
 
@@ -142,7 +138,7 @@ export function formatTaskDetail(detail: TaskDetail): string {
     lines.push(`║  Subtasks (${detail.subtasks.length}):${"".padEnd(60 - String(detail.subtasks.length).length)}║`)
     for (const st of detail.subtasks) {
       const done = st.status === "done" ? "✓" : "○"
-      lines.push(`║    ${done} ${truncate(st.title, 68).padEnd(71)}║`)
+      lines.push(`║    ${done} ${truncateText(st.title, 68).padEnd(71)}║`)
     }
   }
 
@@ -150,8 +146,8 @@ export function formatTaskDetail(detail: TaskDetail): string {
     lines.push(`╠${"─".repeat(78)}╣`)
     lines.push(`║  Depends On (${detail.dependsOn.length}):${"".padEnd(58 - String(detail.dependsOn.length).length)}║`)
     for (const dep of detail.dependsOn) {
-      const done = dep.status === "done" || dep.status === "in_review" ? "✓" : "○"
-      lines.push(`║    ${done} [${dep.id.slice(-8)}] ${truncate(dep.title, 58).padEnd(61)}║`)
+      const done = isResolvedStatus(dep.status) ? "✓" : "○"
+      lines.push(`║    ${done} [${dep.id.slice(-8)}] ${truncateText(dep.title, 58).padEnd(61)}║`)
     }
   }
 
@@ -159,7 +155,7 @@ export function formatTaskDetail(detail: TaskDetail): string {
     lines.push(`╠${"─".repeat(78)}╣`)
     lines.push(`║  Blocking (${detail.dependedOnBy.length}):${"".padEnd(60 - String(detail.dependedOnBy.length).length)}║`)
     for (const dep of detail.dependedOnBy) {
-      lines.push(`║    [${dep.id.slice(-8)}] ${truncate(dep.title, 62).padEnd(65)}║`)
+      lines.push(`║    [${dep.id.slice(-8)}] ${truncateText(dep.title, 62).padEnd(65)}║`)
     }
   }
 
@@ -167,21 +163,15 @@ export function formatTaskDetail(detail: TaskDetail): string {
     lines.push(`╠${"─".repeat(78)}╣`)
     lines.push(`║  Status History:${"".padEnd(60)}║`)
     for (const h of detail.statusHistory.slice(0, 10)) {
-      const from = h.fromStatus ? STATUS_LABELS[h.fromStatus as Status] || h.fromStatus : "—"
-      const to = STATUS_LABELS[h.toStatus as Status] || h.toStatus
-      const date = h.changedAt instanceof Date
-        ? h.changedAt.toISOString().slice(0, 16)
-        : new Date(h.changedAt as unknown as number).toISOString().slice(0, 16)
+      const from = h.fromStatus ? getStatusLabel(h.fromStatus) : "—"
+      const to = getStatusLabel(h.toStatus)
+      const date = formatDateISO(h.changedAt)
       lines.push(`║    ${date}  ${from} → ${to}${"".padEnd(Math.max(0, 74 - 4 - 16 - 2 - from.length - 3 - to.length))}║`)
     }
   }
 
-  const created = detail.createdAt instanceof Date
-    ? detail.createdAt.toISOString().slice(0, 16)
-    : new Date(detail.createdAt as unknown as number).toISOString().slice(0, 16)
-  const updated = detail.updatedAt instanceof Date
-    ? detail.updatedAt.toISOString().slice(0, 16)
-    : new Date(detail.updatedAt as unknown as number).toISOString().slice(0, 16)
+  const created = formatDateISO(detail.createdAt)
+  const updated = formatDateISO(detail.updatedAt)
 
   lines.push(`╠${"─".repeat(78)}╣`)
   lines.push(`║  Created: ${created.padEnd(65)}║`)

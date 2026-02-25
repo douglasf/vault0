@@ -2,11 +2,12 @@ import React, { useCallback } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { KeyEvent } from "@opentui/core"
 import { theme } from "../lib/theme.js"
-import type { DbError, DbErrorKind } from "../hooks/useBoard.js"
+import type { DbError, DbErrorKind } from "../lib/db-errors.js"
+import { truncateText } from "../lib/format.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 
 // Re-export so consumers can import from the component barrel
-export type { DbError, DbErrorKind } from "../hooks/useBoard.js"
+export type { DbError, DbErrorKind } from "../lib/db-errors.js"
 
 // ── Recovery info per error kind ────────────────────────────────────
 
@@ -64,11 +65,6 @@ const RECOVERY_MAP: Record<DbErrorKind, RecoveryInfo> = {
   },
 }
 
-/** Truncate a string with ellipsis if it exceeds `max` characters. */
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 3)}...` : text
-}
-
 // ── Component ───────────────────────────────────────────────────────
 
 export interface ErrorBannerProps {
@@ -119,7 +115,7 @@ export function ErrorBanner({ error, onRetry, onDismiss }: ErrorBannerProps) {
 
       <box>
         <text fg={theme.dim_0} attributes={TextAttributes.DIM}>
-          {truncate(error.message, MAX_ERROR_MESSAGE_LENGTH)}
+          {truncateText(error.message, MAX_ERROR_MESSAGE_LENGTH)}
         </text>
       </box>
 
