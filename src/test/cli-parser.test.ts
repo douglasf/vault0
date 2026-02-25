@@ -6,98 +6,40 @@ import { tasks } from "../db/schema.js"
 
 // ═══════════════════════════════════════════════════════════════════
 // parseArgs — pure function tests (no DB needed)
+//
+// Note: parseArgs now only extracts positional args, flags, and format.
+// Subcommand routing is handled by the router in runCli.
 // ═══════════════════════════════════════════════════════════════════
 
 describe("parseArgs", () => {
-  // ── Subcommand extraction ──────────────────────────────────────
+  // ── Positional extraction ──────────────────────────────────────
 
-  describe("subcommand extraction", () => {
-    test("extracts simple subcommand", () => {
-      const result = parseArgs(["add"])
-      expect(result.subcommand).toBe("add")
+  describe("positional extraction", () => {
+    test("extracts single positional arg", () => {
+      const result = parseArgs(["ABC12345"])
+      expect(result.positional).toEqual(["ABC12345"])
     })
 
-    test("extracts 'list' subcommand", () => {
-      const result = parseArgs(["list"])
-      expect(result.subcommand).toBe("list")
+    test("extracts multiple positional args", () => {
+      const result = parseArgs(["ID1", "ID2"])
+      expect(result.positional).toEqual(["ID1", "ID2"])
     })
 
-    test("extracts 'view' subcommand", () => {
-      const result = parseArgs(["view"])
-      expect(result.subcommand).toBe("view")
+    test("no positionals when only flags given", () => {
+      const result = parseArgs(["--status", "todo"])
+      expect(result.positional).toEqual([])
     })
 
-    test("extracts 'edit' subcommand", () => {
-      const result = parseArgs(["edit"])
-      expect(result.subcommand).toBe("edit")
+    test("positional before flags", () => {
+      const result = parseArgs(["ABC12345", "--title", "Updated"])
+      expect(result.positional).toEqual(["ABC12345"])
+      expect(result.flags.title).toBe("Updated")
     })
 
-    test("extracts 'move' subcommand", () => {
-      const result = parseArgs(["move"])
-      expect(result.subcommand).toBe("move")
-    })
-
-    test("extracts 'complete' subcommand", () => {
-      const result = parseArgs(["complete"])
-      expect(result.subcommand).toBe("complete")
-    })
-
-    test("extracts 'delete' subcommand", () => {
-      const result = parseArgs(["delete"])
-      expect(result.subcommand).toBe("delete")
-    })
-
-    test("extracts 'dep' subcommand", () => {
-      const result = parseArgs(["dep"])
-      expect(result.subcommand).toBe("dep")
-    })
-
-    test("extracts 'unarchive' subcommand", () => {
-      const result = parseArgs(["unarchive"])
-      expect(result.subcommand).toBe("unarchive")
-    })
-  })
-
-  // ── Sub-subcommand for dep ─────────────────────────────────────
-
-  describe("dep sub-subcommand extraction", () => {
-    test("extracts 'dep add' sub-subcommand", () => {
-      const result = parseArgs(["dep", "add"])
-      expect(result.subcommand).toBe("dep")
-      expect(result.subsubcommand).toBe("add")
-    })
-
-    test("extracts 'dep rm' sub-subcommand", () => {
-      const result = parseArgs(["dep", "rm"])
-      expect(result.subcommand).toBe("dep")
-      expect(result.subsubcommand).toBe("rm")
-    })
-
-    test("extracts 'dep list' sub-subcommand", () => {
-      const result = parseArgs(["dep", "list"])
-      expect(result.subcommand).toBe("dep")
-      expect(result.subsubcommand).toBe("list")
-    })
-
-    test("dep sub-subcommand not set for non-dep commands", () => {
-      const result = parseArgs(["add", "some-id"])
-      expect(result.subcommand).toBe("add")
-      expect(result.subsubcommand).toBeUndefined()
-    })
-
-    test("dep with sub-subcommand and positional ID", () => {
-      const result = parseArgs(["dep", "add", "TASK123"])
-      expect(result.subcommand).toBe("dep")
-      expect(result.subsubcommand).toBe("add")
-      expect(result.positional).toEqual(["TASK123"])
-    })
-
-    test("dep with sub-subcommand, positional ID, and flags", () => {
-      const result = parseArgs(["dep", "add", "TASK123", "--on", "DEP456"])
-      expect(result.subcommand).toBe("dep")
-      expect(result.subsubcommand).toBe("add")
-      expect(result.positional).toEqual(["TASK123"])
-      expect(result.flags.on).toBe("DEP456")
+    test("positional args interspersed with flags", () => {
+      const result = parseArgs(["ID1", "--format", "json", "ID2"])
+      expect(result.positional).toEqual(["ID1", "ID2"])
+      expect(result.format).toBe("json")
     })
   })
 
@@ -105,76 +47,53 @@ describe("parseArgs", () => {
 
   describe("flag parsing", () => {
     test("parses --key value flags", () => {
-      const result = parseArgs(["add", "--title", "My Task"])
+      const result = parseArgs(["--title", "My Task"])
       expect(result.flags.title).toBe("My Task")
     })
 
     test("parses multiple flags", () => {
-      const result = parseArgs(["add", "--title", "My Task", "--priority", "high", "--status", "todo"])
+      const result = parseArgs(["--title", "My Task", "--priority", "high", "--status", "todo"])
       expect(result.flags.title).toBe("My Task")
       expect(result.flags.priority).toBe("high")
       expect(result.flags.status).toBe("todo")
     })
 
-    test("parses --on flag for dependencies", () => {
-      const result = parseArgs(["dep", "add", "TASK1", "--on", "TASK2"])
-      expect(result.flags.on).toBe("TASK2")
-    })
-
     test("parses --board flag", () => {
-      const result = parseArgs(["list", "--board", "BOARD123"])
+      const result = parseArgs(["--board", "BOARD123"])
       expect(result.flags.board).toBe("BOARD123")
     })
 
     test("parses --search flag with spaces", () => {
-      const result = parseArgs(["list", "--search", "fix login bug"])
+      const result = parseArgs(["--search", "fix login bug"])
       expect(result.flags.search).toBe("fix login bug")
     })
 
     test("parses --description flag", () => {
-      const result = parseArgs(["add", "--title", "Task", "--description", "A long description"])
+      const result = parseArgs(["--title", "Task", "--description", "A long description"])
       expect(result.flags.description).toBe("A long description")
     })
 
     test("parses --tags flag", () => {
-      const result = parseArgs(["add", "--title", "Task", "--tags", "frontend,bug,urgent"])
+      const result = parseArgs(["--title", "Task", "--tags", "frontend,bug,urgent"])
       expect(result.flags.tags).toBe("frontend,bug,urgent")
     })
 
     test("parses --source and --source-ref flags", () => {
-      const result = parseArgs(["add", "--title", "Task", "--source", "opencode", "--source-ref", "session-123"])
+      const result = parseArgs(["--title", "Task", "--source", "opencode", "--source-ref", "session-123"])
       expect(result.flags.source).toBe("opencode")
       expect(result.flags["source-ref"]).toBe("session-123")
     })
-  })
 
-  // ── Positional arguments ───────────────────────────────────────
-
-  describe("positional arguments", () => {
-    test("collects single positional argument (task ID)", () => {
-      const result = parseArgs(["view", "ABC12345"])
-      expect(result.positional).toEqual(["ABC12345"])
+    test("parses --dep-add flag", () => {
+      const result = parseArgs(["TASK1", "--dep-add", "TASK2"])
+      expect(result.positional).toEqual(["TASK1"])
+      expect(result.flags["dep-add"]).toBe("TASK2")
     })
 
-    test("collects positional before flags", () => {
-      const result = parseArgs(["edit", "ABC12345", "--title", "Updated"])
-      expect(result.positional).toEqual(["ABC12345"])
-      expect(result.flags.title).toBe("Updated")
-    })
-
-    test("collects multiple positional arguments", () => {
-      const result = parseArgs(["view", "ID1", "ID2"])
-      expect(result.positional).toEqual(["ID1", "ID2"])
-    })
-
-    test("positional for dep sub-subcommand", () => {
-      const result = parseArgs(["dep", "list", "TASKID"])
-      expect(result.positional).toEqual(["TASKID"])
-    })
-
-    test("no positionals when only flags given", () => {
-      const result = parseArgs(["list", "--status", "todo"])
-      expect(result.positional).toEqual([])
+    test("parses --dep-remove flag", () => {
+      const result = parseArgs(["TASK1", "--dep-remove", "TASK2"])
+      expect(result.positional).toEqual(["TASK1"])
+      expect(result.flags["dep-remove"]).toBe("TASK2")
     })
   })
 
@@ -182,44 +101,54 @@ describe("parseArgs", () => {
 
   describe("boolean flags", () => {
     test("--blocked without value defaults to 'true'", () => {
-      const result = parseArgs(["list", "--blocked"])
+      const result = parseArgs(["--blocked"])
       expect(result.flags.blocked).toBe("true")
     })
 
     test("--ready without value defaults to 'true'", () => {
-      const result = parseArgs(["list", "--ready"])
+      const result = parseArgs(["--ready"])
       expect(result.flags.ready).toBe("true")
     })
 
     test("--all without value defaults to 'true'", () => {
-      const result = parseArgs(["list", "--all"])
+      const result = parseArgs(["--all"])
       expect(result.flags.all).toBe("true")
     })
 
+    test("--help without value defaults to 'true'", () => {
+      const result = parseArgs(["--help"])
+      expect(result.flags.help).toBe("true")
+    })
+
+    test("--dep-list without value defaults to 'true'", () => {
+      const result = parseArgs(["TASK1", "--dep-list"])
+      expect(result.flags["dep-list"]).toBe("true")
+    })
+
     test("--blocked with explicit value uses that value", () => {
-      const result = parseArgs(["list", "--blocked", "false"])
+      const result = parseArgs(["--blocked", "false"])
       expect(result.flags.blocked).toBe("false")
     })
 
     test("--ready with explicit value uses that value", () => {
-      const result = parseArgs(["list", "--ready", "false"])
+      const result = parseArgs(["--ready", "false"])
       expect(result.flags.ready).toBe("false")
     })
 
     test("--blocked followed by another flag defaults to 'true'", () => {
-      const result = parseArgs(["list", "--blocked", "--status", "todo"])
+      const result = parseArgs(["--blocked", "--status", "todo"])
       expect(result.flags.blocked).toBe("true")
       expect(result.flags.status).toBe("todo")
     })
 
     test("--ready followed by another flag defaults to 'true'", () => {
-      const result = parseArgs(["list", "--ready", "--priority", "high"])
+      const result = parseArgs(["--ready", "--priority", "high"])
       expect(result.flags.ready).toBe("true")
       expect(result.flags.priority).toBe("high")
     })
 
     test("multiple boolean flags together", () => {
-      const result = parseArgs(["list", "--blocked", "--ready"])
+      const result = parseArgs(["--blocked", "--ready"])
       expect(result.flags.blocked).toBe("true")
       expect(result.flags.ready).toBe("true")
     })
@@ -229,33 +158,33 @@ describe("parseArgs", () => {
 
   describe("format extraction", () => {
     test("defaults format to 'text' when not specified", () => {
-      const result = parseArgs(["list"])
+      const result = parseArgs([])
       expect(result.format).toBe("text")
     })
 
     test("extracts --format json", () => {
-      const result = parseArgs(["list", "--format", "json"])
+      const result = parseArgs(["--format", "json"])
       expect(result.format).toBe("json")
     })
 
     test("extracts --format text", () => {
-      const result = parseArgs(["list", "--format", "text"])
+      const result = parseArgs(["--format", "text"])
       expect(result.format).toBe("text")
     })
 
     test("removes format from flags object", () => {
-      const result = parseArgs(["list", "--format", "json"])
+      const result = parseArgs(["--format", "json"])
       expect(result.format).toBe("json")
       expect(result.flags.format).toBeUndefined()
     })
 
     test("unknown format value defaults to 'text'", () => {
-      const result = parseArgs(["list", "--format", "yaml"])
+      const result = parseArgs(["--format", "yaml"])
       expect(result.format).toBe("text")
     })
 
     test("format works with other flags", () => {
-      const result = parseArgs(["list", "--status", "todo", "--format", "json", "--priority", "high"])
+      const result = parseArgs(["--status", "todo", "--format", "json", "--priority", "high"])
       expect(result.format).toBe("json")
       expect(result.flags.status).toBe("todo")
       expect(result.flags.priority).toBe("high")
@@ -266,43 +195,31 @@ describe("parseArgs", () => {
   // ── Edge cases ─────────────────────────────────────────────────
 
   describe("edge cases", () => {
-    test("empty args produce empty subcommand", () => {
+    test("empty args produce empty results", () => {
       const result = parseArgs([])
-      expect(result.subcommand).toBe("")
-      expect(result.subsubcommand).toBeUndefined()
       expect(result.positional).toEqual([])
       expect(result.flags).toEqual({})
       expect(result.format).toBe("text")
     })
 
     test("trailing flag with no value gets empty string", () => {
-      const result = parseArgs(["add", "--title"])
+      const result = parseArgs(["--title"])
       expect(result.flags.title).toBe("")
     })
 
     test("flag at end (non-boolean) with no value gets empty string", () => {
-      const result = parseArgs(["edit", "TASK1", "--priority"])
+      const result = parseArgs(["TASK1", "--priority"])
       expect(result.flags.priority).toBe("")
     })
 
-    test("only flags, no subcommand (starts with --)", () => {
+    test("only flags, no positional", () => {
       const result = parseArgs(["--format", "json"])
-      // First arg starts with -- so no subcommand extracted
-      expect(result.subcommand).toBe("")
-      expect(result.format).toBe("json")
-    })
-
-    test("subcommand with no other args", () => {
-      const result = parseArgs(["list"])
-      expect(result.subcommand).toBe("list")
       expect(result.positional).toEqual([])
-      expect(result.flags).toEqual({})
-      expect(result.format).toBe("text")
+      expect(result.format).toBe("json")
     })
 
     test("complex real-world command: add with many flags", () => {
       const result = parseArgs([
-        "add",
         "--title", "Fix login bug",
         "--priority", "high",
         "--type", "bug",
@@ -312,7 +229,6 @@ describe("parseArgs", () => {
         "--source-ref", "session-abc",
         "--format", "json",
       ])
-      expect(result.subcommand).toBe("add")
       expect(result.flags.title).toBe("Fix login bug")
       expect(result.flags.priority).toBe("high")
       expect(result.flags.type).toBe("bug")
@@ -324,28 +240,35 @@ describe("parseArgs", () => {
       expect(result.flags.format).toBeUndefined()
     })
 
-    test("complex real-world command: dep add with positional and flags", () => {
-      const result = parseArgs(["dep", "add", "TASK_ABC", "--on", "TASK_DEF", "--format", "json"])
-      expect(result.subcommand).toBe("dep")
-      expect(result.subsubcommand).toBe("add")
+    test("complex real-world command: edit with dep-add and format", () => {
+      const result = parseArgs(["TASK_ABC", "--dep-add", "TASK_DEF", "--format", "json"])
       expect(result.positional).toEqual(["TASK_ABC"])
-      expect(result.flags.on).toBe("TASK_DEF")
+      expect(result.flags["dep-add"]).toBe("TASK_DEF")
       expect(result.format).toBe("json")
     })
 
     test("list with boolean and value flags mixed", () => {
-      const result = parseArgs(["list", "--status", "in_progress", "--blocked", "--format", "json"])
-      expect(result.subcommand).toBe("list")
+      const result = parseArgs(["--status", "in_progress", "--blocked", "--format", "json"])
       expect(result.flags.status).toBe("in_progress")
       expect(result.flags.blocked).toBe("true")
       expect(result.format).toBe("json")
     })
 
-    test("positional args interspersed with flags", () => {
-      // positional between flags — ID then flag then more positionals
-      const result = parseArgs(["view", "ID1", "--format", "json", "ID2"])
-      expect(result.positional).toEqual(["ID1", "ID2"])
-      expect(result.format).toBe("json")
+    test("--key=value syntax treats '=' as part of the key (not supported)", () => {
+      const result = parseArgs(["--title=hello"])
+      expect(result.flags["title=hello"]).toBeDefined()
+      expect(result.flags.title).toBeUndefined()
+    })
+
+    test("single-dash flags like -t are treated as positional args", () => {
+      const result = parseArgs(["-t", "My Task"])
+      expect(result.positional).toContain("-t")
+      expect(result.positional).toContain("My Task")
+    })
+
+    test("value starting with -- is consumed as value for non-boolean flags", () => {
+      const result = parseArgs(["--title", "--weird"])
+      expect(result.flags.title).toBe("--weird")
     })
   })
 })
@@ -501,76 +424,30 @@ describe("resolveTaskId (via commands)", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// parseArgs — edge cases: unknown commands, malformed flags, special chars
+// parseArgs — edge cases: malformed flags, special chars
 // ═══════════════════════════════════════════════════════════════════
 
 describe("parseArgs edge cases", () => {
-  // ── Unknown commands ──────────────────────────────────────────
-
-  describe("unknown commands", () => {
-    test("unknown subcommand is parsed as-is (routing handles rejection)", () => {
-      const result = parseArgs(["frobnicate"])
-      expect(result.subcommand).toBe("frobnicate")
-    })
-
-    test("unknown dep sub-subcommand is parsed as-is", () => {
-      const result = parseArgs(["dep", "frobnicate", "TASK1"])
-      expect(result.subcommand).toBe("dep")
-      expect(result.subsubcommand).toBe("frobnicate")
-      expect(result.positional).toEqual(["TASK1"])
-    })
-  })
-
-  // ── Malformed flags ───────────────────────────────────────────
-
-  describe("malformed flags", () => {
-    test("--key=value syntax treats '=' as part of the key (not supported)", () => {
-      // The parser does not split on '=', so --title=hello becomes key "title=hello"
-      const result = parseArgs(["add", "--title=hello"])
-      // The key is "title=hello" with empty value (no next arg)
-      expect(result.flags["title=hello"]).toBeDefined()
-      expect(result.flags.title).toBeUndefined()
-    })
-
-    test("single-dash flags like -t are treated as positional args", () => {
-      const result = parseArgs(["add", "-t", "My Task"])
-      // -t doesn't start with "--", so it's positional
-      expect(result.positional).toContain("-t")
-      expect(result.positional).toContain("My Task")
-    })
-
-    test("value starting with -- is consumed as a flag key, not as a value", () => {
-      // --title --weird: parser sees --title, then --weird as next flag (not value)
-      const result = parseArgs(["add", "--title", "--weird"])
-      // --title consumes --weird as its value (because --weird doesn't match boolean flags)
-      // Actually: "weird" is not a boolean flag, so --title gets "--weird" as value? No.
-      // Let's trace: arg="--title", key="title", next arg="--weird" which starts with "--"
-      // So i+1 < length and args[i+1].startsWith("--") is checked only for boolean flags.
-      // For non-boolean: `if (i + 1 < args.length)` — it takes next arg regardless.
-      expect(result.flags.title).toBe("--weird")
-    })
-  })
-
   // ── Special characters in values ──────────────────────────────
 
   describe("special characters in values", () => {
     test("unicode/emoji in title", () => {
-      const result = parseArgs(["add", "--title", "Fix 🐛 bug"])
+      const result = parseArgs(["--title", "Fix 🐛 bug"])
       expect(result.flags.title).toBe("Fix 🐛 bug")
     })
 
     test("empty string value for title", () => {
-      const result = parseArgs(["add", "--title", ""])
+      const result = parseArgs(["--title", ""])
       expect(result.flags.title).toBe("")
     })
 
     test("value with newlines", () => {
-      const result = parseArgs(["add", "--description", "line1\nline2"])
+      const result = parseArgs(["--description", "line1\nline2"])
       expect(result.flags.description).toBe("line1\nline2")
     })
 
     test("value with special regex characters", () => {
-      const result = parseArgs(["add", "--title", "Fix (.*) [issue]"])
+      const result = parseArgs(["--title", "Fix (.*) [issue]"])
       expect(result.flags.title).toBe("Fix (.*) [issue]")
     })
   })
@@ -611,6 +488,11 @@ describe("runCli integration", () => {
     expect(code).toBe(0)
   })
 
+  test("task --help returns exit code 0", () => {
+    const code = runCli("task", ["--help"], testDb.db)
+    expect(code).toBe(0)
+  })
+
   test("task add success returns exit code 0", () => {
     const code = runCli("task", ["add", "--title", "Test task"], testDb.db)
     expect(code).toBe(0)
@@ -626,12 +508,7 @@ describe("runCli integration", () => {
     expect(code).toBe(1)
   })
 
-  test("dep unknown sub-subcommand returns exit code 1", () => {
-    const code = runCli("task", ["dep", "frobnicate", "TASK1"], testDb.db)
-    expect(code).toBe(1)
-  })
-
-  test("dep with no sub-subcommand returns exit code 1", () => {
+  test("unknown task subcommand returns exit code 1", () => {
     const code = runCli("task", ["dep"], testDb.db)
     expect(code).toBe(1)
   })
@@ -644,5 +521,10 @@ describe("runCli integration", () => {
   test("board unknown subcommand returns exit code 1", () => {
     const code = runCli("board", ["frobnicate"], testDb.db)
     expect(code).toBe(1)
+  })
+
+  test("task edit --help returns exit code 0", () => {
+    const code = runCli("task", ["edit", "--help"], testDb.db)
+    expect(code).toBe(0)
   })
 })

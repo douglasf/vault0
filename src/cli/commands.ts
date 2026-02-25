@@ -221,6 +221,7 @@ export function cmdView(db: Vault0Database, taskId: string, format: OutputFormat
 
 /**
  * vault0 task edit <ID> [--title "..."] [--description "..."] [--priority ...] [--tags t1,t2]
+ *   [--dep-add <ID>] [--dep-remove <ID>] [--dep-list]
  */
 export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string, string>, format: OutputFormat): CommandResult {
   if (!taskId) {
@@ -228,6 +229,23 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
   }
 
   const resolvedId = resolveTaskId(db, taskId)
+
+  // ── Dependency operations (handled first, mutually exclusive with field updates) ──
+
+  if (flags["dep-list"] === "true" || flags["dep-list"] === "") {
+    return cmdDepList(db, resolvedId, format)
+  }
+
+  if (flags["dep-add"]) {
+    return cmdDepAdd(db, resolvedId, flags["dep-add"], format)
+  }
+
+  if (flags["dep-remove"]) {
+    return cmdDepRemove(db, resolvedId, flags["dep-remove"], format)
+  }
+
+  // ── Field updates ──
+
   const updates: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[]; solution: string | null }> = {}
 
   if (flags.title) updates.title = flags.title
@@ -244,7 +262,7 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
   }
 
   if (Object.keys(updates).length === 0) {
-    return { success: false, message: formatError("No updates specified. Use --title, --description, --priority, --type, --tags, or --solution.") }
+    return { success: false, message: formatError("No updates specified. Use --title, --description, --priority, --type, --tags, --solution, --dep-add, --dep-remove, or --dep-list.") }
   }
 
   const updated = updateTask(db, resolvedId, updates)
@@ -353,18 +371,12 @@ export function cmdUnarchive(db: Vault0Database, taskId: string, format: OutputF
 }
 
 /**
- * vault0 task dep add <ID> --on <DEP_ID>
+ * Internal: Add dependency (used by cmdEdit --dep-add)
+ * @param resolvedTaskId Already-resolved full task ID
+ * @param depIdFragment Raw dep ID (will be resolved)
  */
-export function cmdDepAdd(db: Vault0Database, taskId: string, flags: Record<string, string>, format: OutputFormat): CommandResult {
-  if (!taskId) {
-    return { success: false, message: formatError("Task ID is required. Usage: vault0 task dep add <ID> --on <DEP_ID>") }
-  }
-  if (!flags.on) {
-    return { success: false, message: formatError("--on is required. Usage: vault0 task dep add <ID> --on <DEP_ID>") }
-  }
-
-  const resolvedTaskId = resolveTaskId(db, taskId)
-  const resolvedDepId = resolveTaskId(db, flags.on)
+function cmdDepAdd(db: Vault0Database, resolvedTaskId: string, depIdFragment: string, format: OutputFormat): CommandResult {
+  const resolvedDepId = resolveTaskId(db, depIdFragment)
 
   addDependency(db, resolvedTaskId, resolvedDepId)
 
@@ -379,18 +391,12 @@ export function cmdDepAdd(db: Vault0Database, taskId: string, flags: Record<stri
 }
 
 /**
- * vault0 task dep rm <ID> --on <DEP_ID>
+ * Internal: Remove dependency (used by cmdEdit --dep-remove)
+ * @param resolvedTaskId Already-resolved full task ID
+ * @param depIdFragment Raw dep ID (will be resolved)
  */
-export function cmdDepRemove(db: Vault0Database, taskId: string, flags: Record<string, string>, format: OutputFormat): CommandResult {
-  if (!taskId) {
-    return { success: false, message: formatError("Task ID is required. Usage: vault0 task dep rm <ID> --on <DEP_ID>") }
-  }
-  if (!flags.on) {
-    return { success: false, message: formatError("--on is required. Usage: vault0 task dep rm <ID> --on <DEP_ID>") }
-  }
-
-  const resolvedTaskId = resolveTaskId(db, taskId)
-  const resolvedDepId = resolveTaskId(db, flags.on)
+function cmdDepRemove(db: Vault0Database, resolvedTaskId: string, depIdFragment: string, format: OutputFormat): CommandResult {
+  const resolvedDepId = resolveTaskId(db, depIdFragment)
 
   removeDependency(db, resolvedTaskId, resolvedDepId)
 
@@ -405,14 +411,10 @@ export function cmdDepRemove(db: Vault0Database, taskId: string, flags: Record<s
 }
 
 /**
- * vault0 task dep list <ID>
+ * Internal: List dependencies (used by cmdEdit --dep-list)
+ * @param resolvedId Already-resolved full task ID
  */
-export function cmdDepList(db: Vault0Database, taskId: string, format: OutputFormat): CommandResult {
-  if (!taskId) {
-    return { success: false, message: formatError("Task ID is required. Usage: vault0 task dep list <ID>") }
-  }
-
-  const resolvedId = resolveTaskId(db, taskId)
+function cmdDepList(db: Vault0Database, resolvedId: string, format: OutputFormat): CommandResult {
   const detail = getTaskDetail(db, resolvedId)
 
   const result = {

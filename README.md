@@ -70,11 +70,12 @@ vault0 task view abc12345
 vault0 task edit abc12345 --priority critical
 vault0 task move abc12345 --status done
 vault0 task delete abc12345
-vault0 task dep add abc12345 --on def67890
-vault0 task dep list abc12345
+vault0 task edit abc12345 --dep-add def67890
+vault0 task edit abc12345 --dep-list
 vault0 task archive-done
 vault0 board list
-vault0 task help                          # Full CLI reference
+vault0 task                               # Show available task commands
+vault0 task edit --help                   # Show edit command usage
 ```
 
 The CLI outputs plain text by default. Pass `--format json` for machine-readable output. Task IDs can be shortened — use the last 8+ characters.

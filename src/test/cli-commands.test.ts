@@ -9,9 +9,6 @@ import {
   cmdMove,
   cmdDelete,
   cmdUnarchive,
-  cmdDepAdd,
-  cmdDepRemove,
-  cmdDepList,
   type CommandResult,
 } from "../cli/commands.js"
 import type { Task, TaskDetail } from "../lib/types.js"
@@ -794,10 +791,10 @@ describe("cmdUnarchive", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// cmdDepAdd
+// cmdEdit --dep-add
 // ═══════════════════════════════════════════════════════════════════
 
-describe("cmdDepAdd", () => {
+describe("cmdEdit --dep-add", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -812,7 +809,7 @@ describe("cmdDepAdd", () => {
     const taskA = createTask(testDb.db, { boardId: testDb.boardId, title: "Task A" })
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Task B" })
 
-    const result = cmdDepAdd(testDb.db, taskA.id, { on: taskB.id }, "text")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-add": taskB.id }, "text")
     expect(result.success).toBe(true)
     expect(result.message).toContain("Dependency added")
     expect(result.message).toContain("depends on")
@@ -822,7 +819,7 @@ describe("cmdDepAdd", () => {
     const taskA = createTask(testDb.db, { boardId: testDb.boardId, title: "Task A" })
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Task B" })
 
-    const result = cmdDepAdd(testDb.db, taskA.id, { on: taskB.id }, "json")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-add": taskB.id }, "json")
     expect(result.success).toBe(true)
     const parsed = JSON.parse(result.message)
     expect(parsed.taskId).toBe(taskA.id)
@@ -833,22 +830,15 @@ describe("cmdDepAdd", () => {
     const taskA = createTask(testDb.db, { boardId: testDb.boardId, title: "Task A" })
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Task B" })
 
-    cmdDepAdd(testDb.db, taskA.id, { on: taskB.id }, "text")
+    cmdEdit(testDb.db, taskA.id, { "dep-add": taskB.id }, "text")
 
     expect(() => {
-      cmdDepAdd(testDb.db, taskB.id, { on: taskA.id }, "text")
+      cmdEdit(testDb.db, taskB.id, { "dep-add": taskA.id }, "text")
     }).toThrow("cycle")
   })
 
-  test("returns error when --on is missing", () => {
-    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task" })
-    const result = cmdDepAdd(testDb.db, task.id, {}, "text")
-    expect(result.success).toBe(false)
-    expect(result.message).toContain("--on is required")
-  })
-
   test("returns error when task ID is missing", () => {
-    const result = cmdDepAdd(testDb.db, "", { on: "some-id" }, "text")
+    const result = cmdEdit(testDb.db, "", { "dep-add": "some-id" }, "text")
     expect(result.success).toBe(false)
     expect(result.message).toContain("Task ID is required")
   })
@@ -860,7 +850,7 @@ describe("cmdDepAdd", () => {
     const suffixA = taskA.id.slice(-8)
     const suffixB = taskB.id.slice(-8)
 
-    const result = cmdDepAdd(testDb.db, suffixA, { on: suffixB }, "json")
+    const result = cmdEdit(testDb.db, suffixA, { "dep-add": suffixB }, "json")
     expect(result.success).toBe(true)
     const parsed = JSON.parse(result.message)
     expect(parsed.taskId).toBe(taskA.id)
@@ -869,10 +859,10 @@ describe("cmdDepAdd", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// cmdDepRemove
+// cmdEdit --dep-remove
 // ═══════════════════════════════════════════════════════════════════
 
-describe("cmdDepRemove", () => {
+describe("cmdEdit --dep-remove", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -888,7 +878,7 @@ describe("cmdDepRemove", () => {
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Task B" })
     addDependency(testDb.db, taskA.id, taskB.id)
 
-    const result = cmdDepRemove(testDb.db, taskA.id, { on: taskB.id }, "text")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-remove": taskB.id }, "text")
     expect(result.success).toBe(true)
     expect(result.message).toContain("Dependency removed")
     expect(result.message).toContain("no longer depends on")
@@ -899,22 +889,15 @@ describe("cmdDepRemove", () => {
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Task B" })
     addDependency(testDb.db, taskA.id, taskB.id)
 
-    const result = cmdDepRemove(testDb.db, taskA.id, { on: taskB.id }, "json")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-remove": taskB.id }, "json")
     expect(result.success).toBe(true)
     const parsed = JSON.parse(result.message)
     expect(parsed.taskId).toBe(taskA.id)
     expect(parsed.removed).toBe(taskB.id)
   })
 
-  test("returns error when --on is missing", () => {
-    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task" })
-    const result = cmdDepRemove(testDb.db, task.id, {}, "text")
-    expect(result.success).toBe(false)
-    expect(result.message).toContain("--on is required")
-  })
-
   test("returns error when task ID is missing", () => {
-    const result = cmdDepRemove(testDb.db, "", { on: "some-id" }, "text")
+    const result = cmdEdit(testDb.db, "", { "dep-remove": "some-id" }, "text")
     expect(result.success).toBe(false)
     expect(result.message).toContain("Task ID is required")
   })
@@ -927,16 +910,16 @@ describe("cmdDepRemove", () => {
     const suffixA = taskA.id.slice(-8)
     const suffixB = taskB.id.slice(-8)
 
-    const result = cmdDepRemove(testDb.db, suffixA, { on: suffixB }, "json")
+    const result = cmdEdit(testDb.db, suffixA, { "dep-remove": suffixB }, "json")
     expect(result.success).toBe(true)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// cmdDepList
+// cmdEdit --dep-list
 // ═══════════════════════════════════════════════════════════════════
 
-describe("cmdDepList", () => {
+describe("cmdEdit --dep-list", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -956,7 +939,7 @@ describe("cmdDepList", () => {
     addDependency(testDb.db, taskA.id, taskB.id)
     addDependency(testDb.db, taskC.id, taskA.id)
 
-    const result = cmdDepList(testDb.db, taskA.id, "json")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-list": "true" }, "json")
     expect(result.success).toBe(true)
     const parsed = JSON.parse(result.message)
     expect(parsed.dependsOn).toHaveLength(1)
@@ -973,7 +956,7 @@ describe("cmdDepList", () => {
     addDependency(testDb.db, taskA.id, taskB.id)
     addDependency(testDb.db, taskC.id, taskA.id)
 
-    const result = cmdDepList(testDb.db, taskA.id, "text")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-list": "true" }, "text")
     expect(result.success).toBe(true)
     expect(result.message).toContain("Depends on:")
     expect(result.message).toContain("Task B")
@@ -984,7 +967,7 @@ describe("cmdDepList", () => {
   test("text format shows '(none)' when no dependencies", () => {
     const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Lonely task" })
 
-    const result = cmdDepList(testDb.db, task.id, "text")
+    const result = cmdEdit(testDb.db, task.id, { "dep-list": "true" }, "text")
     expect(result.success).toBe(true)
     expect(result.message).toContain("Depends on: (none)")
     expect(result.message).toContain("Blocking: (none)")
@@ -993,7 +976,7 @@ describe("cmdDepList", () => {
   test("json format returns empty arrays when no dependencies", () => {
     const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Lonely task" })
 
-    const result = cmdDepList(testDb.db, task.id, "json")
+    const result = cmdEdit(testDb.db, task.id, { "dep-list": "true" }, "json")
     expect(result.success).toBe(true)
     const parsed = JSON.parse(result.message)
     expect(parsed.dependsOn).toEqual([])
@@ -1005,7 +988,7 @@ describe("cmdDepList", () => {
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Task B", status: "todo" })
     addDependency(testDb.db, taskA.id, taskB.id)
 
-    const result = cmdDepList(testDb.db, taskA.id, "json")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-list": "true" }, "json")
     const parsed = JSON.parse(result.message)
     expect(parsed.dependsOn[0].status).toBe("todo")
   })
@@ -1016,18 +999,18 @@ describe("cmdDepList", () => {
     addDependency(testDb.db, taskA.id, taskB.id)
 
     // taskB is not done, so should show ○
-    const result = cmdDepList(testDb.db, taskA.id, "text")
+    const result = cmdEdit(testDb.db, taskA.id, { "dep-list": "true" }, "text")
     expect(result.message).toContain("○")
     expect(result.message).toContain("Task B")
 
     // Now complete taskB and check for ✓
     updateTaskStatus(testDb.db, taskB.id, "done")
-    const result2 = cmdDepList(testDb.db, taskA.id, "text")
+    const result2 = cmdEdit(testDb.db, taskA.id, { "dep-list": "true" }, "text")
     expect(result2.message).toContain("✓")
   })
 
   test("returns error when task ID is missing", () => {
-    const result = cmdDepList(testDb.db, "", "text")
+    const result = cmdEdit(testDb.db, "", { "dep-list": "true" }, "text")
     expect(result.success).toBe(false)
     expect(result.message).toContain("Task ID is required")
   })
@@ -1035,7 +1018,7 @@ describe("cmdDepList", () => {
   test("supports partial ID", () => {
     const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Task" })
     const suffix = task.id.slice(-8)
-    const result = cmdDepList(testDb.db, suffix, "json")
+    const result = cmdEdit(testDb.db, suffix, { "dep-list": "true" }, "json")
     expect(result.success).toBe(true)
     const parsed = JSON.parse(result.message)
     expect(parsed.taskId).toBe(task.id)

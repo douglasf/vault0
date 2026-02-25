@@ -120,7 +120,6 @@ CLI Examples:
   vault0 task list --format json
   vault0 task view abc12345
   vault0 task move abc12345 --status done
-  vault0 task complete abc12345
   vault0 task dep add abc12345 --on def67890
 
 TUI Examples:
