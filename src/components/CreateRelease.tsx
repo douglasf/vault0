@@ -6,6 +6,7 @@ import type { Task } from "../lib/types.js"
 import type { DetectedVersionFile } from "../lib/version-detect.js"
 import { theme } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
+import { Button } from "./Button.js"
 
 export interface CreateReleaseData {
   name: string
@@ -216,11 +217,6 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
         return
       }
     }
-
-    if (focusField === "submit" && event.name === "return") {
-      handleSubmit()
-      return
-    }
   })
 
   const isNameFocused = focusField === "name"
@@ -237,6 +233,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
           borderStyle="single"
           borderColor={isNameFocused ? theme.blue : theme.fg_0}
           title="Release Name"
+          onMouseDown={() => setFocusField("name")}
         >
           <input
             ref={nameRef}
@@ -257,6 +254,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
           borderStyle="single"
           borderColor={isDescFocused ? theme.blue : theme.fg_0}
           title="Description (optional)"
+          onMouseDown={() => setFocusField("description")}
         >
           <input
             ref={descRef}
@@ -273,7 +271,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
         {hasVersionFiles && (
           <>
             <text> </text>
-            <text>
+            <text onMouseDown={() => setFocusField("version-bump")}>
               <span fg={focusField === "version-bump" ? theme.blue : theme.fg_0}>
                 {focusField === "version-bump" ? "\u25B8 " : "  "}
                 Bump version?{" "}
@@ -298,6 +296,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
               borderStyle="single"
               borderColor={isVersionValueFocused ? theme.blue : theme.fg_0}
               title="New Version"
+              onMouseDown={() => setFocusField("version-value")}
             >
               <input
                 ref={versionRef}
@@ -327,6 +326,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
               height={Math.min(doneTasks.length, 8)}
               showDescription={false}
               onSelect={handleTaskSelect}
+              onMouseDown={() => setFocusField("tasks")}
               keyBindings={SPACE_SELECT_BINDING}
               textColor={theme.fg_0}
               selectedTextColor={theme.fg_1}
@@ -348,16 +348,12 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
         {validationError && (
           <text fg={theme.red}>  ⚠ {validationError}</text>
         )}
-        <text
-          fg={focusField === "submit" ? theme.bg_1 : theme.fg_0}
-          bg={focusField === "submit" ? theme.blue : undefined}
-        >
-          {focusField === "submit" ? "\u25B8 " : "  "}
-          [Create Release]
-        </text>
-
-        <text> </text>
-        <text fg={theme.dim_0}>Tab: next field  Shift+Tab: prev  Enter: submit  Esc: cancel</text>
+        <box marginX={1} alignItems="flex-end" onMouseDown={() => setFocusField("submit")}>
+          <Button
+            onPress={handleSubmit}
+            fg={focusField === "submit" ? theme.blue : theme.fg_0}
+            label="Submit" />
+        </box>
       </box>
     </ModalOverlay>
   )

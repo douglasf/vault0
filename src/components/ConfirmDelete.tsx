@@ -4,6 +4,7 @@ import { useKeyboard } from "@opentui/react"
 import type { Task } from "../lib/types.js"
 import { theme } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
+import { Button } from "./Button.js"
 
 export interface ConfirmDeleteProps {
   task: Task
@@ -12,15 +13,6 @@ export interface ConfirmDeleteProps {
 }
 
 export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps) {
-  useKeyboard((event: KeyEvent) => {
-    const input = event.raw || ""
-    if (input === "y" || input === "Y") {
-      onConfirm()
-    } else if (input === "n" || input === "N") {
-      onCancel()
-    }
-  })
-
   const truncatedTitle = task.title.length > 50
     ? `${task.title.substring(0, 47)}...`
     : task.title
@@ -44,8 +36,17 @@ export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps)
         </box>
       </box>
 
-      <box marginTop={1}>
-        <text fg={theme.dim_0}>[y]es  [n]o / Esc: cancel</text>
+      <box marginX={1} marginTop={1} flexDirection="row" justifyContent="flex-end" gap={1}>
+        <Button
+          onPress={onConfirm}
+          hotkey="y"
+          bg={theme.green}
+          label="Yes" />
+        <Button
+          onPress={onCancel}
+          hotkey="n"
+          bg={theme.red}
+          label="No" />
       </box>
     </ModalOverlay>
   )

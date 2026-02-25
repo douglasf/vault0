@@ -7,6 +7,7 @@ import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, STATUS_LABELS, TASK_TYPE_LABELS, TASK_TYPES, VISIBLE_STATUSES } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, toRGBA } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
+import { Button } from "./Button.js"
 
 /** Form data submitted on create or edit */
 export interface TaskFormData {
@@ -240,18 +241,12 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
         )}
 
         <text> </text>
-        <text> </text>
-        <text
-          fg={focusField === "submit" ? theme.bg_1 : theme.fg_0}
-          bg={focusField === "submit" ? theme.blue : undefined}
-          onMouseDown={handleFormSubmit}
-        >
-          {focusField === "submit" ? "\u25B8 " : "  "}
-          [{mode === "create" ? "Create" : "Save"}]
-        </text>
-
-        <text> </text>
-        <text fg={theme.dim_0}>Tab: next field  Shift+Tab: prev  Enter: newline (desc) / next  Esc: cancel</text>
+        <box marginX={1} alignItems="flex-end">
+          <Button
+            onPress={handleFormSubmit}
+            fg={focusField === "submit" ? theme.blue : theme.fg_0}
+            label={mode === "create" ? "Create" : "Save"} />
+        </box>
       </box>
     </ModalOverlay>
   )

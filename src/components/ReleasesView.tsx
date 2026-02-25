@@ -8,6 +8,7 @@ import { theme } from "../lib/theme.js"
 import { STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor } from "../lib/theme.js"
 import { TaskCard } from "./TaskCard.js"
+import { ConfirmDeleteRelease } from "./ConfirmDeleteRelease.js"
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -109,23 +110,8 @@ export function ReleasesView({
   // ── Keyboard handler ──────────────────────────────────────────
 
   useActiveKeyboard((event: KeyEvent) => {
-    // Confirmation dialog intercepts all input
-    if (confirmDeleteRelease) {
-      const input = event.raw || ""
-      if (input === "y" || input === "Y") {
-        if (selectedRelease) {
-          onDeleteRelease(selectedRelease.id)
-          setConfirmDeleteRelease(false)
-          // Reset selection
-          setSelectedReleaseIdx((prev) => Math.min(prev, Math.max(0, releases.length - 2)))
-          setSelectedTaskIdx(0)
-          moveToColumn("releases")
-        }
-      } else if (input === "n" || input === "N" || event.name === "escape") {
-        setConfirmDeleteRelease(false)
-      }
-      return
-    }
+    // Modal confirmation dialog handles its own keyboard input
+    if (confirmDeleteRelease) return
 
     if (event.name === "escape" || event.raw === "q") {
       if (activeColumn !== "releases") {
@@ -228,26 +214,20 @@ export function ReleasesView({
     )
   }
 
-  // ── Confirm delete overlay ────────────────────────────────────
+  // ── Confirm delete handlers ────────────────────────────────────
 
-  if (confirmDeleteRelease && selectedRelease) {
-    return (
-      <box flexDirection="column" flexGrow={1} padding={1}>
-        <text fg={theme.red} attributes={TextAttributes.BOLD}>
-          Delete Release
-        </text>
-        <text> </text>
-        <text fg={theme.fg_1}>
-          Delete release "{selectedRelease.name}" and restore all {selectedRelease.taskCount} task{selectedRelease.taskCount !== 1 ? "s" : ""} to the board?
-        </text>
-        <text> </text>
-        <text fg={theme.red}>This will permanently remove the release record.</text>
-        <text fg={theme.fg_1}>All tasks will reappear on the board with their original status.</text>
-        <text> </text>
-        <text fg={theme.dim_0}>[y]es  [n]o / Esc: cancel</text>
-      </box>
-    )
-  }
+  const handleConfirmDelete = useCallback(() => {
+    if (!selectedRelease) return
+    onDeleteRelease(selectedRelease.id)
+    setConfirmDeleteRelease(false)
+    setSelectedReleaseIdx((prev) => Math.min(prev, Math.max(0, releases.length - 2)))
+    setSelectedTaskIdx(0)
+    moveToColumn("releases")
+  }, [selectedRelease, onDeleteRelease, releases.length, moveToColumn])
+
+  const handleCancelDelete = useCallback(() => {
+    setConfirmDeleteRelease(false)
+  }, [])
 
   // ── Helpers ────────────────────────────────────────────────────
 
@@ -464,6 +444,14 @@ export function ReleasesView({
         {activeColumn === "releases" && renderReleasesPanel(contentHeight - 2, false)}
         {activeColumn === "tasks" && renderTasksPanel(contentHeight - 2, false)}
         {activeColumn === "detail" && renderDetailPanel(contentHeight - 2, false)}
+
+        {confirmDeleteRelease && selectedRelease && (
+          <ConfirmDeleteRelease
+            release={selectedRelease}
+            onConfirm={handleConfirmDelete}
+            onCancel={handleCancelDelete}
+          />
+        )}
       </box>
     )
   }
@@ -478,6 +466,14 @@ export function ReleasesView({
         {renderTasksPanel(contentHeight, true)}
         {renderDetailPanel(contentHeight, true)}
       </box>
+
+      {confirmDeleteRelease && selectedRelease && (
+        <ConfirmDeleteRelease
+          release={selectedRelease}
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+        />
+      )}
     </box>
   )
 }
