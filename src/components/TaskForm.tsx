@@ -1,12 +1,15 @@
 import type React from "react"
 import { useState, useRef, useCallback } from "react"
 import type { KeyEvent } from "@opentui/core"
-import type { InputRenderable, TextareaRenderable } from "@opentui/core"
-import { useKeyboard } from "@opentui/react"
+import type { TextareaRenderable } from "@opentui/core"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, STATUS_LABELS, TASK_TYPE_LABELS, TASK_TYPES, VISIBLE_STATUSES } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, toRGBA } from "../lib/theme.js"
+import { useFormNavigation } from "../hooks/useFormNavigation.js"
 import { ModalOverlay } from "./ModalOverlay.js"
+import { FormInput } from "./FormInput.js"
+import type { FormInputHandle } from "./FormInput.js"
 import { Button } from "./Button.js"
 
 /** Form data submitted on create or edit */
@@ -58,30 +61,20 @@ function cycleOption<T>(options: readonly T[], current: T, delta: 1 | -1): T {
  * between fields; Enter advances or submits.
  */
 export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onCancel }: TaskFormProps) {
-  const titleRef = useRef<InputRenderable>(null)
+  const titleRef = useRef<FormInputHandle>(null)
   const descRef = useRef<TextareaRenderable>(null)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
   const [status, setStatus] = useState<Status>((task?.status as Status) || initialStatus || "backlog")
-  const [focusField, setFocusField] = useState<FormField>("title")
 
   const fields: FormField[] = mode === "create"
     ? ["title", "description", "priority", "type", "status", "submit"]
     : ["title", "description", "priority", "type", "submit"]
 
-  const advanceField = useCallback((from?: FormField) => {
-    const currentIndex = fields.indexOf(from || focusField)
-    if (currentIndex < fields.length - 1) {
-      setFocusField(fields[currentIndex + 1])
-    }
-  }, [focusField, fields])
-
-  const handleTitleSubmit = useCallback(() => {
-    advanceField("title")
-  }, [advanceField])
+  const { focusField, setFocusField, advance, isFocused } = useFormNavigation(fields, "title" as FormField)
 
   const handleFormSubmit = useCallback(() => {
-    const titleValue = titleRef.current?.value?.trim() || ""
+    const titleValue = titleRef.current?.input?.value?.trim() || ""
     const descValue = descRef.current?.editBuffer?.getText() || ""
     if (titleValue) {
       onSubmit({ title: titleValue, description: descValue, priority, status, type: taskType })
@@ -107,18 +100,13 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
       return true
     }
     if (event.name === "return") {
-      advanceField()
+      advance()
       return true
     }
     return false
-  }, [advanceField])
+  }, [advance])
 
-  useKeyboard((event: KeyEvent) => {
-    if (event.name === "escape") {
-      onCancel()
-      return
-    }
-
+  useActiveKeyboard((event: KeyEvent) => {
     // Tab / Shift+Tab to navigate fields
     if (event.name === "tab") {
       const currentIndex = fields.indexOf(focusField)
@@ -150,8 +138,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
     }
   })
 
-  const isTitleFocused = focusField === "title"
-  const isDescFocused = focusField === "description"
+  const isDescFocused = isFocused("description")
 
   const fieldBg = toRGBA(theme.bg_0)
   const fieldFocusedBg = toRGBA(theme.bg_2)
@@ -168,23 +155,14 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
         )}
 
         <text> </text>
-        <box
-          border={true}
-          borderStyle="single"
-          borderColor={isTitleFocused ? theme.blue : theme.fg_0}
-          title="Title"
-          onMouseDown={() => setFocusField("title")}>
-          <input
-            ref={titleRef}
-            focused={isTitleFocused}
-            value={task?.title?.replace(/\t/g, "    ") || ""}
-            textColor={theme.dim_0}
-            focusedTextColor={theme.fg_1}
-            paddingX={1}
-            onSubmit={handleTitleSubmit}
-            flexGrow={1}
-          />
-        </box>
+        <FormInput
+          ref={titleRef}
+          label="Title"
+          focused={isFocused("title")}
+          onFocus={() => setFocusField("title")}
+          value={task?.title?.replace(/\t/g, "    ") || ""}
+          onSubmit={advance}
+        />
 
         <text> </text>
         <box 
@@ -208,8 +186,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
 
         <text> </text>
         <text onMouseDown={() => setFocusField("priority")}>
-          <span fg={focusField === "priority" ? theme.blue : theme.fg_0}>
-            {focusField === "priority" ? "\u25B8 " : "  "}Priority:{" "}
+          <span fg={isFocused("priority") ? theme.blue : theme.fg_0}>
+            {isFocused("priority") ? "\u25B8 " : "  "}Priority:{" "}
           </span>
           <span fg={getPriorityColor(priority)}>
             {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
@@ -218,8 +196,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
 
         <text> </text>
         <text onMouseDown={() => setFocusField("type")}>
-          <span fg={focusField === "type" ? theme.blue : theme.fg_0}>
-            {focusField === "type" ? "\u25B8 " : "  "}Type:{" "}
+          <span fg={isFocused("type") ? theme.blue : theme.fg_0}>
+            {isFocused("type") ? "\u25B8 " : "  "}Type:{" "}
           </span>
           <span fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
             {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
@@ -230,8 +208,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
           <>
             <text> </text>
             <text onMouseDown={() => setFocusField("status")}>
-              <span fg={focusField === "status" ? theme.blue : theme.fg_0}>
-                {focusField === "status" ? "\u25B8 " : "  "}Status:{" "}
+              <span fg={isFocused("status") ? theme.blue : theme.fg_0}>
+                {isFocused("status") ? "\u25B8 " : "  "}Status:{" "}
               </span>
               <span fg={getStatusColor(status)}>
                 {"\u25C0 "}{STATUS_LABELS[status]}{" \u25B6"}
@@ -244,7 +222,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
         <box marginX={1} alignItems="flex-end">
           <Button
             onPress={handleFormSubmit}
-            fg={focusField === "submit" ? theme.blue : theme.fg_0}
+            fg={isFocused("submit") ? theme.blue : theme.fg_0}
             label={mode === "create" ? "Create" : "Save"} />
         </box>
       </box>

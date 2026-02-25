@@ -1,8 +1,8 @@
 import { TextAttributes } from "@opentui/core"
 import type { ReleaseWithTaskCount } from "../lib/types.js"
 import { theme } from "../lib/theme.js"
-import { ModalOverlay } from "./ModalOverlay.js"
-import { Button } from "./Button.js"
+import { truncateText } from "../lib/format.js"
+import { ConfirmDialog } from "./ConfirmDialog.js"
 
 export interface ConfirmDeleteReleaseProps {
   release: ReleaseWithTaskCount
@@ -11,12 +11,10 @@ export interface ConfirmDeleteReleaseProps {
 }
 
 export function ConfirmDeleteRelease({ release, onConfirm, onCancel }: ConfirmDeleteReleaseProps) {
-  const truncatedName = release.name.length > 50
-    ? `${release.name.substring(0, 47)}...`
-    : release.name
+  const truncatedName = truncateText(release.name, 50)
 
   return (
-    <ModalOverlay onClose={onCancel} size="small" title="Delete Release">
+    <ConfirmDialog title="Delete Release" onConfirm={onConfirm} onCancel={onCancel}>
       <box marginTop={0} flexDirection="column">
         <text fg={theme.fg_1}>
           Delete release and restore all tasks to the board?
@@ -33,19 +31,6 @@ export function ConfirmDeleteRelease({ release, onConfirm, onCancel }: ConfirmDe
           <text fg={theme.red}>This will permanently remove the release record.</text>
         </box>
       </box>
-
-      <box marginX={1} marginTop={1} flexDirection="row" justifyContent="flex-end" gap={1}>
-        <Button
-          onPress={onConfirm}
-          hotkey="y"
-          bg={theme.green}
-          label="Yes" />
-        <Button
-          onPress={onCancel}
-          hotkey="n"
-          bg={theme.red}
-          label="No" />
-      </box>
-    </ModalOverlay>
+    </ConfirmDialog>
   )
 }

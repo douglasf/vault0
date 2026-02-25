@@ -1,12 +1,13 @@
 import React, { useState } from "react"
-import { TextAttributes } from "@opentui/core"
 import type { KeyEvent, SelectOption } from "@opentui/core"
-import { useKeyboard } from "@opentui/react"
-import type { Task, Status } from "../lib/types.js"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import type { Task } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTasksByStatus } from "../db/queries.js"
-import { VISIBLE_STATUSES, STATUS_LABELS } from "../lib/constants.js"
+import { VISIBLE_STATUSES } from "../lib/constants.js"
+import { getStatusLabel, truncateText } from "../lib/format.js"
 import { theme } from "../lib/theme.js"
+import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface DependencyPickerProps {
   currentTaskId: string
@@ -43,15 +44,13 @@ export function DependencyPicker({
   )
 
   const selectOptions: SelectOption[] = availableTasks.map((task) => ({
-    name: `${task.title.substring(0, 45)} [${STATUS_LABELS[task.status as Status] || task.status}]`,
+    name: `${truncateText(task.title, 45)} [${getStatusLabel(task.status)}]`,
     description: "",
     value: task.id,
   }))
 
-  useKeyboard((event: KeyEvent) => {
-    if (event.name === "escape") {
-      onCancel()
-    } else if (event.name === "backspace" || event.name === "delete") {
+  useActiveKeyboard((event: KeyEvent) => {
+    if (event.name === "backspace" || event.name === "delete") {
       setSearchFilter((s) => s.slice(0, -1))
     } else if (event.raw && event.raw.length === 1 && !event.ctrl && !event.meta && /[a-zA-Z0-9 _\-]/.test(event.raw)) {
       setSearchFilter((s) => s + event.raw)
@@ -59,9 +58,7 @@ export function DependencyPicker({
   })
 
   return (
-    <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-      <text attributes={TextAttributes.BOLD} fg={theme.cyan}>Add Dependency</text>
-
+    <ModalOverlay size="medium" title="Add Dependency" onClose={onCancel}>
       <box marginTop={1}>
         <text fg={theme.dim_0}>Search: </text>
         {searchFilter ? (
@@ -98,6 +95,6 @@ export function DependencyPicker({
       <box marginTop={1}>
         <text fg={theme.dim_0}>↑/↓: navigate  Enter: add  Esc: cancel</text>
       </box>
-    </box>
+    </ModalOverlay>
   )
 }

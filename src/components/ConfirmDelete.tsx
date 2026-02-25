@@ -1,10 +1,8 @@
-import type { KeyEvent } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
-import { useKeyboard } from "@opentui/react"
 import type { Task } from "../lib/types.js"
 import { theme } from "../lib/theme.js"
-import { ModalOverlay } from "./ModalOverlay.js"
-import { Button } from "./Button.js"
+import { truncateText } from "../lib/format.js"
+import { ConfirmDialog } from "./ConfirmDialog.js"
 
 export interface ConfirmDeleteProps {
   task: Task
@@ -13,14 +11,15 @@ export interface ConfirmDeleteProps {
 }
 
 export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps) {
-  const truncatedTitle = task.title.length > 50
-    ? `${task.title.substring(0, 47)}...`
-    : task.title
-
+  const truncatedTitle = truncateText(task.title, 50)
   const isHardDelete = task.archivedAt !== null
 
   return (
-    <ModalOverlay onClose={onCancel} size="small" title={isHardDelete ? "Permanently Delete Task" : "Archive Task"}>
+    <ConfirmDialog
+      title={isHardDelete ? "Permanently Delete Task" : "Archive Task"}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
       <box marginTop={0} flexDirection="column">
         {isHardDelete ? (
           <>
@@ -35,19 +34,6 @@ export function ConfirmDelete({ task, onConfirm, onCancel }: ConfirmDeleteProps)
           <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>{truncatedTitle}</text>
         </box>
       </box>
-
-      <box marginX={1} marginTop={1} flexDirection="row" justifyContent="flex-end" gap={1}>
-        <Button
-          onPress={onConfirm}
-          hotkey="y"
-          bg={theme.green}
-          label="Yes" />
-        <Button
-          onPress={onCancel}
-          hotkey="n"
-          bg={theme.red}
-          label="No" />
-      </box>
-    </ModalOverlay>
+    </ConfirmDialog>
   )
 }

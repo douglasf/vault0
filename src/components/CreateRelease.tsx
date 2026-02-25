@@ -1,11 +1,14 @@
 import { useState, useCallback, useMemo, useRef } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, InputRenderable, SelectOption } from "@opentui/core"
-import { useKeyboard } from "@opentui/react"
+import type { KeyEvent, SelectOption } from "@opentui/core"
+import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { Task } from "../lib/types.js"
 import type { DetectedVersionFile } from "../lib/version-detect.js"
 import { theme } from "../lib/theme.js"
+import { useFormNavigation } from "../hooks/useFormNavigation.js"
 import { ModalOverlay } from "./ModalOverlay.js"
+import { FormInput } from "./FormInput.js"
+import type { FormInputHandle } from "./FormInput.js"
 import { Button } from "./Button.js"
 
 export interface CreateReleaseData {
@@ -38,11 +41,10 @@ const SPACE_SELECT_BINDING = [{ name: "space", action: "select-current" as const
  * and a select list of done tasks to include in the release.
  */
 export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit, onCancel }: CreateReleaseProps) {
-  const nameRef = useRef<InputRenderable>(null)
-  const descRef = useRef<InputRenderable>(null)
-  const versionRef = useRef<InputRenderable>(null)
+  const nameRef = useRef<FormInputHandle>(null)
+  const descRef = useRef<FormInputHandle>(null)
+  const versionRef = useRef<FormInputHandle>(null)
 
-  const [focusField, setFocusField] = useState<FormField>("name")
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
     () => new Set(doneTasks.map((t) => t.id)),
   )
@@ -66,22 +68,10 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     return f
   }, [hasVersionFiles, bumpVersion, doneTasks.length])
 
-  const advanceField = useCallback(() => {
-    const idx = fields.indexOf(focusField)
-    if (idx < fields.length - 1) {
-      setFocusField(fields[idx + 1])
-    }
-  }, [focusField, fields])
-
-  const retreatField = useCallback(() => {
-    const idx = fields.indexOf(focusField)
-    if (idx > 0) {
-      setFocusField(fields[idx - 1])
-    }
-  }, [focusField, fields])
+  const { focusField, setFocusField, advance, retreat, isFocused } = useFormNavigation(fields, "name" as FormField)
 
   const handleSubmit = useCallback(() => {
-    const name = nameRef.current?.value?.trim() || ""
+    const name = nameRef.current?.input?.value?.trim() || ""
     if (!name) return
 
     // Validate: all selected tasks and their subtasks must be done
@@ -107,7 +97,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
 
     const data: CreateReleaseData = {
       name,
-      description: descRef.current?.value?.trim() || "",
+      description: descRef.current?.input?.value?.trim() || "",
       taskIds: Array.from(selectedTaskIds),
     }
 
@@ -161,25 +151,20 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     if (option?.value) toggleTask(option.value)
   }, [toggleTask])
 
-  useKeyboard((event: KeyEvent) => {
-    if (event.name === "escape") {
-      onCancel()
-      return
-    }
-
+  useActiveKeyboard((event: KeyEvent) => {
     // Tab / Shift+Tab navigation
     if (event.name === "tab") {
       if (event.shift) {
-        retreatField()
+        retreat()
       } else {
-        advanceField()
+        advance()
       }
       return
     }
 
     // Field-specific handling
     if (focusField === "name" && event.name === "return") {
-      advanceField()
+      advance()
       return
     }
 
@@ -207,7 +192,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     }
 
     if (focusField === "version-value" && event.name === "return") {
-      advanceField()
+      advance()
       return
     }
 
@@ -219,61 +204,37 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     }
   })
 
-  const isNameFocused = focusField === "name"
-  const isDescFocused = focusField === "description"
-  const isVersionValueFocused = focusField === "version-value"
-
   return (
     <ModalOverlay onClose={onCancel} size="large" title="Create Release">
       <box flexDirection="column">
         {/* Release name */}
         <text> </text>
-        <box
-          border={true}
-          borderStyle="single"
-          borderColor={isNameFocused ? theme.blue : theme.fg_0}
-          title="Release Name"
-          onMouseDown={() => setFocusField("name")}
-        >
-          <input
-            ref={nameRef}
-            focused={isNameFocused}
-            value=""
-            placeholder="e.g. v1.0.0, Sprint 3, January Release"
-            textColor={isNameFocused ? theme.fg_0 : theme.dim_0}
-            paddingX={1}
-            onSubmit={() => advanceField()}
-            flexGrow={1}
-          />
-        </box>
+        <FormInput
+          ref={nameRef}
+          label="Release Name"
+          focused={isFocused("name")}
+          onFocus={() => setFocusField("name")}
+          placeholder="e.g. v1.0.0, Sprint 3, January Release"
+          onSubmit={advance}
+        />
 
         {/* Description (optional) */}
         <text> </text>
-        <box
-          border={true}
-          borderStyle="single"
-          borderColor={isDescFocused ? theme.blue : theme.fg_0}
-          title="Description (optional)"
-          onMouseDown={() => setFocusField("description")}
-        >
-          <input
-            ref={descRef}
-            focused={isDescFocused}
-            value=""
-            textColor={isDescFocused ? theme.fg_0 : theme.dim_0}
-            paddingX={1}
-            onSubmit={() => advanceField()}
-            flexGrow={1}
-          />
-        </box>
+        <FormInput
+          ref={descRef}
+          label="Description (optional)"
+          focused={isFocused("description")}
+          onFocus={() => setFocusField("description")}
+          onSubmit={advance}
+        />
 
         {/* Version bump toggle */}
         {hasVersionFiles && (
           <>
             <text> </text>
             <text onMouseDown={() => setFocusField("version-bump")}>
-              <span fg={focusField === "version-bump" ? theme.blue : theme.fg_0}>
-                {focusField === "version-bump" ? "\u25B8 " : "  "}
+              <span fg={isFocused("version-bump") ? theme.blue : theme.fg_0}>
+                {isFocused("version-bump") ? "\u25B8 " : "  "}
                 Bump version?{" "}
               </span>
               <span fg={bumpVersion ? theme.green : theme.dim_0}>
@@ -291,24 +252,15 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
         {bumpVersion && selectedVersionFile && (
           <>
             <text> </text>
-            <box
-              border={true}
-              borderStyle="single"
-              borderColor={isVersionValueFocused ? theme.blue : theme.fg_0}
-              title="New Version"
-              onMouseDown={() => setFocusField("version-value")}
-            >
-              <input
-                ref={versionRef}
-                focused={isVersionValueFocused}
-                value={versionValue}
-                textColor={isVersionValueFocused ? theme.fg_0 : theme.dim_0}
-                paddingX={1}
-                onInput={(v: string) => setVersionValue(v)}
-                onSubmit={() => advanceField()}
-                flexGrow={1}
-              />
-            </box>
+            <FormInput
+              ref={versionRef}
+              label="New Version"
+              focused={isFocused("version-value")}
+              onFocus={() => setFocusField("version-value")}
+              value={versionValue}
+              onInput={(v: string) => setVersionValue(v)}
+              onSubmit={advance}
+            />
           </>
         )}
 
@@ -316,13 +268,13 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
         {doneTasks.length > 0 && (
           <>
             <text> </text>
-            <text attributes={TextAttributes.BOLD} fg={focusField === "tasks" ? theme.blue : theme.fg_0}>
+            <text attributes={TextAttributes.BOLD} fg={isFocused("tasks") ? theme.blue : theme.fg_0}>
               Tasks ({selectedTaskIds.size}/{doneTasks.length} selected)
-              {focusField === "tasks" ? "  [a] toggle all" : ""}
+              {isFocused("tasks") ? "  [a] toggle all" : ""}
             </text>
             <select
               options={makeTaskOptions()}
-              focused={focusField === "tasks"}
+              focused={isFocused("tasks")}
               height={Math.min(doneTasks.length, 8)}
               showDescription={false}
               onSelect={handleTaskSelect}
@@ -351,7 +303,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
         <box marginX={1} alignItems="flex-end" onMouseDown={() => setFocusField("submit")}>
           <Button
             onPress={handleSubmit}
-            fg={focusField === "submit" ? theme.blue : theme.fg_0}
+            fg={isFocused("submit") ? theme.blue : theme.fg_0}
             label="Submit" />
         </box>
       </box>
