@@ -373,7 +373,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
 
       {/* Footer */}
       <box marginTop={1}>
-        <text fg={theme.fg_0}>
+        <text fg={theme.dim_0}>
           Type to filter · ↑/↓ scroll · ? or Esc to close
         </text>
       </box>

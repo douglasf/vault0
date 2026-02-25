@@ -84,11 +84,6 @@ export function FilterBar({
   useActiveKeyboard((event: KeyEvent) => {
     const input = event.raw || ""
 
-    if (event.name === "escape") {
-      onClose()
-      return
-    }
-
     if (event.name === "tab" && !event.shift) {
       setSectionIdx((prev) => Math.min(SECTIONS.length - 1, prev + 1))
     } else if ((event.name === "tab" && event.shift) || event.name === "btab") {
@@ -122,7 +117,7 @@ export function FilterBar({
 
   return (
     <ModalOverlay onClose={onClose} size="medium" title=" ⚙ Filters ">
-      <text fg={theme.fg_0} marginBottom={1}>
+      <text fg={theme.dim_0} marginBottom={1}>
         Tab/S-Tab section · ↑/↓ item · Enter/Space toggle · c clear · Esc close
       </text>
 

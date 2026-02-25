@@ -4,8 +4,8 @@ import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { ReleaseWithTaskCount, Task, TaskCard as TaskCardType } from "../lib/types.js"
-import { theme } from "../lib/theme.js"
-import { STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
+import { theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
+import { getStatusLabel, getPriorityLabel, formatDate } from "../lib/format.js"
 import { getPriorityColor, getStatusColor } from "../lib/theme.js"
 import { TaskCard } from "./TaskCard.js"
 import { ConfirmDeleteRelease } from "./ConfirmDeleteRelease.js"
@@ -364,13 +364,13 @@ export function ReleasesView({
             <box flexDirection="row" marginTop={1}>
               <text fg={theme.dim_0}>Status: </text>
               <text fg={getStatusColor(selectedTask.status)}>
-                {STATUS_LABELS[selectedTask.status as keyof typeof STATUS_LABELS] || selectedTask.status}
+                {getStatusLabel(selectedTask.status)}
               </text>
             </box>
             <box flexDirection="row">
               <text fg={theme.dim_0}>Priority: </text>
               <text fg={getPriorityColor(selectedTask.priority)}>
-                {PRIORITY_LABELS[selectedTask.priority as keyof typeof PRIORITY_LABELS] || selectedTask.priority}
+                {getPriorityLabel(selectedTask.priority)}
               </text>
             </box>
             <box flexDirection="row">
@@ -386,7 +386,7 @@ export function ReleasesView({
             {selectedTask.description && (
               <>
                 <text fg={theme.dim_0} marginTop={1}>──────────────────</text>
-                <text fg={theme.fg_1} marginTop={0}>{selectedTask.description}</text>
+                <markdown content={selectedTask.description} syntaxStyle={getMarkdownSyntaxStyle()} conceal={true} />
               </>
             )}
 
@@ -432,8 +432,8 @@ export function ReleasesView({
           options={tabOptions}
           focused={false}
           onChange={handleTabChange}
-          textColor={theme.dim_0}
-          selectedTextColor={theme.fg_1}
+          textColor={theme.fg_0}
+          selectedTextColor={theme.fg_0}
           showDescription={false}
           showUnderline={true}
           wrapSelection={false}
@@ -476,10 +476,4 @@ export function ReleasesView({
       )}
     </box>
   )
-}
-
-// ── Utilities ───────────────────────────────────────────────────────
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
 }

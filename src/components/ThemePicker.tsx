@@ -69,7 +69,6 @@ export function ThemePicker({ onSelect, onCancel, onPreview }: ThemePickerProps)
 
       {themes.map((t, i) => {
         const isSelected = i === selectedIndex
-        const isCurrent = i === selectedIndex
         return (
           <box
             key={t.name}
@@ -83,7 +82,7 @@ export function ThemePicker({ onSelect, onCancel, onPreview }: ThemePickerProps)
               {`${isSelected ? "▸ " : "  "}${t.name}`}
             </text>
             <text fg={isSelected ? theme.bg_1 : theme.dim_0}>
-              {` (${t.source})${isCurrent ? " ✓" : ""}`}
+              {` (${t.source})${isSelected ? " ✓" : ""}`}
             </text>
           </box>
         )

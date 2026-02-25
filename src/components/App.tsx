@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { useRenderer, useTerminalDimensions } from "@opentui/react"
 import type { KeyEvent } from "@opentui/core"
 import type { Vault0Database } from "../db/connection.js"
@@ -30,7 +30,7 @@ import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { useToastState } from "../hooks/useToast.js"
 import type { Task, Status, SortField } from "../lib/types.js"
-import type { DbError } from "../hooks/useBoard.js"
+import type { DbError } from "../lib/db-errors.js"
 import { getBoards, getTaskCards, getReleases, getReleaseTopLevelTasks, getReleaseTaskSubtasks, createRelease, restoreTaskFromRelease, restoreAllFromRelease, deleteRelease } from "../db/queries.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { SORT_FIELDS } from "../lib/constants.js"
@@ -137,8 +137,8 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
   const handleMoveTask = useCallback((task: Task, targetStatus: Status) => {
     actions.updateStatus(task.id, targetStatus)
     // Force re-render so Board/NarrowTerminal fetches fresh data
-    setState((prev) => ({ ...prev }))
-  }, [actions])
+    forceRefresh()
+  }, [actions, forceRefresh])
 
   // Initialize board on mount — fetch the first board from the database
   const initializeBoard = useCallback(() => {
@@ -186,7 +186,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
       const task = highlightedTaskRef.current
       if (task && task.archivedAt !== null) {
         actions.undeleteTask(task.id)
-        setState((prev) => ({ ...prev }))
+        forceRefresh()
       }
     } else if (input === "D") {
       // Archive all tasks in the Done lane
@@ -206,7 +206,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
       if (task) {
         actions.cyclePriority(task.id)
         // Force re-render so Board fetches fresh data
-        setState((prev) => ({ ...prev }))
+        forceRefresh()
       }
     } else if (input === "f") {
       setState((prev) => ({ ...prev, uiMode: "text-filter" }))
@@ -313,7 +313,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
               error={dbError}
               onRetry={() => {
                 setDbError(null)
-                setState((prev) => ({ ...prev }))
+                forceRefresh()
               }}
               onDismiss={() => renderer.destroy()}
             />
@@ -361,14 +361,14 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             onCyclePriority={(taskId) => {
               actions.cyclePriority(taskId)
               // Force re-render so TaskDetail re-fetches
-              setState((prev) => ({ ...prev }))
+              forceRefresh()
             }}
             onDelete={(_taskId) => {
               setState((prev) => ({ ...prev, uiMode: "confirm-delete", deleteReturnMode: "detail" }))
             }}
             onUnarchive={(taskId) => {
               actions.undeleteTask(taskId)
-              setState((prev) => ({ ...prev }))
+              forceRefresh()
             }}
             onCreateSubtask={(parent) => {
               setState((prev) => ({ ...prev, uiMode: "create", createParent: parent }))
@@ -426,7 +426,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
 
         {state.uiMode === "theme-picker" && (
           <ThemePicker
-            onPreview={() => setState((prev) => ({ ...prev }))}
+            onPreview={forceRefresh}
             onSelect={(themeName, appearance) => {
               saveGlobalConfig({ theme: { name: themeName, appearance } })
               showToast("Theme changed", `${themeName} (${appearance})`)
@@ -530,17 +530,17 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             getTaskSubtasks={(taskId) => getReleaseTaskSubtasks(db, taskId)}
             onRestoreTask={(taskId) => {
               restoreTaskFromRelease(db, taskId)
-              setState((prev) => ({ ...prev }))
+              forceRefresh()
             }}
             onRestoreAll={(releaseId) => {
               const count = restoreAllFromRelease(db, releaseId)
               showToast("Tasks restored", `${count} task${count !== 1 ? "s" : ""} moved to board`)
-              setState((prev) => ({ ...prev }))
+              forceRefresh()
             }}
             onDeleteRelease={(releaseId) => {
               const count = deleteRelease(db, releaseId)
               showToast("Release deleted", `${count} task${count !== 1 ? "s" : ""} restored to board`)
-              setState((prev) => ({ ...prev }))
+              forceRefresh()
             }}
             onBack={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
             inputActive={state.uiMode === "releases"}
