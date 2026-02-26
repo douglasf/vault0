@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, SelectOption } from "@opentui/core"
+import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import type { Filters, Status, Priority, Source } from "../lib/types.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
 import { theme } from "../lib/theme.js"
@@ -27,6 +28,14 @@ const PRIORITIES = Object.keys(PRIORITY_ORDER) as Priority[]
 const SOURCES: Source[] = ["manual", "opencode", "opencode-plan", "todo_md", "import"]
 const TOGGLE_KEYS = ["readyOnly", "blockedOnly", "showArchived"] as const
 const SPACE_SELECT_BINDING = [{ name: "space", action: "select-current" as const }]
+
+const SECTION_HEIGHTS = [
+  1 + VISIBLE_STATUSES.length + 1,  // status
+  1 + PRIORITIES.length + 1,         // priority
+  1 + SOURCES.length + 1,            // source
+  1 + TOGGLE_KEYS.length + 1,        // toggles
+  1,                                  // actions
+]
 
 const TOGGLE_LABELS: Record<string, string> = {
   readyOnly: "Ready Only",
@@ -78,8 +87,38 @@ export function FilterBar({
   onClose,
 }: FilterBarProps) {
   const [sectionIdx, setSectionIdx] = useState(0)
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
+  const { height: terminalRows } = useTerminalDimensions()
+
+  // Modal chrome: 4 (modal margin) + 2 (padding) + 1 (title) = 7
+  // Help text outside scrollbox: 1 (help text) + 1 (marginBottom) = 2
+  const chromeHeight = 7 + 2
+  const contentHeight = SECTION_HEIGHTS.reduce((sum, h) => sum + h, 0)
+  const availableHeight = Math.max(5, terminalRows - chromeHeight)
+  const needsScroll = contentHeight > availableHeight
+  const scrollHeight = needsScroll ? availableHeight : contentHeight
 
   const currentSection = SECTIONS[sectionIdx]
+
+  // ── Auto-scroll to keep focused section visible ────────────────────────
+  const scrollToSection = useCallback(
+    (idx: number) => {
+      if (!scrollRef.current) return
+      let sectionTop = 0
+      for (let i = 0; i < idx; i++) sectionTop += SECTION_HEIGHTS[i]
+      const sectionBottom = sectionTop + SECTION_HEIGHTS[idx]
+      const currentScroll = scrollRef.current.scrollTop
+      if (sectionTop < currentScroll) {
+        scrollRef.current.scrollTo(sectionTop)
+      } else if (sectionBottom > currentScroll + scrollHeight) {
+        scrollRef.current.scrollTo(sectionBottom - scrollHeight)
+      }
+    },
+    [scrollHeight],
+  )
+
+  // Scroll when section changes
+  scrollToSection(sectionIdx)
 
   useActiveKeyboard((event: KeyEvent) => {
     const input = event.raw || ""
@@ -121,7 +160,8 @@ export function FilterBar({
         Tab/S-Tab section · ↑/↓ item · Enter/Space toggle · c clear · Esc close
       </text>
 
-      {/* Status */}
+      <scrollbox ref={scrollRef} scrollY focused={false} flexGrow={0} flexShrink={1} height={scrollHeight}>
+        {/* Status */}
       <box flexDirection="column" marginBottom={1} flexShrink={0}>
         <text attributes={TextAttributes.BOLD} fg={currentSection === "status" ? theme.blue : theme.fg_0}>
           Status:
@@ -206,6 +246,7 @@ export function FilterBar({
           Clear All Filters (c)
         </text>
       </box>
+      </scrollbox>
     </ModalOverlay>
   )
 }

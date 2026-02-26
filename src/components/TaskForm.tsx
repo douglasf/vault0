@@ -1,16 +1,16 @@
 import type React from "react"
 import { useState, useRef, useCallback } from "react"
-import type { KeyEvent } from "@opentui/core"
-import type { TextareaRenderable } from "@opentui/core"
+import type { KeyEvent, ScrollBoxRenderable, InputRenderable, TextareaRenderable } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, STATUS_LABELS, TASK_TYPE_LABELS, TASK_TYPES, VISIBLE_STATUSES } from "../lib/constants.js"
-import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, toRGBA } from "../lib/theme.js"
+import { getPriorityColor, getStatusColor, getTaskTypeColor, theme } from "../lib/theme.js"
 import { useFormNavigation } from "../hooks/useFormNavigation.js"
 import { ModalOverlay } from "./ModalOverlay.js"
-import { FormInput } from "./FormInput.js"
-import type { FormInputHandle } from "./FormInput.js"
 import { Button } from "./Button.js"
+import { FormInput } from "./FormInput.js"
+import { FormTextarea } from "./FormTextarea.js"
 
 /** Form data submitted on create or edit */
 export interface TaskFormData {
@@ -62,21 +62,66 @@ function cycleOption<T>(options: readonly T[], current: T, delta: 1 | -1): T {
  * between fields; Enter advances or submits.
  */
 export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onCancel }: TaskFormProps) {
-  const titleRef = useRef<FormInputHandle>(null)
+  const titleRef = useRef<InputRenderable>(null)
   const descRef = useRef<TextareaRenderable>(null)
   const solutionRef = useRef<TextareaRenderable>(null)
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
   const [status, setStatus] = useState<Status>((task?.status as Status) || initialStatus || "backlog")
+  const { height: terminalRows } = useTerminalDimensions()
 
+  // Modal chrome: 4 (modal margin) + 2 (padding) + 2 (title) + 3 (buttons) = 12
+  // Parent title line if present: 2 (text + margin)
+  const chromeHeight = 11 + (parentTitle ? 2 : 0)
   const fields: FormField[] = mode === "create"
     ? ["title", "description", "priority", "type", "status", "submit"]
     : ["title", "description", "solution", "priority", "type", "submit"]
 
-  const { focusField, setFocusField, advance, isFocused } = useFormNavigation(fields, "title" as FormField)
+  const { focusField, setFocusField, advance, retreat, isFocused } = useFormNavigation(fields, "title" as FormField)
+
+  // ── Field heights for scroll calculation ───────────────────────────────
+  // Each field's total height including the spacer line before it (except first)
+  const FIELD_HEIGHT: Record<FormField, number> = {
+    title: 3,          // bordered input(3)
+    description: 10,   // bordered textarea(8+2)
+    solution: 10,      // bordered textarea(8+2)
+    priority: 2,       // cycler(1) + marginBottom(1)
+    type: 2,           // cycler(1) + marginBottom(1)
+    status: 2,         // cycler(1) + marginBottom(1)
+    submit: 0,         // outside scrollbox — not counted
+  }
+
+  const contentHeight = fields.reduce((sum, f) => sum + FIELD_HEIGHT[f], 0)
+  const availableHeight = Math.max(10, terminalRows - chromeHeight)
+  const needsScroll = contentHeight > availableHeight
+  const scrollHeight = needsScroll ? availableHeight : contentHeight
+
+  // ── Auto-scroll to keep focused field visible ──────────────────────────
+  const scrollToField = useCallback(
+    (field: FormField) => {
+      if (!scrollRef.current || !scrollHeight) return
+      let fieldTop = 0
+      for (const f of fields) {
+        if (f === field) break
+        fieldTop += FIELD_HEIGHT[f]
+      }
+      const fieldBottom = fieldTop + FIELD_HEIGHT[field]
+      const currentScroll = scrollRef.current.scrollTop
+      if (fieldTop < currentScroll) {
+        scrollRef.current.scrollTo(fieldTop)
+      } else if (fieldBottom > currentScroll + scrollHeight) {
+        scrollRef.current.scrollTo(fieldBottom - scrollHeight)
+      }
+    },
+    [fields, scrollHeight],
+  )
+
+  // Scroll when focus changes
+  scrollToField(focusField)
 
   const handleFormSubmit = useCallback(() => {
-    const titleValue = titleRef.current?.input?.value?.trim() || ""
+    const titleValue = titleRef.current?.value?.trim() || ""
     const descValue = descRef.current?.editBuffer?.getText() || ""
     const solutionValue = solutionRef.current?.editBuffer?.getText() || ""
     if (titleValue) {
@@ -112,11 +157,15 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
   useActiveKeyboard((event: KeyEvent) => {
     // Tab / Shift+Tab to navigate fields
     if (event.name === "tab") {
-      const currentIndex = fields.indexOf(focusField)
-      const nextIndex = event.shift
-        ? (currentIndex - 1 + fields.length) % fields.length
-        : (currentIndex + 1) % fields.length
-      setFocusField(fields[nextIndex])
+      if (event.shift) {
+        retreat()
+      } else {
+        advance()
+      }
+      return
+    }
+    if (event.name === "btab") {
+      retreat()
       return
     }
 
@@ -141,11 +190,9 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
     }
   })
 
+  const isTitleFocused = isFocused("title")
   const isDescFocused = isFocused("description")
   const isSolutionFocused = isFocused("solution")
-
-  const fieldBg = toRGBA(theme.bg_0)
-  const fieldFocusedBg = toRGBA(theme.bg_2)
 
   const modalTitle = mode === "create"
     ? (parentTitle ? "Create Subtask" : "Create Task")
@@ -153,106 +200,92 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
 
   return (
     <ModalOverlay onClose={onCancel} size="large" title={modalTitle}>
-      <box flexDirection="column">
-        {parentTitle && (
-          <text fg={theme.dim_0}>Parent: {parentTitle}</text>
-        )}
+      {parentTitle && (
+        <text marginBottom={1} fg={theme.dim_0}>Parent: {parentTitle}</text>
+      )}
 
-        <text> </text>
-        <FormInput
-          ref={titleRef}
-          label="Title"
-          focused={isFocused("title")}
-          onFocus={() => setFocusField("title")}
-          value={task?.title?.replace(/\t/g, "    ") || ""}
-          onSubmit={advance}
-        />
+      <scrollbox flexGrow={0} flexShrink={1} height={scrollHeight} ref={scrollRef} scrollY focused={false}>
+        <box flexDirection="column" flexGrow={0} flexShrink={0}>
+          <FormInput
+            ref={titleRef}
+            focused={isTitleFocused}
+            value={task?.title}
+            placeholder="Title"
+            onMouseDown={() => setFocusField("title")}
+            onSubmit={advance}
+          />
 
-        <text> </text>
-        <box 
-          border={true}
-          borderStyle="single"
-          borderColor={isDescFocused ? theme.blue : theme.fg_0}
-          title="Desription"
-          onMouseDown={() => setFocusField("description")}>
-          <textarea
+          <FormTextarea
             ref={descRef}
             focused={isDescFocused}
-            initialValue={task?.description?.replace(/\t/g, "    ") || ""}
-            textColor={theme.dim_0}
-            focusedTextColor={theme.fg_1}
-            paddingX={1}
-            wrapMode="word"
+            initialValue={task?.description?.replace(/\t/g, "  ") || ""}
+            placeholder="Description"
             height={DESC_VIEWPORT}
-            flexGrow={1}
+            onMouseDown={() => setFocusField("description")}
           />
-        </box>
 
-        {mode === "edit" && (
-          <>
-            <text> </text>
-            <box 
-              border={true}
-              borderStyle="single"
-              borderColor={isSolutionFocused ? theme.blue : theme.fg_0}
-              title="Solution"
-              onMouseDown={() => setFocusField("solution")}>
-              <textarea
-                ref={solutionRef}
-                focused={isSolutionFocused}
-                initialValue={task?.solution?.replace(/\t/g, "    ") || ""}
-                textColor={theme.dim_0}
-                focusedTextColor={theme.fg_1}
-                paddingX={1}
-                wrapMode="word"
-                height={DESC_VIEWPORT}
-                flexGrow={1}
-              />
-            </box>
-          </>
-        )}
+          {mode === "edit" && (
+            <FormTextarea
+              ref={solutionRef}
+              focused={isSolutionFocused}
+              initialValue={task?.solution?.replace(/\t/g, "  ") || ""}
+              placeholder="Solution"
+              height={DESC_VIEWPORT}
+              onMouseDown={() => setFocusField("solution")}
+            />
+          )}
 
-        <text> </text>
-        <text onMouseDown={() => setFocusField("priority")}>
-          <span fg={isFocused("priority") ? theme.blue : theme.fg_0}>
-            {isFocused("priority") ? "\u25B8 " : "  "}Priority:{" "}
-          </span>
-          <span fg={getPriorityColor(priority)}>
-            {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
-          </span>
-        </text>
 
-        <text> </text>
-        <text onMouseDown={() => setFocusField("type")}>
-          <span fg={isFocused("type") ? theme.blue : theme.fg_0}>
-            {isFocused("type") ? "\u25B8 " : "  "}Type:{" "}
-          </span>
-          <span fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
-            {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
-          </span>
-        </text>
-
-        {mode === "create" && (
-          <>
-            <text> </text>
-            <text onMouseDown={() => setFocusField("status")}>
-              <span fg={isFocused("status") ? theme.blue : theme.fg_0}>
-                {isFocused("status") ? "\u25B8 " : "  "}Status:{" "}
+          <box
+            height={1}
+            marginBottom={1}
+          >
+            <text onMouseDown={() => setFocusField("priority")}>
+              <span fg={isFocused("priority") ? theme.blue : theme.fg_0}>
+                Priority{" "}
               </span>
-              <span fg={getStatusColor(status)}>
-                {"\u25C0 "}{STATUS_LABELS[status]}{" \u25B6"}
+              <span fg={getPriorityColor(priority)}>
+                {"\u25C0 "}{PRIORITY_LABELS[priority]}{" \u25B6"}
               </span>
             </text>
-          </>
-        )}
+          </box>
 
-        <text> </text>
-        <box marginX={1} alignItems="flex-end">
-          <Button
-            onPress={handleFormSubmit}
-            fg={isFocused("submit") ? theme.blue : theme.fg_0}
-            label={mode === "create" ? "Create" : "Save"} />
+          <box
+            height={1}
+            marginBottom={1}
+          >
+            <text onMouseDown={() => setFocusField("type")}>
+              <span fg={isFocused("type") ? theme.blue : theme.fg_0}>
+                Type{" "}
+              </span>
+              <span fg={getPriorityColor(taskType ? getTaskTypeColor(taskType) : theme.dim_0)}>
+                {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
+              </span>
+            </text>
+          </box>
+
+          {mode === "create" && (
+              <box
+                height={1}
+                marginBottom={1}
+              >
+                <text onMouseDown={() => setFocusField("status")}>
+                  <span fg={isFocused("status") ? theme.blue : theme.fg_0}>
+                    Status{" "}
+                  </span>
+                  <span fg={getPriorityColor(status)}>
+                    {"\u25C0 "}{STATUS_LABELS[status]}{" \u25B6"}
+                  </span>
+                </text>
+              </box>
+          )}
         </box>
+      </scrollbox>
+      <box minHeight={3} marginX={1} alignItems="flex-start">
+        <Button
+          onPress={handleFormSubmit}
+          fg={isFocused("submit") ? theme.blue : theme.fg_0}
+          label={mode === "create" ? "Create" : "Save"} />
       </box>
     </ModalOverlay>
   )

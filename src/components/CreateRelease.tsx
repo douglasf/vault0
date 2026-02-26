@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, SelectOption } from "@opentui/core"
+import type { KeyEvent, ScrollBoxRenderable, SelectOption, InputRenderable } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { Task } from "../lib/types.js"
 import type { DetectedVersionFile } from "../lib/version-detect.js"
@@ -8,7 +9,6 @@ import { theme } from "../lib/theme.js"
 import { useFormNavigation } from "../hooks/useFormNavigation.js"
 import { ModalOverlay } from "./ModalOverlay.js"
 import { FormInput } from "./FormInput.js"
-import type { FormInputHandle } from "./FormInput.js"
 import { Button } from "./Button.js"
 
 export interface CreateReleaseData {
@@ -41,9 +41,26 @@ const SPACE_SELECT_BINDING = [{ name: "space", action: "select-current" as const
  * and a select list of done tasks to include in the release.
  */
 export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit, onCancel }: CreateReleaseProps) {
-  const nameRef = useRef<FormInputHandle>(null)
-  const descRef = useRef<FormInputHandle>(null)
-  const versionRef = useRef<FormInputHandle>(null)
+  const nameRef = useRef<InputRenderable>(null)
+  const descRef = useRef<InputRenderable>(null)
+  const versionRef = useRef<InputRenderable>(null)
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
+
+  const { height: terminalRows } = useTerminalDimensions()
+  // Modal chrome: 4 (modal margin) + 2 (padding) + 1 (title) = 7
+  // Bottom area outside scrollbox: 1 (spacer) + 1 (validation) + 1 (submit) + 1 (margin) = 4
+  const chromeHeight = 7 + 4
+
+  // ── Field heights for scroll calculation ───────────────────────────────
+  // Each field uses marginBottom={1} for consistent spacing
+  const FIELD_HEIGHT = useMemo(() => ({
+    name: 2,            // FormInput box(1) + marginBottom(1)
+    description: 2,     // FormInput box(1) + marginBottom(1)
+    "version-bump": 2,  // toggle text(1) + marginBottom(1)
+    "version-value": 2, // FormInput box(1) + marginBottom(1)
+    tasks: 1 + Math.min(doneTasks.length, 8) + 1, // header(1) + select(min(n,8)) + marginBottom(1)
+    "no-tasks": 2,      // text(1) + marginBottom(1)
+  }), [doneTasks.length])
 
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
     () => new Set(doneTasks.map((t) => t.id)),
@@ -70,8 +87,44 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
 
   const { focusField, setFocusField, advance, retreat, isFocused } = useFormNavigation(fields, "name" as FormField)
 
+  // ── Adaptive scroll height (shrink-to-content) ─────────────────────────
+  let contentHeight = 0
+  for (const f of fields) {
+    if (f === "submit") continue
+    contentHeight += FIELD_HEIGHT[f as keyof typeof FIELD_HEIGHT] ?? 0
+  }
+  // If no tasks field but we still show "no done tasks" text
+  if (!fields.includes("tasks")) contentHeight += FIELD_HEIGHT["no-tasks"]
+  const availableHeight = Math.max(5, terminalRows - chromeHeight)
+  const needsScroll = contentHeight > availableHeight
+  const scrollHeight = needsScroll ? availableHeight : contentHeight
+
+  // ── Auto-scroll to keep focused field visible ──────────────────────────
+  const scrollToField = useCallback(
+    (field: FormField) => {
+      if (!scrollRef.current || !scrollHeight) return
+      let fieldTop = 0
+      for (const f of fields) {
+        if (f === field) break
+        fieldTop += FIELD_HEIGHT[f as keyof typeof FIELD_HEIGHT] ?? 0
+      }
+      const fh = FIELD_HEIGHT[field as keyof typeof FIELD_HEIGHT] ?? 0
+      const fieldBottom = fieldTop + fh
+      const currentScroll = scrollRef.current.scrollTop
+      if (fieldTop < currentScroll) {
+        scrollRef.current.scrollTo(fieldTop)
+      } else if (fieldBottom > currentScroll + scrollHeight) {
+        scrollRef.current.scrollTo(fieldBottom - scrollHeight)
+      }
+    },
+    [fields, scrollHeight, FIELD_HEIGHT],
+  )
+
+  // Scroll when focus changes
+  scrollToField(focusField)
+
   const handleSubmit = useCallback(() => {
-    const name = nameRef.current?.input?.value?.trim() || ""
+    const name = nameRef.current?.value?.trim() || ""
     if (!name) return
 
     // Validate: all selected tasks and their subtasks must be done
@@ -97,7 +150,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
 
     const data: CreateReleaseData = {
       name,
-      description: descRef.current?.input?.value?.trim() || "",
+      description: descRef.current?.value?.trim() || "",
       taskIds: Array.from(selectedTaskIds),
     }
 
@@ -207,100 +260,93 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
   return (
     <ModalOverlay onClose={onCancel} size="large" title="Create Release">
       <box flexDirection="column">
-        {/* Release name */}
-        <text> </text>
-        <FormInput
-          ref={nameRef}
-          label="Release Name"
-          focused={isFocused("name")}
-          onFocus={() => setFocusField("name")}
-          placeholder="e.g. v1.0.0, Sprint 3, January Release"
-          onSubmit={advance}
-        />
-
-        {/* Description (optional) */}
-        <text> </text>
-        <FormInput
-          ref={descRef}
-          label="Description (optional)"
-          focused={isFocused("description")}
-          onFocus={() => setFocusField("description")}
-          onSubmit={advance}
-        />
-
-        {/* Version bump toggle */}
-        {hasVersionFiles && (
-          <>
-            <text> </text>
-            <text onMouseDown={() => setFocusField("version-bump")}>
-              <span fg={isFocused("version-bump") ? theme.blue : theme.fg_0}>
-                {isFocused("version-bump") ? "\u25B8 " : "  "}
-                Bump version?{" "}
-              </span>
-              <span fg={bumpVersion ? theme.green : theme.dim_0}>
-                [{bumpVersion ? "x" : " "}]
-              </span>
-              <span fg={theme.dim_0}>
-                {" "}{selectedVersionFile?.file} (current: {selectedVersionFile?.version})
-                {versionFiles.length > 1 ? " \u25C0\u25B6" : ""}
-              </span>
-            </text>
-          </>
-        )}
-
-        {/* Version value input */}
-        {bumpVersion && selectedVersionFile && (
-          <>
-            <text> </text>
+        <scrollbox ref={scrollRef} scrollY focused={false} flexGrow={0} flexShrink={1} height={scrollHeight}>
+          <box flexDirection="column" flexGrow={0} flexShrink={0}>
+            {/* Release name */}
             <FormInput
-              ref={versionRef}
-              label="New Version"
-              focused={isFocused("version-value")}
-              onFocus={() => setFocusField("version-value")}
-              value={versionValue}
-              onInput={(v: string) => setVersionValue(v)}
+              ref={nameRef}
+              focused={isFocused("name")}
+              onMouseDown={() => setFocusField("name")}
+              placeholder="e.g. v1.0.0, Sprint 3, January Release"
               onSubmit={advance}
             />
-          </>
-        )}
 
-        {/* Task selector */}
-        {doneTasks.length > 0 && (
-          <>
-            <text> </text>
-            <text attributes={TextAttributes.BOLD} fg={isFocused("tasks") ? theme.blue : theme.fg_0}>
-              Tasks ({selectedTaskIds.size}/{doneTasks.length} selected)
-              {isFocused("tasks") ? "  [a] toggle all" : ""}
-            </text>
-            <select
-              options={makeTaskOptions()}
-              focused={isFocused("tasks")}
-              height={Math.min(doneTasks.length, 8)}
-              showDescription={false}
-              onSelect={handleTaskSelect}
-              onMouseDown={() => setFocusField("tasks")}
-              keyBindings={SPACE_SELECT_BINDING}
-              textColor={theme.fg_0}
-              selectedTextColor={theme.fg_1}
-              selectedBackgroundColor={theme.bg_2}
-              backgroundColor={theme.bg_1}
+            {/* Description (optional) */}
+            <FormInput
+              ref={descRef}
+              focused={isFocused("description")}
+              onMouseDown={() => setFocusField("description")}
+              placeholder="Description (optional)"
+              onSubmit={advance}
             />
-          </>
-        )}
 
-        {doneTasks.length === 0 && (
-          <>
-            <text> </text>
-            <text fg={theme.dim_0}>  No done tasks to include in release.</text>
-          </>
-        )}
+            {/* Version bump toggle */}
+            {hasVersionFiles && (
+              <box height={1} marginBottom={1}>
+                <text onMouseDown={() => setFocusField("version-bump")}>
+                  <span fg={isFocused("version-bump") ? theme.blue : theme.fg_0}>
+                    {isFocused("version-bump") ? "\u25B8 " : "  "}
+                    Bump version?{" "}
+                  </span>
+                  <span fg={bumpVersion ? theme.green : theme.dim_0}>
+                    [{bumpVersion ? "x" : " "}]
+                  </span>
+                  <span fg={theme.dim_0}>
+                    {" "}{selectedVersionFile?.file} (current: {selectedVersionFile?.version})
+                    {versionFiles.length > 1 ? " \u25C0\u25B6" : ""}
+                  </span>
+                </text>
+              </box>
+            )}
 
-        {/* Submit button */}
-        <text> </text>
+            {/* Version value input */}
+            {bumpVersion && selectedVersionFile && (
+              <FormInput
+                ref={versionRef}
+                focused={isFocused("version-value")}
+                onMouseDown={() => setFocusField("version-value")}
+                value={versionValue}
+                onInput={(v: string) => setVersionValue(v)}
+                onSubmit={advance}
+              />
+            )}
+
+            {/* Task selector */}
+            {doneTasks.length > 0 && (
+              <box flexDirection="column" marginBottom={1}>
+                <text attributes={TextAttributes.BOLD} fg={isFocused("tasks") ? theme.blue : theme.fg_0}>
+                  Tasks ({selectedTaskIds.size}/{doneTasks.length} selected)
+                  {isFocused("tasks") ? "  [a] toggle all" : ""}
+                </text>
+                <select
+                  options={makeTaskOptions()}
+                  focused={isFocused("tasks")}
+                  height={Math.min(doneTasks.length, 8)}
+                  showDescription={false}
+                  onSelect={handleTaskSelect}
+                  onMouseDown={() => setFocusField("tasks")}
+                  keyBindings={SPACE_SELECT_BINDING}
+                  textColor={theme.fg_0}
+                  selectedTextColor={theme.fg_1}
+                  selectedBackgroundColor={theme.bg_2}
+                  backgroundColor={theme.bg_1}
+                />
+              </box>
+            )}
+
+            {doneTasks.length === 0 && (
+              <box height={1} marginBottom={1}>
+                <text fg={theme.dim_0}>  No done tasks to include in release.</text>
+              </box>
+            )}
+          </box>
+        </scrollbox>
+
+        {/* Submit button — always visible outside scrollbox */}
         {validationError && (
           <text fg={theme.red}>  ⚠ {validationError}</text>
         )}
-        <box marginX={1} alignItems="flex-end" onMouseDown={() => setFocusField("submit")}>
+        <box minHeight={3} marginX={1} alignItems="flex-start" onMouseDown={() => setFocusField("submit")}>
           <Button
             onPress={handleSubmit}
             fg={isFocused("submit") ? theme.blue : theme.fg_0}

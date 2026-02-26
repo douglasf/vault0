@@ -78,8 +78,9 @@ export function ModalOverlay({
         width={modalWidth}
         maxHeight={maxModalHeight}
         flexDirection="column"
+        flexGrow={0}
       >
-        {title ? <text fg={theme.fg_1}>{title}</text> : ""}
+        {title ? <box minHeight={2}><text fg={theme.fg_1}>{title}</text></box> : ""}
         {children}
       </box>
     </box>

@@ -1,5 +1,6 @@
-import React, { useState } from "react"
-import type { KeyEvent, SelectOption } from "@opentui/core"
+import React, { useRef, useState } from "react"
+import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import type { Task } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
@@ -26,6 +27,13 @@ export function DependencyPicker({
 }: DependencyPickerProps) {
   const db = useDb()
   const [searchFilter, setSearchFilter] = useState("")
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
+  const { height: terminalRows } = useTerminalDimensions()
+
+  // Modal chrome: 4 (modal margin) + 2 (padding) + 1 (title) = 7
+  // Top area outside scrollbox: 1 (search text)
+  // Bottom area outside scrollbox: 1 (marginTop) + 1 (footer) = 2
+  const chromeHeight = 7 + 1 + 2
 
   // Fetch all tasks across visible statuses (single DB call)
   const tasksByStatus = getTasksByStatus(db, boardId)
@@ -49,6 +57,19 @@ export function DependencyPicker({
     value: task.id,
   }))
 
+  // ── Adaptive scroll height (shrink-to-content) ─────────────────────────
+  const contentHeight = availableTasks.length === 0 ? 1 : Math.min(10, selectOptions.length)
+  const availableHeight = Math.max(3, terminalRows - chromeHeight)
+  const needsScroll = contentHeight > availableHeight
+  const scrollHeight = needsScroll ? availableHeight : contentHeight
+
+  // ── Auto-scroll: reset to top when search filter changes ────────────
+  const prevFilter = useRef(searchFilter)
+  if (prevFilter.current !== searchFilter) {
+    prevFilter.current = searchFilter
+    scrollRef.current?.scrollTo(0)
+  }
+
   useActiveKeyboard((event: KeyEvent) => {
     if (event.name === "backspace" || event.name === "delete") {
       setSearchFilter((s) => s.slice(0, -1))
@@ -59,7 +80,7 @@ export function DependencyPicker({
 
   return (
     <ModalOverlay size="medium" title="Add Dependency" onClose={onCancel}>
-      <box marginTop={1}>
+      <box>
         <text fg={theme.dim_0}>Search: </text>
         {searchFilter ? (
           <text>{searchFilter}</text>
@@ -68,29 +89,30 @@ export function DependencyPicker({
         )}
       </box>
 
-      <box marginTop={1} flexDirection="column">
-        {availableTasks.length === 0 ? (
-          <text fg={theme.dim_0}>No matching tasks</text>
-        ) : (
-          <select
-            options={selectOptions}
-            focused={true}
-            height={Math.min(10, selectOptions.length)}
-            showDescription={false}
-            showScrollIndicator={availableTasks.length > 10}
-            backgroundColor={theme.bg_1}
-            textColor={theme.dim_0}
-            selectedBackgroundColor={theme.cyan}
-            selectedTextColor={theme.bg_1}
-            focusedBackgroundColor={theme.bg_1}
-            onSelect={(_index: number, option: SelectOption | null) => {
-              if (option?.value) {
-                onSelectDependency(option.value)
-              }
-            }}
-          />
-        )}
-      </box>
+      <scrollbox ref={scrollRef} scrollY focused={false} flexGrow={0} flexShrink={1} height={scrollHeight}>
+        <box flexDirection="column">
+          {availableTasks.length === 0 ? (
+            <text fg={theme.dim_0}>No matching tasks</text>
+          ) : (
+            <select
+              options={selectOptions}
+              focused={true}
+              height={Math.min(10, selectOptions.length)}
+              showDescription={false}
+              showScrollIndicator={availableTasks.length > 10}
+              textColor={theme.dim_0}
+              backgroundColor={theme.bg_1}
+              selectedBackgroundColor={theme.cyan}
+              selectedTextColor={theme.bg_1}
+              onSelect={(_index: number, option: SelectOption | null) => {
+                if (option?.value) {
+                  onSelectDependency(option.value)
+                }
+              }}
+            />
+          )}
+        </box>
+      </scrollbox>
 
       <box marginTop={1}>
         <text fg={theme.dim_0}>↑/↓: navigate  Enter: add  Esc: cancel</text>

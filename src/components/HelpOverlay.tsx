@@ -241,8 +241,19 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
 
   const filteredItems = useMemo(() => filterItems(allItems, filter), [filter])
 
-  // Use ~60% of terminal height as scrollable content area.
-  const contentHeight = Math.max(3, Math.floor(terminalRows * 0.6))
+  // ── Adaptive scroll height (shrink-to-content) ─────────────────────────
+  // Modal chrome: 4 (modal margin) + 2 (padding) + 2 (title) = 8
+  // Above scrollbox: 1 (spacer) + 3 (filter input box) + 1 (match count/spacer) = 5
+  // Below scrollbox: 1 (marginTop) + 1 (footer) = 2
+  const chromeHeight = 8 + 5 + 2
+  // Each item is 1 row; headers/dividers with marginTop add 1 extra
+  const itemContentHeight = filteredItems.reduce((sum, item, i) => {
+    const extra = (item.kind === "header" || item.kind === "divider") && i > 0 ? 1 : 0
+    return sum + 1 + extra
+  }, 0)
+  const availableHeight = Math.max(3, terminalRows - chromeHeight)
+  const needsScroll = itemContentHeight > availableHeight
+  const contentHeight = needsScroll ? availableHeight : itemContentHeight
 
   const resetScroll = useCallback(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
@@ -289,6 +300,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
         borderStyle="single"
         borderColor={theme.fg_1}
         title="Filter"
+        minHeight={3}
       >
         <input
           ref={inputRef}
@@ -312,7 +324,7 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
       ) : <text> </text> }
 
       {/* Scrollable shortcut list */}
-      <scrollbox ref={scrollRef} scrollY flexGrow={1} marginTop={1} height={contentHeight}>
+      <scrollbox ref={scrollRef} scrollY flexGrow={0} flexShrink={1} marginTop={1} height={contentHeight}>
         {filteredItems.length === 0 ? (
           <text fg={theme.fg_0} attributes={TextAttributes.ITALIC}>
             No matching shortcuts

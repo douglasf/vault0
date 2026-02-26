@@ -8,7 +8,6 @@ import { theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 import { getStatusLabel, getPriorityLabel, formatDate } from "../lib/format.js"
 import { getPriorityColor, getStatusColor } from "../lib/theme.js"
 import { TaskCard } from "./TaskCard.js"
-import { ConfirmDeleteRelease } from "./ConfirmDeleteRelease.js"
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -24,6 +23,8 @@ export interface ReleasesViewProps {
   onRestoreAll: (releaseId: string) => void
   /** Delete a release (restore all tasks, remove release record) */
   onDeleteRelease: (releaseId: string) => void
+  /** Show delete confirmation modal at App level */
+  onShowDeleteConfirmation: (release: ReleaseWithTaskCount) => void
   /** Go back to the board */
   onBack: () => void
   /** Whether keyboard input is active */
@@ -51,6 +52,7 @@ export function ReleasesView({
   onRestoreTask,
   onRestoreAll,
   onDeleteRelease,
+  onShowDeleteConfirmation,
   onBack,
   inputActive,
 }: ReleasesViewProps) {
@@ -65,7 +67,6 @@ export function ReleasesView({
   const [activeColumn, setActiveColumn] = useState<Column>("releases")
   const [selectedReleaseIdx, setSelectedReleaseIdx] = useState(0)
   const [selectedTaskIdx, setSelectedTaskIdx] = useState(0)
-  const [confirmDeleteRelease, setConfirmDeleteRelease] = useState(false)
 
   const contentHeight = Math.max(3, terminalRows - 6)
 
@@ -110,9 +111,6 @@ export function ReleasesView({
   // ── Keyboard handler ──────────────────────────────────────────
 
   useActiveKeyboard((event: KeyEvent) => {
-    // Modal confirmation dialog handles its own keyboard input
-    if (confirmDeleteRelease) return
-
     if (event.name === "escape" || event.raw === "q") {
       if (activeColumn !== "releases") {
         navigateLeft()
@@ -192,7 +190,7 @@ export function ReleasesView({
 
     // X to delete release works from any column as long as a release is selected
     if (event.raw === "X" && selectedRelease) {
-      setConfirmDeleteRelease(true)
+      onShowDeleteConfirmation(selectedRelease)
     }
   }, inputActive)
 
@@ -213,21 +211,6 @@ export function ReleasesView({
       </box>
     )
   }
-
-  // ── Confirm delete handlers ────────────────────────────────────
-
-  const handleConfirmDelete = useCallback(() => {
-    if (!selectedRelease) return
-    onDeleteRelease(selectedRelease.id)
-    setConfirmDeleteRelease(false)
-    setSelectedReleaseIdx((prev) => Math.min(prev, Math.max(0, releases.length - 2)))
-    setSelectedTaskIdx(0)
-    moveToColumn("releases")
-  }, [selectedRelease, onDeleteRelease, releases.length, moveToColumn])
-
-  const handleCancelDelete = useCallback(() => {
-    setConfirmDeleteRelease(false)
-  }, [])
 
   // ── Helpers ────────────────────────────────────────────────────
 
@@ -445,13 +428,6 @@ export function ReleasesView({
         {activeColumn === "tasks" && renderTasksPanel(contentHeight - 2, false)}
         {activeColumn === "detail" && renderDetailPanel(contentHeight - 2, false)}
 
-        {confirmDeleteRelease && selectedRelease && (
-          <ConfirmDeleteRelease
-            release={selectedRelease}
-            onConfirm={handleConfirmDelete}
-            onCancel={handleCancelDelete}
-          />
-        )}
       </box>
     )
   }
@@ -467,13 +443,6 @@ export function ReleasesView({
         {renderDetailPanel(contentHeight, true)}
       </box>
 
-      {confirmDeleteRelease && selectedRelease && (
-        <ConfirmDeleteRelease
-          release={selectedRelease}
-          onConfirm={handleConfirmDelete}
-          onCancel={handleCancelDelete}
-        />
-      )}
     </box>
   )
 }

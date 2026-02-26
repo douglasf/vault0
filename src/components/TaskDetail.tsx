@@ -1,15 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
+import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { Task, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
-import { getTaskDetail, addDependency, removeDependency } from "../db/queries.js"
-import { getStatusLabel, getPriorityLabel, getTypeLabel, formatDate, formatDateTime, isResolvedStatus, errorMessage, truncateText } from "../lib/format.js"
+import { getTaskDetail } from "../db/queries.js"
+import { getStatusLabel, getPriorityLabel, getTypeLabel, formatDate, formatDateTime, isResolvedStatus, truncateText } from "../lib/format.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
-import { DependencyPicker } from "./DependencyPicker.js"
 
 export interface TaskDetailProps {
   taskId: string
@@ -20,6 +19,10 @@ export interface TaskDetailProps {
   onDelete: (taskId: string) => void
   onUnarchive: (taskId: string) => void
   onCreateSubtask: (parent: Task) => void
+  onShowDependencyPicker: () => void
+  onShowDependencyRemover: () => void
+  onShowDeleteConfirm: () => void
+  inputActive?: boolean
 }
 
 /**
@@ -39,11 +42,13 @@ export function TaskDetail({
   onDelete,
   onUnarchive,
   onCreateSubtask,
+  onShowDependencyPicker,
+  onShowDependencyRemover,
+  onShowDeleteConfirm,
+  inputActive = true,
 }: TaskDetailProps) {
   const db = useDb()
   const scrollRef = useRef<ScrollBoxRenderable>(null)
-  const [showDependencyPicker, setShowDependencyPicker] = useState(false)
-  const [showDependencyRemover, setShowDependencyRemover] = useState(false)
   const [dependencyError, setDependencyError] = useState("")
   const [copyToast, setCopyToast] = useState("")
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -96,7 +101,7 @@ export function TaskDetail({
     } else if (event.raw === "p" && !event.ctrl && !event.meta) {
       onCyclePriority(detail.id)
     } else if (event.raw === "d" && !event.ctrl && !event.meta) {
-      onDelete(detail.id)
+      onShowDeleteConfirm()
     } else if (event.raw === "u" && !event.ctrl && !event.meta) {
       if (detail.archivedAt !== null) {
         onUnarchive(detail.id)
@@ -110,10 +115,10 @@ export function TaskDetail({
       const ok = copyToClipboard(detail.id)
       showCopyToast(ok ? `Copied: ${detail.id}` : "Copy failed")
     } else if (event.raw === "+" && !event.ctrl && !event.meta) {
-      setShowDependencyPicker(true)
+      onShowDependencyPicker()
       setDependencyError("")
     } else if (event.raw === "-" && !event.ctrl && !event.meta && detail.dependsOn.length > 0) {
-      setShowDependencyRemover(true)
+      onShowDependencyRemover()
       setDependencyError("")
     } else if (event.name === "up") {
       scrollRef.current?.scrollBy(-1)
@@ -124,105 +129,45 @@ export function TaskDetail({
     } else if (event.name === "pagedown") {
       scrollRef.current?.scrollBy(scrollHeight)
     }
-  }, !showDependencyPicker && !showDependencyRemover)
+  }, inputActive)
 
-  // Escape handler for dependency removal overlay
-  useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "escape") {
-      setShowDependencyRemover(false)
-    }
-  }, showDependencyRemover)
 
   return (
     <box flexDirection="column" width="100%">
-      {showDependencyPicker ? (
-        <DependencyPicker
-          currentTaskId={taskId}
-          boardId={detail.boardId}
-          existingDependencyIds={detail.dependsOn.map((d) => d.id)}
-          onSelectDependency={(depId) => {
-            try {
-              addDependency(db, detail.id, depId)
-              setDependencyError("")
-            } catch (error) {
-              setDependencyError(errorMessage(error))
-            }
-            setShowDependencyPicker(false)
-          }}
-          onCancel={() => setShowDependencyPicker(false)}
-        />
-      ) : showDependencyRemover ? (
-        <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1}>
-          <text attributes={TextAttributes.BOLD} fg={theme.yellow}>Remove Dependency</text>
+      <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1} width="100%">
+        {/* Header */}
+        <box justifyContent="center">
+          <text attributes={TextAttributes.BOLD} fg={theme.blue}>Task Detail</text>
+        </box>
 
-          <select
-            marginTop={1}
-            focused={true}
-            width={55}
-            height={Math.min(detail.dependsOn.length * 2, 16)}
-            showDescription={false}
-            options={detail.dependsOn.map((dep) => ({
-              name: `${truncateText(dep.title, 45)} [${getStatusLabel(dep.status)}]`,
-              description: "",
-              value: dep.id,
-            }))}
-            selectedBackgroundColor={theme.yellow}
-            selectedTextColor={theme.bg_1}
-            textColor={theme.fg_1}
-            backgroundColor={theme.bg_1}
-            onSelect={(_index: number, option: SelectOption | null) => {
-              if (option?.value) {
-                try {
-                  removeDependency(db, detail.id, option.value)
-                  setDependencyError("")
-                } catch (error) {
-                  setDependencyError(errorMessage(error))
-                }
-              }
-              setShowDependencyRemover(false)
-            }}
-          />
+        {/* Scrollable content */}
+        <scrollbox ref={scrollRef} scrollY flexGrow={1} marginTop={1} height={scrollHeight}>
+          {sections.map((line, i) => (
+            <SectionLine key={`${line.type}-${i}`} line={line} />
+          ))}
+        </scrollbox>
 
+        {/* Dependency error */}
+        {dependencyError && (
           <box marginTop={1}>
-            <text fg={theme.dim_0}>↑/↓: navigate  Enter: remove  Esc: cancel</text>
+            <text fg={theme.red}>⚠ {dependencyError}</text>
           </box>
+        )}
+
+        {/* Copy toast */}
+        {copyToast && (
+          <box marginTop={dependencyError ? 0 : 1}>
+            <text fg={theme.green} attributes={TextAttributes.BOLD}>✓ {copyToast}</text>
+          </box>
+        )}
+
+        {/* Footer shortcuts */}
+        <box marginTop={1} justifyContent="center">
+          <text fg={theme.dim_0}>
+            [e]dit  [s]tatus  [p]riority  [d]elete  {detail.archivedAt !== null && "[u]narchive  "}{!detail.parentId && "[A]dd subtask  "}[c]opy id  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
+          </text>
         </box>
-      ) : (
-        <box flexDirection="column" backgroundColor={theme.bg_1} paddingX={2} paddingY={1} width="100%">
-          {/* Header */}
-          <box justifyContent="center">
-            <text attributes={TextAttributes.BOLD} fg={theme.blue}>Task Detail</text>
-          </box>
-
-          {/* Scrollable content */}
-          <scrollbox ref={scrollRef} scrollY flexGrow={1} marginTop={1} height={scrollHeight}>
-            {sections.map((line, i) => (
-              <SectionLine key={`${line.type}-${i}`} line={line} />
-            ))}
-          </scrollbox>
-
-          {/* Dependency error */}
-          {dependencyError && (
-            <box marginTop={1}>
-              <text fg={theme.red}>⚠ {dependencyError}</text>
-            </box>
-          )}
-
-          {/* Copy toast */}
-          {copyToast && (
-            <box marginTop={dependencyError ? 0 : 1}>
-              <text fg={theme.green} attributes={TextAttributes.BOLD}>✓ {copyToast}</text>
-            </box>
-          )}
-
-          {/* Footer shortcuts */}
-          <box marginTop={1} justifyContent="center">
-            <text fg={theme.dim_0}>
-              [e]dit  [s]tatus  [p]riority  [d]elete  {detail.archivedAt !== null && "[u]narchive  "}{!detail.parentId && "[A]dd subtask  "}[c]opy id  [+]dep  [-]dep  [Esc]back  ↑↓ scroll
-            </text>
-          </box>
-        </box>
-      )}
+      </box>
     </box>
   )
 }

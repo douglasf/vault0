@@ -165,17 +165,27 @@ export function Column({
     return shown
   }, [tasks, taskIdsInColumn])
 
-  // ── Disable focusable on scrollbox ─────────────────────────────────
+  // ── Focus management ───────────────────────────────────────────────
   //
-  // The scrollbox is focusable by default in OpenTUI. When the user
-  // clicks inside it, the renderer's autoFocus dispatches focus to the
-  // nearest focusable ancestor — i.e. the scrollbox itself. Once
-  // focused, the scrollbox's handleKeyPress intercepts arrow keys for
-  // its own scrollbar navigation, causing double-handling (both the
-  // app's keyboard handler and the scrollbox process the same keys).
-  // Setting focusable=false prevents the auto-focus-on-click from
-  // ever targeting the scrollbox. The focused={false} prop alone only
-  // calls blur() at mount but doesn't prevent re-focusing on click.
+  // Two layers prevent unwanted focus changes when clicking inside the
+  // column:
+  //
+  // 1. Scrollbox focusable=false — The scrollbox is focusable by
+  //    default in OpenTUI. Setting focusable=false prevents auto-focus
+  //    from targeting the scrollbox on click. Without this, the
+  //    scrollbox's handleKeyPress intercepts arrow keys for its own
+  //    scrollbar navigation, causing double-handling. The focused={false}
+  //    prop alone only calls blur() at mount but doesn't prevent
+  //    re-focusing on click.
+  //
+  // 2. preventDefault() on task row onMouseDown — Even with the
+  //    scrollbox non-focusable, OpenTUI's dispatchMouseEvent() still
+  //    walks ancestors looking for a focusable target. When none is
+  //    found, the currently focused element (e.g. the tab-select in
+  //    narrow mode) gets blurred. Calling preventDefault() on the
+  //    mouse event suppresses the auto-focus ancestor walk entirely,
+  //    preserving focus on the tab-select while still firing the
+  //    onMouseDown callback for task selection.
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -258,7 +268,7 @@ export function Column({
               })()
               const showOrphanParent = orphanParentShownFor.has(task.id)
               return (
-                <box key={task.id} flexDirection="column" overflow="hidden" onMouseDown={() => onTaskClick?.(i)}>
+                <box key={task.id} flexDirection="column" overflow="hidden" onMouseDown={(e: { preventDefault: () => void }) => { e.preventDefault(); onTaskClick?.(i) }}>
                   {/* Dimmed parent preview for orphaned subtasks */}
                   {showOrphanParent && task.parentTitle && (
                     <box overflow="hidden">

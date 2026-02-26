@@ -1,9 +1,21 @@
-import { useState, useCallback } from "react"
-import type { KeyEvent } from "@opentui/core"
+import { useState, useCallback, useRef, useEffect } from "react"
+import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { theme, listThemes, setTheme, getActiveThemeName, getAppearance, toggleAppearance } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+/** Rows reserved for modal chrome + header + footer outside the scrollbox. */
+const CHROME_OVERHEAD = 11
+/** Each theme row is exactly 1 line tall. */
+const ROW_HEIGHT = 1
+/** Minimum scrollbox height so it never collapses. */
+const MIN_SCROLL_HEIGHT = 3
+/** Context rows to keep visible above/below selected item. */
+const SCROLL_BUFFER = 2
 
 export interface ThemePickerProps {
   onSelect: (themeName: string, appearance: "dark" | "light") => void
@@ -20,11 +32,43 @@ export function ThemePicker({ onSelect, onCancel, onPreview }: ThemePickerProps)
   const themes = listThemes()
   const originalTheme = getActiveThemeName()
   const originalAppearance = getAppearance()
+  const { height: termHeight } = useTerminalDimensions()
 
   // Find initial index matching the active theme
   const initialIndex = Math.max(0, themes.findIndex((t) => t.name === originalTheme))
   const [selectedIndex, setSelectedIndex] = useState(initialIndex)
   const [appearance, setAppearance] = useState(getAppearance)
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
+
+  const contentHeight = themes.length * ROW_HEIGHT
+  const availableHeight = Math.max(MIN_SCROLL_HEIGHT, termHeight - CHROME_OVERHEAD)
+  const needsScroll = contentHeight > availableHeight
+  const scrollHeight = needsScroll ? availableHeight : contentHeight
+
+  // Disable native focus on the scrollbox — we drive scrolling programmatically
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.focusable = false
+    }
+  }, [])
+
+  // ── Auto-scroll to keep selected theme visible ───────────────────────
+  useEffect(() => {
+    if (!scrollRef.current || themes.length === 0) return
+
+    const sb = scrollRef.current
+    const rowTop = selectedIndex * ROW_HEIGHT
+    const rowBottom = rowTop + ROW_HEIGHT
+    const viewportH = scrollHeight
+    const totalH = themes.length * ROW_HEIGHT
+    const currentScroll = sb.scrollTop
+
+    if (rowTop - SCROLL_BUFFER < currentScroll) {
+      sb.scrollTo(Math.max(0, rowTop - SCROLL_BUFFER))
+    } else if (rowBottom + SCROLL_BUFFER > currentScroll + viewportH) {
+      sb.scrollTo(Math.min(totalH - viewportH, rowBottom + SCROLL_BUFFER - viewportH))
+    }
+  }, [selectedIndex, scrollHeight, themes.length])
 
   const handleCancel = useCallback(() => {
     // Restore original theme on cancel
@@ -67,26 +111,28 @@ export function ThemePicker({ onSelect, onCancel, onPreview }: ThemePickerProps)
         </text>
       </box>
 
-      {themes.map((t, i) => {
-        const isSelected = i === selectedIndex
-        return (
-          <box
-            key={t.name}
-            flexDirection="row"
-            backgroundColor={isSelected ? theme.cyan : undefined}
-          >
-            <text
-              fg={isSelected ? theme.bg_0 : theme.fg_1}
-              attributes={isSelected ? TextAttributes.BOLD : 0}
+      <scrollbox ref={scrollRef} scrollY focused={false} flexGrow={0} flexShrink={1} height={scrollHeight}>
+        {themes.map((t, i) => {
+          const isSelected = i === selectedIndex
+          return (
+            <box
+              key={t.name}
+              flexDirection="row"
+              backgroundColor={isSelected ? theme.cyan : undefined}
             >
-              {`${isSelected ? "▸ " : "  "}${t.name}`}
-            </text>
-            <text fg={isSelected ? theme.bg_1 : theme.dim_0}>
-              {` (${t.source})${isSelected ? " ✓" : ""}`}
-            </text>
-          </box>
-        )
-      })}
+              <text
+                fg={isSelected ? theme.bg_0 : theme.fg_1}
+                attributes={isSelected ? TextAttributes.BOLD : 0}
+              >
+                {`${isSelected ? "▸ " : "  "}${t.name}`}
+              </text>
+              <text fg={isSelected ? theme.bg_1 : theme.dim_0}>
+                {` (${t.source})${isSelected ? " ✓" : ""}`}
+              </text>
+            </box>
+          )
+        })}
+      </scrollbox>
 
       <box marginTop={1}>
         <text fg={theme.dim_0}>↑/↓: navigate  t: toggle dark/light  Enter: select  Esc: cancel</text>

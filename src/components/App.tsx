@@ -15,7 +15,10 @@ import { TaskPreview } from "./TaskPreview.js"
 import { FilterBar } from "./FilterBar.js"
 import { TextFilterBar } from "./TextFilterBar.js"
 import { HelpOverlay } from "./HelpOverlay.js"
+import { DependencyPicker } from "./DependencyPicker.js"
+import { DependencyRemover } from "./DependencyRemover.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
+import { ConfirmDeleteRelease } from "./ConfirmDeleteRelease.js"
 import { CreateRelease } from "./CreateRelease.js"
 import { ReleasesView } from "./ReleasesView.js"
 import { ErrorBanner } from "./ErrorBanner.js"
@@ -28,10 +31,11 @@ import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
 import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
 import { useToastState } from "../hooks/useToast.js"
-import type { Task, Status, SortField } from "../lib/types.js"
+import type { Task, Status, SortField, ReleaseWithTaskCount } from "../lib/types.js"
 import type { DbError } from "../lib/db-errors.js"
-import { getBoards, getTaskCards, getReleases, getReleaseTopLevelTasks, getReleaseTaskSubtasks, createRelease, restoreTaskFromRelease, restoreAllFromRelease, deleteRelease } from "../db/queries.js"
+import { getBoards, getTaskCards, getReleases, getReleaseTopLevelTasks, getReleaseTaskSubtasks, createRelease, restoreTaskFromRelease, restoreAllFromRelease, deleteRelease, addDependency, removeDependency, getTaskDetail } from "../db/queries.js"
 import { copyToClipboard } from "../lib/clipboard.js"
+import { errorMessage } from "../lib/format.js"
 import { SORT_FIELDS } from "../lib/constants.js"
 import { detectVersionFiles, writeVersion } from "../lib/version-detect.js"
 
@@ -41,7 +45,7 @@ export interface AppProps {
   repoRoot: string
 }
 
-export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "theme-picker" | "create-release"
+export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "theme-picker" | "create-release" | "detail-dep-picker" | "detail-dep-remover" | "detail-confirm-delete" | "releases-confirm-delete"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
 const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "status-picker", "filter", "theme-picker", "create", "edit", "create-release"])
@@ -57,6 +61,8 @@ export interface AppState {
   selectedTask?: Task
   /** When set, the create form creates a subtask under this parent */
   createParent?: Task
+  /** The release targeted for deletion confirmation */
+  selectedRelease?: ReleaseWithTaskCount
   /** The UI mode to return to if the user cancels a delete confirmation */
   deleteReturnMode?: UIMode
   /** When set, the board will focus this task after the next render */
@@ -338,9 +344,10 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             </>
           )}
 
-        {state.uiMode === "detail" && state.selectedTask && (
+        {(state.uiMode === "detail" || state.uiMode === "detail-dep-picker" || state.uiMode === "detail-dep-remover" || state.uiMode === "detail-confirm-delete") && state.selectedTask && (
           <TaskDetail
             taskId={state.selectedTask.id}
+            inputActive={state.uiMode === "detail"}
             onBack={() =>
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }
@@ -352,11 +359,10 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             }
             onCyclePriority={(taskId) => {
               actions.cyclePriority(taskId)
-              // Force re-render so TaskDetail re-fetches
               forceRefresh()
             }}
             onDelete={(_taskId) => {
-              setState((prev) => ({ ...prev, uiMode: "confirm-delete", deleteReturnMode: "detail" }))
+              setState((prev) => ({ ...prev, uiMode: "detail-confirm-delete" }))
             }}
             onUnarchive={(taskId) => {
               actions.undeleteTask(taskId)
@@ -365,6 +371,15 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
             onCreateSubtask={(parent) => {
               setState((prev) => ({ ...prev, uiMode: "create", createParent: parent }))
             }}
+            onShowDependencyPicker={() =>
+              setState((prev) => ({ ...prev, uiMode: "detail-dep-picker" }))
+            }
+            onShowDependencyRemover={() =>
+              setState((prev) => ({ ...prev, uiMode: "detail-dep-remover" }))
+            }
+            onShowDeleteConfirm={() =>
+              setState((prev) => ({ ...prev, uiMode: "detail-confirm-delete" }))
+            }
           />
         )}
 
@@ -462,6 +477,53 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
 
 
 
+        {state.uiMode === "detail-dep-picker" && state.selectedTask && (
+          <DependencyPicker
+            currentTaskId={state.selectedTask.id}
+            boardId={getTaskDetail(db, state.selectedTask.id).boardId}
+            existingDependencyIds={getTaskDetail(db, state.selectedTask.id).dependsOn.map((d) => d.id)}
+            onSelectDependency={(depId) => {
+              try {
+                if (state.selectedTask) addDependency(db, state.selectedTask.id, depId)
+              } catch (error) {
+                showToast("Dependency error", errorMessage(error))
+              }
+              setState((prev) => ({ ...prev, uiMode: "detail" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, uiMode: "detail" }))}
+          />
+        )}
+
+        {state.uiMode === "detail-dep-remover" && state.selectedTask && (
+          <DependencyRemover
+            dependencyList={getTaskDetail(db, state.selectedTask.id).dependsOn}
+            onSelect={(depId) => {
+              try {
+                if (state.selectedTask) removeDependency(db, state.selectedTask.id, depId)
+              } catch (error) {
+                showToast("Dependency error", errorMessage(error))
+              }
+              setState((prev) => ({ ...prev, uiMode: "detail" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, uiMode: "detail" }))}
+          />
+        )}
+
+        {state.uiMode === "detail-confirm-delete" && state.selectedTask && (
+          <ConfirmDelete
+            task={state.selectedTask}
+            onConfirm={() => {
+              if (state.selectedTask) {
+                actions.deleteTask(state.selectedTask.id)
+                highlightedTaskRef.current = undefined
+                showToast("Task deleted", `Title: ${state.selectedTask.title}`)
+              }
+              setState((prev) => ({ ...prev, selectedTask: undefined, uiMode: "board" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, uiMode: "detail" }))}
+          />
+        )}
+
         {state.uiMode === "create-release" && (
           <CreateRelease
             doneTasks={
@@ -498,7 +560,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
           />
         )}
 
-        {state.uiMode === "releases" && (
+        {(state.uiMode === "releases" || state.uiMode === "releases-confirm-delete") && (
           <ReleasesView
             releases={state.currentBoardId ? getReleases(db, state.currentBoardId) : []}
             getReleaseTasks={(releaseId) => getReleaseTopLevelTasks(db, releaseId)}
@@ -517,8 +579,26 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
               showToast("Release deleted", `${count} task${count !== 1 ? "s" : ""} restored to board`)
               forceRefresh()
             }}
+            onShowDeleteConfirmation={(release) => {
+              setState((prev) => ({ ...prev, uiMode: "releases-confirm-delete", selectedRelease: release }))
+            }}
             onBack={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
             inputActive={state.uiMode === "releases"}
+          />
+        )}
+
+        {state.uiMode === "releases-confirm-delete" && state.selectedRelease && (
+          <ConfirmDeleteRelease
+            release={state.selectedRelease}
+            onConfirm={() => {
+              if (state.selectedRelease) {
+                const count = deleteRelease(db, state.selectedRelease.id)
+                showToast("Release deleted", `${count} task${count !== 1 ? "s" : ""} restored to board`)
+                forceRefresh()
+              }
+              setState((prev) => ({ ...prev, selectedRelease: undefined, uiMode: "releases" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, selectedRelease: undefined, uiMode: "releases" }))}
           />
         )}
       </box>
