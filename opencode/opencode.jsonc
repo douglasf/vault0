@@ -15,11 +15,11 @@
   "$schema": "https://opencode.ai/config.json",
 
   "instructions": [
-    "instructions/vault0-tool-rules.md",
-    "instructions/vault0-orchestration.md",
-    "instructions/vault0-executor-workflow.md",
-    "instructions/vault0-planner-workflow.md",
-    "instructions/vault0-git-agent.md"
+    "~/.config/vault0/opencode/instructions/vault0-tool-rules.md",
+    "~/.config/vault0/opencode/instructions/vault0-orchestration.md",
+    "~/.config/vault0/opencode/instructions/vault0-executor-workflow.md",
+    "~/.config/vault0/opencode/instructions/vault0-planner-workflow.md",
+    "~/.config/vault0/opencode/instructions/vault0-git-agent.md"
   ],
 
   "agent": {
@@ -75,13 +75,27 @@
         "vault0-task-move": false,
         "vault0-task-subtasks": true
       },
-      "permission": {
-        "vault0-task-add": "allow",
-        "vault0-task-list": "allow",
-        "vault0-task-view": "allow",
-        "vault0-task-update": "allow",
-        "vault0-task-subtasks": "allow"
-      }
+        "permission": {
+          "bash": {
+            "*": "deny",  // Deny ALL bash — architect doesn't need bash in vault0 environment
+            "vault0 --version": "allow" // Except this :O
+          },
+          "write": {
+            "*": "deny",
+            ".opencode/plans/*": "deny",
+            ".opencode/plans/**/*": "deny"
+          },
+          "edit": {
+            "*": "deny",
+            ".opencode/plans/*": "deny",
+            ".opencode/plans/**/*": "deny"
+          },
+          "vault0-task-add": "allow",
+          "vault0-task-list": "allow",
+          "vault0-task-view": "allow",
+          "vault0-task-update": "allow",
+          "vault0-task-subtasks": "allow"
+        }
     },
 
     // Role: The Git Agent (post-commit task approval)
