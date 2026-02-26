@@ -1,0 +1,104 @@
+{
+  // ============================================================================
+  // vault0conf — Vault0 integration config for OpenCode
+  // ============================================================================
+  // This config defines vault0 tool permissions and instructions per agent.
+  // Merge into or reference from your main opencode.jsonc.
+  //
+  // Role mapping (adapt agent names to your setup):
+  //   marsellus = The Orchestrator (task discovery, execution loop, approvals)
+  //   wolf      = The Executor (task implementation, status updates)
+  //   architect = The Planner (plan creation, subtask/dependency setup)
+  //   git       = The Git Agent (post-commit task approval)
+  // ============================================================================
+
+  "$schema": "https://opencode.ai/config.json",
+
+  "instructions": [
+    "instructions/vault0-tool-rules.md",
+    "instructions/vault0-orchestration.md",
+    "instructions/vault0-executor-workflow.md",
+    "instructions/vault0-planner-workflow.md",
+    "instructions/vault0-git-agent.md"
+  ],
+
+  "agent": {
+    // Role: The Orchestrator (task discovery, execution loop, approvals)
+    // Full vault0 access — all 6 tools
+    "marsellus": {
+      "tools": {
+        "vault0-task-add": true,
+        "vault0-task-list": true,
+        "vault0-task-view": true,
+        "vault0-task-update": true,
+        "vault0-task-move": true,
+        "vault0-task-subtasks": true
+      },
+      "permission": {
+        "vault0-task-add": "allow",
+        "vault0-task-list": "allow",
+        "vault0-task-view": "allow",
+        "vault0-task-update": "allow",
+        "vault0-task-move": "allow",
+        "vault0-task-subtasks": "allow"
+      }
+    },
+
+    // Role: The Executor (task implementation, status updates)
+    // 5 tools — no add (executes tasks, doesn't create them)
+    "wolf": {
+      "tools": {
+        "vault0-task-add": false,
+        "vault0-task-list": true,
+        "vault0-task-view": true,
+        "vault0-task-update": true,
+        "vault0-task-move": true,
+        "vault0-task-subtasks": true
+      },
+      "permission": {
+        "vault0-task-list": "allow",
+        "vault0-task-view": "allow",
+        "vault0-task-update": "allow",
+        "vault0-task-move": "allow",
+        "vault0-task-subtasks": "allow"
+      }
+    },
+
+    // Role: The Planner (plan creation, subtask/dependency setup)
+    // 5 tools — no move (creates plans, doesn't change status)
+    "architect": {
+      "tools": {
+        "vault0-task-add": true,
+        "vault0-task-list": true,
+        "vault0-task-view": true,
+        "vault0-task-update": true,
+        "vault0-task-move": false,
+        "vault0-task-subtasks": true
+      },
+      "permission": {
+        "vault0-task-add": "allow",
+        "vault0-task-list": "allow",
+        "vault0-task-view": "allow",
+        "vault0-task-update": "allow",
+        "vault0-task-subtasks": "allow"
+      }
+    },
+
+    // Role: The Git Agent (post-commit task approval)
+    // 2 tools — list + move for post-commit approvals only
+    "git": {
+      "tools": {
+        "vault0-task-add": false,
+        "vault0-task-list": true,
+        "vault0-task-view": false,
+        "vault0-task-update": false,
+        "vault0-task-move": true,
+        "vault0-task-subtasks": false
+      },
+      "permission": {
+        "vault0-task-list": "allow",
+        "vault0-task-move": "allow"
+      }
+    }
+  }
+}

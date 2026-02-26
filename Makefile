@@ -1,4 +1,4 @@
-.PHONY: build install uninstall clean dev start help typecheck test
+.PHONY: build install uninstall clean dev start help typecheck test opencode
 
 # Ensure bun is discoverable (installed via ~/.bun)
 BUN := $(or $(shell which bun 2>/dev/null),$(HOME)/.bun/bin/bun)
@@ -19,6 +19,7 @@ help:
 	@echo "  make start      - Run once (bun run)"
 	@echo "  make typecheck  - Run TypeScript type checker"
 	@echo "  make clean      - Remove build artifacts"
+	@echo "  make opencode   - Install opencode config to ~/.config/vault0"
 	@echo "  make help       - Show this message"
 	@echo ""
 	@echo "Installation:"
@@ -96,3 +97,15 @@ clean:
 	@echo "Cleaning build artifacts..."
 	rm -f vault0 vault0.exe
 	@echo "✓ Clean"
+
+opencode:
+	@echo "📦 Installing opencode configuration..."
+	@mkdir -p $(HOME)/.config/vault0/opencode
+	@cp -R opencode/* $(HOME)/.config/vault0/opencode/
+	@echo ""
+	@echo "✓ Opencode config installed to ~/.config/vault0/opencode"
+	@echo ""
+	@echo "Add this to your ~/.zshrc or ~/.bashrc:"
+	@echo ""
+	@echo "  export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode"
+	@echo ""

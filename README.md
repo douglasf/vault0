@@ -49,6 +49,24 @@ vault0                    # launch from any directory
 
 Override the install prefix with `make install PREFIX=/usr/local/bin`.
 
+### OpenCode Integration (Optional)
+
+Vault0 ships with an [opencode](https://opencode.ai/) configuration in the `opencode/` directory. This is **entirely optional** — you only need this if you use opencode as your AI coding assistant.
+
+To install the opencode config:
+
+```bash
+make opencode
+```
+
+This copies the `opencode/` directory to `~/.config/vault0/opencode`. Then add this environment variable to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode
+```
+
+> **Note**: Sorry — `OPENCODE_CONFIG_DIR` only accepts a single path, so setting it here will override any existing opencode configuration directory you may already be using.
+
 ## Usage
 
 ### TUI (Interactive Board)
@@ -127,6 +145,7 @@ make typecheck            # Run TypeScript type checker
 make build                # Build standalone binary (no install)
 make install              # Build, sign, and install to ~/.local/bin
 make uninstall            # Remove from ~/.local/bin
+make opencode             # Install opencode config (optional)
 make clean                # Remove build artifacts
 
 # Database management (via Drizzle Kit)
