@@ -41,7 +41,7 @@ When creating a plan:
      title: "Step N: <description>",
      description: "<details with acceptance criteria, files affected, verification>",
      priority: "normal",
-     status: "backlog",
+     status: "<same as parent>",
      parent: "<parent-id>",
      sourceFlag: "opencode-plan"
    )
