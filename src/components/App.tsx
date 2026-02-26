@@ -319,20 +319,21 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
                   onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
                 />
               )}
-              {previewLayout === "side" ? (
-                <box flexDirection="row" flexGrow={1}>
-                  <box flexGrow={1}>
-                    {renderBoardView()}
-                  </box>
-                  <TaskPreview task={previewTask} orientation="side" />
+              {/* REGRESSION: 01KJ8KXDQWRXSHH71F90TF0WGP
+                * The Board must always be at the same tree position regardless of preview layout.
+                * DO NOT restructure this as separate if/else branches that change the JSX tree shape.
+                * Changing the tree structure causes React to remount the Board, resetting navigation state.
+                * Preview toggles on/off as a sibling, never by restructuring the parent wrapper. */}
+              <box flexDirection="row" flexGrow={1}>
+                <box flexGrow={1}>
+                  {renderBoardView(previewLayout === "side" ? 0 : boardHeightReduction)}
                 </box>
-              ) : (
-                <>
-                  {renderBoardView(boardHeightReduction)}
-                  {previewLayout === "bottom" && (
-                    <TaskPreview task={previewTask} orientation="bottom" maxHeight={previewHeight} />
-                  )}
-                </>
+                {previewLayout === "side" && (
+                  <TaskPreview task={previewTask} orientation="side" />
+                )}
+              </box>
+              {previewLayout === "bottom" && (
+                <TaskPreview task={previewTask} orientation="bottom" maxHeight={previewHeight} />
               )}
             </>
           )}
