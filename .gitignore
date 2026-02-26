@@ -2,3 +2,4 @@ node_modules/
 .vault0/
 dist/
 *.db
+.DS_Store
