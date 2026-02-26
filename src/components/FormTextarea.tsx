@@ -1,37 +1,37 @@
-import type { InputRenderable } from "@opentui/core"
+import type { TextareaRenderable } from "@opentui/core"
 import { forwardRef } from "react"
 import { theme } from "../lib/theme.js"
 
-export interface FormInputProps {
+export interface FormTextareaProps {
   placeholder?: string
-  value?: string
   initialValue?: string
   focused?: boolean
+  height?: number
   onMouseDown?: () => void
-  onSubmit?: () => void
-  // Allow spreading other input props
+  // Allow spreading other textarea props
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 
-export const FormInput = forwardRef<InputRenderable, FormInputProps>(
-  function FormInput({ placeholder, value, focused, onMouseDown, onSubmit, ...props }, ref) {
+export const FormTextarea = forwardRef<TextareaRenderable, FormTextareaProps>(
+  function FormTextarea({ placeholder, initialValue, focused, height = 8, onMouseDown, ...props }, ref) {
     return (
       <box
         backgroundColor={theme.bg_0}
-        height={1}
+        height={height}
         marginBottom={1}
       >
-        <input
+        <textarea
           ref={ref}
           placeholder={placeholder}
-          value={value}
+          initialValue={initialValue}
           focused={focused}
           textColor={theme.dim_0}
           focusedTextColor={theme.fg_1}
-          onMouseDown={onMouseDown}
-          onSubmit={onSubmit}
+          wrapMode="word"
+          height={height}
           flexGrow={1}
+          onMouseDown={onMouseDown}
           {...props}
         />
       </box>
