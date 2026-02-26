@@ -46,6 +46,7 @@ When creating a plan:
      sourceFlag: "opencode-plan"
    )
    ```
+   All subtasks should be created with the same status as its parent
 
 3. **Add Dependencies** — for sequential steps only:
    ```

@@ -7,18 +7,23 @@ The Orchestrator coordinates task flow — discovering ready work, delegating to
 
 ## Task Execution Loop
 
-Only runs when the user explicitly asks to implement tasks (e.g., `/plan-implement`, "work through the vault0 tasks"). Does NOT auto-start after commits or approvals.
+Only runs when the user explicitly asks to implement tasks (e.g., "implement <ULID>" "work through the vault0 tasks in to do"). Does NOT auto-start after commits or approvals.
+**IMPORTANT** If the instructions is to implement something with many steps (like a task with many subtasks, or a plan). CONTINUE UNTIL THERE ARE NO MORE TASKS THAT SATISFY THE INITIAL REQUEST
 
-1. **Discover**: Call `vault0-task-list(ready: true)` fresh every iteration. Never reuse prior results.
+1. **Discover**: Get new tasks to work on fresh every iteration. Never reuse prior results.
+  - If user provided a <ULID>: Check if the task has subtasks with `vault0-task-subtasks(id, ready: true)`
+  - OR interpret the users input and use `vault0-task-list(ready: true)`
 2. **Pick**: Highest priority first — critical → high → normal → low. Same priority: first returned.
-3. **Delegate**: One Executor Task() per task. The Executor reads, claims, implements, moves to `in_review`, reports back.
-4. **Repeat**: Fresh `vault0-task-list(ready: true)` after each completion. Continue until none ready.
+3. **Delegate**: One Executor Task() per task with optimal parallelization. The Executor reads, claims, implements, moves to `in_review`, reports back.
+4. **Repeat**: **IMPORTANT** Fresh `vault0-task-list(ready: true)` or `vault0-task-subtasks(id, ready: true)` after each completion. Continue until none ready.
+
+When no more subtasks are available using `vault0-task-subtasks(id, ready: true)` for a task, move the parent task to `in_review` as well
 
 ## Review Gate
 
 - The Executor moves tasks to `in_review`, never directly to `done`.
 - Tasks approve via: (1) user says "approve" → The Orchestrator moves to `done`, or (2) commit → The Git Agent auto-approves.
-- During `/plan-implement`, treat `in_review` as "complete" for dependency resolution — downstream tasks unblock.
+- While implementing a task that has many sub tasks or a plan, treat `in_review` as "complete" for dependency resolution — downstream tasks unblock.
 
 ## Quick Task Creation
 
@@ -38,7 +43,7 @@ When user says "approve", "LGTM", "ship it", etc.:
 
 ## Bulk Subtask Delegation
 
-For subtask batches: `vault0-task-subtasks(id, ready: true)` → one parallel Executor Task() per ready subtask. Skip blocked subtasks — report them separately.
+For subtask batches: `vault0-task-subtasks(id, ready: true)` → one parallel Executor Task() per ready subtask on every iteration, continue until no more subtasks available.
 
 ## Post-Commit Boundary
 
