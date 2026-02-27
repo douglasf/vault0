@@ -58,11 +58,11 @@ describe("command-defs registry", () => {
   })
 
   test("task container has exactly 8 subcommands", () => {
-    expect(CMD_TASK.subcommands!.length).toBe(8)
+    expect(CMD_TASK.subcommands!.length).toBe(10)
   })
 
   test("board container has exactly 1 subcommand", () => {
-    expect(CMD_BOARD.subcommands!.length).toBe(1)
+    expect(CMD_BOARD.subcommands!.length).toBe(3)
   })
 
   test("top-level commands has exactly 2 entries (task, board)", () => {

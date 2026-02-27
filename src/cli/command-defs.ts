@@ -10,7 +10,11 @@ import {
   cmdDelete,
   cmdUnarchive,
   cmdSubtasks,
+  cmdTaskExport,
   cmdBoardList,
+  cmdBoardExport,
+  cmdBoardImport,
+  cmdTaskImport,
 } from "./commands.js"
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -206,6 +210,34 @@ export const CMD_SUBTASKS: CommandDef = {
   action: (db, pos, flags, format) => cmdSubtasks(db, pos[0] || flags.id || "", flags, format),
 }
 
+export const CMD_TASK_EXPORT: CommandDef = {
+  name: "export",
+  aliases: [],
+  description: "Export tasks to JSON or Markdown",
+  args: [],
+  options: [
+    { long: "task-id", description: "Task ID to export (repeatable)", valuePlaceholder: "<ID>" },
+    { long: "include-subtasks", description: "Include subtasks nested under each task", boolean: true },
+    { long: "export-format", description: "Export format", valuePlaceholder: "<format>", validValues: ["json", "markdown"], defaultValue: "json" },
+    { long: "out", description: "Write output to file", valuePlaceholder: "<path>" },
+    OPT_FORMAT,
+    OPT_HELP,
+  ],
+  action: (_db, _pos, flags, _format) => cmdTaskExport(_db, flags, _format),
+}
+
+export const CMD_TASK_IMPORT: CommandDef = {
+  name: "import",
+  aliases: [],
+  description: "Import tasks from a JSON file",
+  args: [{ name: "FILE", required: true, description: "Path to JSON file to import" }],
+  options: [
+    OPT_BOARD,
+    ...GLOBAL_OPTIONS,
+  ],
+  action: (db, pos, flags, format) => cmdTaskImport(db, pos[0] || "", flags, format),
+}
+
 // ── Board Subcommand Definitions ────────────────────────────────────
 
 export const CMD_BOARD_LIST: CommandDef = {
@@ -215,6 +247,31 @@ export const CMD_BOARD_LIST: CommandDef = {
   args: [],
   options: [...GLOBAL_OPTIONS],
   action: (db, _pos, _flags, format) => cmdBoardList(db, format),
+}
+
+export const CMD_BOARD_EXPORT: CommandDef = {
+  name: "export",
+  aliases: [],
+  description: "Export a board and all its tasks to JSON",
+  args: [],
+  options: [
+    OPT_BOARD,
+    { long: "out", description: "Write output to file", valuePlaceholder: "<path>" },
+    ...GLOBAL_OPTIONS,
+  ],
+  action: (_db, _pos, flags, format) => cmdBoardExport(_db, flags, format),
+}
+
+export const CMD_BOARD_IMPORT: CommandDef = {
+  name: "import",
+  aliases: [],
+  description: "Import a board from a JSON file",
+  args: [{ name: "FILE", required: true, description: "Path to JSON file to import" }],
+  options: [
+    OPT_BOARD,
+    ...GLOBAL_OPTIONS,
+  ],
+  action: (db, pos, flags, format) => cmdBoardImport(db, pos[0] || "", flags, format),
 }
 
 // ── Container Commands ──────────────────────────────────────────────
@@ -235,6 +292,8 @@ export const CMD_TASK: CommandDef = {
     CMD_DELETE,
     CMD_UNARCHIVE,
     CMD_SUBTASKS,
+    CMD_TASK_EXPORT,
+    CMD_TASK_IMPORT,
   ],
 }
 
@@ -247,6 +306,8 @@ export const CMD_BOARD: CommandDef = {
   options: [],
   subcommands: [
     CMD_BOARD_LIST,
+    CMD_BOARD_EXPORT,
+    CMD_BOARD_IMPORT,
   ],
 }
 

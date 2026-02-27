@@ -7,6 +7,12 @@ import { generateHelp, generateUsage } from "./help.js"
 
 // ── Argument Parser ─────────────────────────────────────────────────
 
+/** Flags that accept multiple values (repeated --flag val1 --flag val2 → "val1,val2") */
+const MULTI_VALUE_FLAGS = new Set(["task-id"])
+
+/** Boolean flags that don't consume a following value */
+const BOOLEAN_FLAGS = new Set(["blocked", "ready", "all", "help", "dep-list", "include-subtasks"])
+
 interface ParsedArgs {
   positional: string[]
   flags: Record<string, string>
@@ -19,6 +25,8 @@ interface ParsedArgs {
  * Supports:
  *   vault0 task <subcommand> [positional...] [--flag value] [--format json]
  *   vault0 board <subcommand>
+ *
+ * Multi-value flags (e.g. --task-id) can be repeated; values are joined with commas.
  */
 export function parseArgs(args: string[]): ParsedArgs {
   const flags: Record<string, string> = {}
@@ -34,8 +42,7 @@ export function parseArgs(args: string[]): ParsedArgs {
     if (arg.startsWith("--")) {
       const key = arg.slice(2)
 
-      // Boolean flags (no value following)
-      if (key === "blocked" || key === "ready" || key === "all" || key === "help" || key === "dep-list") {
+      if (BOOLEAN_FLAGS.has(key)) {
         // Check if next arg is a value or another flag
         if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
           flags[key] = args[++i]
@@ -43,7 +50,12 @@ export function parseArgs(args: string[]): ParsedArgs {
           flags[key] = "true"
         }
       } else if (i + 1 < args.length) {
-        flags[key] = args[++i]
+        const value = args[++i]
+        if (MULTI_VALUE_FLAGS.has(key) && flags[key]) {
+          flags[key] = `${flags[key]},${value}`
+        } else {
+          flags[key] = value
+        }
       } else {
         flags[key] = ""
       }

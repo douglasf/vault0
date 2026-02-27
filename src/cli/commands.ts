@@ -1,5 +1,6 @@
+import { writeFileSync, existsSync, readFileSync } from "node:fs"
 import type { Vault0Database } from "../db/connection.js"
-import type { Status, Priority, Source, TaskType } from "../lib/types.js"
+import type { Status, Priority, Source, TaskType, ExportedTask, TaskExportEnvelope, BoardExportEnvelope } from "../lib/types.js"
 import { tasks } from "../db/schema.js"
 import { eq, sql } from "drizzle-orm"
 import {
@@ -13,6 +14,9 @@ import {
   getBoards,
   addDependency,
   removeDependency,
+  importTasks,
+  importBoard,
+  exportBoard,
 } from "../db/queries.js"
 import {
   formatTaskList,
@@ -487,6 +491,217 @@ export function cmdSubtasks(db: Vault0Database, taskId: string, flags: Record<st
 }
 
 /**
+ * vault0 task export [--task-id X] [--include-subtasks] [--format json|markdown] [--out file]
+ */
+export function cmdTaskExport(db: Vault0Database, flags: Record<string, string>, format: OutputFormat): CommandResult {
+  const exportFormat = flags["export-format"] === "markdown" ? "markdown" : "json"
+  const includeSubtasks = flags["include-subtasks"] === "true" || flags["include-subtasks"] === ""
+  const outFile = flags.out
+
+  // Collect tasks to export
+  let taskRows: typeof tasks.$inferSelect[]
+
+  if (flags["task-id"]) {
+    const ids = flags["task-id"].split(",").map((id) => id.trim()).filter(Boolean)
+    taskRows = ids.map((idFragment) => {
+      const resolvedId = resolveTaskId(db, idFragment)
+      const task = db.select().from(tasks).where(eq(tasks.id, resolvedId)).get()
+      if (!task) throw new Error(`Task ${resolvedId} not found`)
+      return task
+    })
+  } else {
+    // Export all non-archived tasks on default board
+    const boardId = getDefaultBoardId(db)
+    taskRows = db
+      .select()
+      .from(tasks)
+      .where(sql`${tasks.boardId} = ${boardId} AND ${tasks.archivedAt} IS NULL AND ${tasks.parentId} IS NULL`)
+      .all()
+  }
+
+  // Build exported tasks
+  const exportedTasks: ExportedTask[] = taskRows.map((t) => toExportedTask(db, t, includeSubtasks))
+
+  if (exportFormat === "markdown") {
+    const md = renderMarkdown(exportedTasks)
+    if (outFile) {
+      writeFileSync(outFile, md)
+      return { success: true, message: formatSuccess(`Exported ${exportedTasks.length} task(s) to ${outFile}`) }
+    }
+    return { success: true, message: md, data: exportedTasks }
+  }
+
+  // JSON format
+  const envelope: TaskExportEnvelope = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    tasks: exportedTasks,
+  }
+
+  const json = JSON.stringify(envelope, null, 2)
+  if (outFile) {
+    writeFileSync(outFile, json)
+    return { success: true, message: formatSuccess(`Exported ${exportedTasks.length} task(s) to ${outFile}`) }
+  }
+  return { success: true, message: json, data: envelope }
+}
+
+/** Convert a DB task row to an ExportedTask, optionally including subtasks */
+function toExportedTask(
+  db: Vault0Database,
+  t: typeof tasks.$inferSelect,
+  includeSubtasks: boolean,
+): ExportedTask {
+  const exported: ExportedTask = {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? null,
+    status: t.status as Status,
+    priority: t.priority as Priority,
+    type: (t.type as TaskType) ?? null,
+    source: (t.source as Source) ?? null,
+    sourceRef: t.sourceRef ?? null,
+    tags: (t.tags as string[]) ?? [],
+    solution: t.solution ?? null,
+    sortOrder: t.sortOrder,
+    createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+    updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
+  }
+
+  if (includeSubtasks) {
+    const children = db
+      .select()
+      .from(tasks)
+      .where(sql`${tasks.parentId} = ${t.id} AND ${tasks.archivedAt} IS NULL`)
+      .all()
+    if (children.length > 0) {
+      exported.subtasks = children.map((c) => toExportedTask(db, c, false))
+    }
+  }
+
+  return exported
+}
+
+/** Render exported tasks as Markdown */
+function renderMarkdown(exportedTasks: ExportedTask[]): string {
+  const lines: string[] = []
+
+  for (const task of exportedTasks) {
+    lines.push(`# ${task.title}`)
+    lines.push("")
+    if (task.description) {
+      lines.push(task.description)
+      lines.push("")
+    }
+    if (task.solution) {
+      lines.push("**Solution:**")
+      lines.push("")
+      lines.push(task.solution)
+      lines.push("")
+    }
+
+    if (task.subtasks && task.subtasks.length > 0) {
+      for (const sub of task.subtasks) {
+        lines.push(`## ${sub.title}`)
+        lines.push("")
+        if (sub.description) {
+          lines.push(sub.description)
+          lines.push("")
+        }
+        if (sub.solution) {
+          lines.push("**Solution:**")
+          lines.push("")
+          lines.push(sub.solution)
+          lines.push("")
+        }
+      }
+    }
+  }
+
+  return `${lines.join("\n").trimEnd()}\n`
+}
+
+/**
+ * vault0 task import <FILE>
+ * Import tasks from a JSON file (TaskExportEnvelope or raw ExportedTask array).
+ */
+export function cmdTaskImport(db: Vault0Database, filePath: string, flags: Record<string, string>, format: OutputFormat): CommandResult {
+  if (!filePath) {
+    return { success: false, message: formatError("FILE argument is required. Usage: vault0 task import <FILE>") }
+  }
+
+  if (!existsSync(filePath)) {
+    return { success: false, message: formatError(`File not found: ${filePath}`) }
+  }
+
+  let raw: string
+  try {
+    raw = readFileSync(filePath, "utf-8")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, message: formatError(`Failed to read file: ${msg}`) }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { success: false, message: formatError("File is not valid JSON") }
+  }
+
+  // Determine if it's an envelope or a raw array
+  let exportedTasks: ExportedTask[]
+  let exportedDeps: { taskId: string; dependsOn: string }[] | undefined
+
+  if (Array.isArray(parsed)) {
+    // Raw array of tasks
+    exportedTasks = parsed as ExportedTask[]
+  } else if (parsed && typeof parsed === "object" && "tasks" in parsed && Array.isArray((parsed as TaskExportEnvelope).tasks)) {
+    // Envelope format
+    const envelope = parsed as TaskExportEnvelope
+    exportedTasks = envelope.tasks
+    exportedDeps = envelope.dependencies
+  } else {
+    return { success: false, message: formatError("Invalid import format. Expected a TaskExportEnvelope or an array of tasks.") }
+  }
+
+  if (exportedTasks.length === 0) {
+    return { success: false, message: formatError("No tasks found in import file") }
+  }
+
+  // Validate each task has at minimum an id and title
+  for (const t of exportedTasks) {
+    if (!t.id || !t.title) {
+      return { success: false, message: formatError("Each task must have an 'id' and 'title' field") }
+    }
+  }
+
+  const boardId = flags.board || getDefaultBoardId(db)
+
+  try {
+    const result = importTasks(db, boardId, exportedTasks, exportedDeps)
+
+    if (format === "json") {
+      const data = {
+        taskCount: result.taskCount,
+        dependencyCount: result.dependencyCount,
+        idMap: Object.fromEntries(result.idMap),
+      }
+      return { success: true, message: jsonOutput(data), data }
+    }
+
+    let msg = formatSuccess(`Imported ${result.taskCount} task(s)`)
+    if (result.dependencyCount > 0) {
+      msg += `\n${formatSuccess(`Imported ${result.dependencyCount} dependency(ies)`)}`
+    }
+    return { success: true, message: msg, data: result }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, message: formatError(`Import failed: ${msg}`) }
+  }
+}
+
+/**
  * vault0 board list
  */
 export function cmdBoardList(db: Vault0Database, format: OutputFormat): CommandResult {
@@ -502,4 +717,97 @@ export function cmdBoardList(db: Vault0Database, format: OutputFormat): CommandR
 
   const lines = allBoards.map(formatBoard)
   return { success: true, message: lines.join("\n"), data: allBoards }
+}
+
+// ── Board Export ────────────────────────────────────────────────────
+
+export function cmdBoardExport(db: Vault0Database, flags: Record<string, string>, format: OutputFormat): CommandResult {
+  const boardId = flags.board || getDefaultBoardId(db)
+  const outFile = flags.out
+
+  const envelope = exportBoard(db, boardId)
+
+  const json = JSON.stringify(envelope, null, 2)
+  if (outFile) {
+    writeFileSync(outFile, json)
+    return { success: true, message: formatSuccess(`Exported board to ${outFile} (${envelope.tasks.length} task(s))`), data: envelope }
+  }
+  return { success: true, message: json, data: envelope }
+}
+
+// ── Board Import ────────────────────────────────────────────────────
+
+/**
+ * vault0 board import <FILE>
+ * Import a board from a BoardExportEnvelope JSON file.
+ */
+export function cmdBoardImport(db: Vault0Database, filePath: string, flags: Record<string, string>, format: OutputFormat): CommandResult {
+  if (!filePath) {
+    return { success: false, message: formatError("FILE argument is required. Usage: vault0 board import <FILE>") }
+  }
+
+  if (!existsSync(filePath)) {
+    return { success: false, message: formatError(`File not found: ${filePath}`) }
+  }
+
+  let raw: string
+  try {
+    raw = readFileSync(filePath, "utf-8")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, message: formatError(`Failed to read file: ${msg}`) }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { success: false, message: formatError("File is not valid JSON") }
+  }
+
+  // Validate BoardExportEnvelope structure
+  if (!parsed || typeof parsed !== "object" || !("version" in parsed) || !("board" in parsed) || !("tasks" in parsed)) {
+    return { success: false, message: formatError("Invalid format. Expected a BoardExportEnvelope with version, board, and tasks fields.") }
+  }
+
+  const envelope = parsed as BoardExportEnvelope
+
+  if (envelope.version !== 1) {
+    return { success: false, message: formatError(`Unsupported envelope version: ${envelope.version}. Expected version 1.`) }
+  }
+
+  if (!Array.isArray(envelope.tasks)) {
+    return { success: false, message: formatError("Invalid format. 'tasks' must be an array.") }
+  }
+
+  // Validate each task has at minimum an id and title
+  for (const t of envelope.tasks) {
+    if (!t.id || !t.title) {
+      return { success: false, message: formatError("Each task must have an 'id' and 'title' field") }
+    }
+  }
+
+  const boardId = flags.board || getDefaultBoardId(db)
+
+  try {
+    const result = importBoard(db, boardId, envelope)
+
+    if (format === "json") {
+      const data = {
+        taskCount: result.taskCount,
+        dependencyCount: result.dependencyCount,
+        idMap: Object.fromEntries(result.idMap),
+      }
+      return { success: true, message: jsonOutput(data), data }
+    }
+
+    let msg = formatSuccess(`Imported ${result.taskCount} task(s) from board "${envelope.board.name}"`)
+    if (result.dependencyCount > 0) {
+      msg += `\n${formatSuccess(`Imported ${result.dependencyCount} dependency(ies)`)}`
+    }
+    return { success: true, message: msg, data: result }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { success: false, message: formatError(`Import failed: ${msg}`) }
+  }
 }

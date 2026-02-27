@@ -52,3 +52,46 @@ export type VersionInfo = {
 export type ReleaseWithTaskCount = Release & {
   taskCount: number
 }
+
+// ── Export/Import Types ─────────────────────────────────────────────
+
+/** A task as it appears in an export JSON file */
+export type ExportedTask = {
+  id: string
+  title: string
+  description?: string | null
+  status: Status
+  priority: Priority
+  type?: TaskType | null
+  source?: Source | null
+  sourceRef?: string | null
+  tags?: string[]
+  solution?: string | null
+  sortOrder?: number
+  createdAt?: string
+  updatedAt?: string
+  subtasks?: ExportedTask[]
+}
+
+/** A dependency as it appears in an export JSON file */
+export type ExportedDependency = {
+  taskId: string
+  dependsOn: string
+}
+
+/** Envelope for task-level export/import */
+export type TaskExportEnvelope = {
+  version: number
+  exportedAt: string
+  tasks: ExportedTask[]
+  dependencies?: ExportedDependency[]
+}
+
+/** Envelope for board-level export/import */
+export type BoardExportEnvelope = {
+  version: number
+  exportedAt: string
+  board: { id: string; name: string; description?: string | null }
+  tasks: ExportedTask[]
+  dependencies?: ExportedDependency[]
+}

@@ -1,9 +1,10 @@
 import type { Vault0Database } from "./connection.js"
-import type { Status, Task, TaskDetail, TaskCard, Release, ReleaseWithTaskCount, VersionInfo } from "../lib/types.js"
+import type { Status, Priority, TaskType, Source, Task, TaskDetail, TaskCard, Release, ReleaseWithTaskCount, VersionInfo, ExportedTask, ExportedDependency, BoardExportEnvelope } from "../lib/types.js"
 import { tasks, taskDependencies, taskStatusHistory, boards, releases } from "./schema.js"
 import { and, eq, isNull, or, sql, inArray, desc } from "drizzle-orm"
 import { wouldCreateCycle } from "../lib/dag.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
+import { ulid } from "ulidx"
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -798,4 +799,188 @@ export function restoreAllFromRelease(db: Vault0Database, releaseId: string): nu
   }
 
   return releaseTasks.length
+}
+
+// ── Import ──────────────────────────────────────────────────────────
+
+export interface ImportResult {
+  /** Number of tasks imported (including subtasks) */
+  taskCount: number
+  /** Number of dependencies imported */
+  dependencyCount: number
+  /** Mapping from old task IDs to new ULIDs */
+  idMap: Map<string, string>
+}
+
+/**
+ * Import tasks from an export structure into the given board.
+ * Generates new ULIDs for all tasks, remaps parentId and dependencies.
+ * Runs in an atomic transaction.
+ */
+export function importTasks(
+  db: Vault0Database,
+  boardId: string,
+  exportedTasks: ExportedTask[],
+  exportedDeps?: ExportedDependency[],
+): ImportResult {
+  return db.transaction((tx) => {
+    const idMap = new Map<string, string>()
+    let taskCount = 0
+
+    /** Recursively insert a task and its subtasks */
+    function insertTask(exported: ExportedTask, parentId?: string): void {
+      const newId = ulid()
+      idMap.set(exported.id, newId)
+
+      tx.insert(tasks)
+        .values({
+          id: newId,
+          boardId,
+          parentId: parentId ?? null,
+          title: exported.title,
+          description: exported.description ?? null,
+          status: exported.status ?? "backlog",
+          priority: exported.priority ?? "normal",
+          type: exported.type ?? null,
+          source: "import",
+          sourceRef: exported.sourceRef ?? null,
+          tags: exported.tags ?? [],
+          solution: exported.solution ?? null,
+          sortOrder: exported.sortOrder ?? 0,
+        })
+        .run()
+
+      // Record initial status history
+      tx.insert(taskStatusHistory)
+        .values({
+          taskId: newId,
+          fromStatus: undefined,
+          toStatus: exported.status ?? "backlog",
+        })
+        .run()
+
+      taskCount++
+
+      // Recurse into subtasks
+      if (exported.subtasks && exported.subtasks.length > 0) {
+        for (const subtask of exported.subtasks) {
+          insertTask(subtask, newId)
+        }
+      }
+    }
+
+    // Insert all top-level tasks (with nested subtasks)
+    for (const exported of exportedTasks) {
+      insertTask(exported)
+    }
+
+    // Remap and insert dependencies
+    let dependencyCount = 0
+    if (exportedDeps && exportedDeps.length > 0) {
+      for (const dep of exportedDeps) {
+        const newTaskId = idMap.get(dep.taskId)
+        const newDependsOn = idMap.get(dep.dependsOn)
+        if (newTaskId && newDependsOn) {
+          tx.insert(taskDependencies)
+            .values({ taskId: newTaskId, dependsOn: newDependsOn })
+            .run()
+          dependencyCount++
+        }
+      }
+    }
+
+    return { taskCount, dependencyCount, idMap }
+  }, { behavior: "immediate" })
+}
+
+// ── Board Export ────────────────────────────────────────────────────
+
+/**
+ * Export an entire board as a BoardExportEnvelope.
+ * Fetches board metadata, all non-archived tasks (nested), and dependencies.
+ */
+export function exportBoard(db: Vault0Database, boardId: string): BoardExportEnvelope {
+  const board = getBoard(db, boardId)
+  if (!board) throw new Error(`Board ${boardId} not found`)
+
+  // Fetch all non-archived tasks for this board
+  const allTasks = db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.boardId, boardId), isNull(tasks.archivedAt)))
+    .all()
+
+  const taskIds = allTasks.map((t) => t.id)
+
+  // Fetch all dependencies between these tasks
+  const deps = taskIds.length > 0
+    ? db.select().from(taskDependencies).where(inArray(taskDependencies.taskId, taskIds)).all()
+    : []
+
+  // Build exported tasks — top-level only, with subtasks nested
+  const topLevel = allTasks.filter((t) => !t.parentId)
+  const byParent = new Map<string, typeof allTasks>()
+  for (const t of allTasks) {
+    if (t.parentId) {
+      const siblings = byParent.get(t.parentId) ?? []
+      siblings.push(t)
+      byParent.set(t.parentId, siblings)
+    }
+  }
+
+  function toExported(t: typeof allTasks[number]): ExportedTask {
+    const children = byParent.get(t.id)
+    const exported: ExportedTask = {
+      id: t.id,
+      title: t.title,
+      description: t.description ?? null,
+      status: t.status as Status,
+      priority: t.priority as Priority,
+      type: (t.type as TaskType) ?? null,
+      source: (t.source as Source) ?? null,
+      sourceRef: t.sourceRef ?? null,
+      tags: (t.tags as string[]) ?? [],
+      solution: t.solution ?? null,
+      sortOrder: t.sortOrder,
+      createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+      updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
+    }
+    if (children && children.length > 0) {
+      exported.subtasks = children.map(toExported)
+    }
+    return exported
+  }
+
+  const exportedTasks = topLevel.map(toExported)
+
+  const exportedDeps: ExportedDependency[] = deps
+    .filter((d) => taskIds.includes(d.dependsOn))
+    .map((d) => ({ taskId: d.taskId, dependsOn: d.dependsOn }))
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    board: {
+      id: board.id,
+      name: board.name,
+      description: board.description ?? null,
+    },
+    tasks: exportedTasks,
+    dependencies: exportedDeps,
+  }
+}
+
+/**
+ * Import an entire board from a BoardExportEnvelope.
+ * Delegates to importTasks for the actual task/dependency insertion.
+ * @param db Database instance
+ * @param boardId Target board to import into
+ * @param envelope The parsed BoardExportEnvelope
+ */
+export function importBoard(
+  db: Vault0Database,
+  boardId: string,
+  envelope: BoardExportEnvelope,
+): ImportResult {
+  return importTasks(db, boardId, envelope.tasks, envelope.dependencies)
 }
