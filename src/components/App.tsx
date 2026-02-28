@@ -396,6 +396,7 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
             mode="create"
             parentTitle={state.createParent?.title}
             initialStatus={currentLaneRef.current}
+            repoRoot={repoRoot}
             onSubmit={(data) => {
               const created = actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status, data.type)
               showToast("Task created", `Title: ${data.title}`)
@@ -409,6 +410,7 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
           <TaskForm
             mode="edit"
             task={state.selectedTask}
+            repoRoot={repoRoot}
             onSubmit={(data) => {
               if (state.selectedTask) {
                 actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority, data.type, data.solution || null)

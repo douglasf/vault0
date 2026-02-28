@@ -11,6 +11,8 @@ import { ModalOverlay } from "./ModalOverlay.js"
 import { Button } from "./Button.js"
 import { FormInput } from "./FormInput.js"
 import { FormTextarea } from "./FormTextarea.js"
+import { FileAutocomplete } from "./FileAutocomplete.js"
+import type { FileAutocompleteHandle } from "./FileAutocomplete.js"
 
 /** Form data submitted on create or edit */
 export interface TaskFormData {
@@ -29,6 +31,8 @@ export interface TaskFormProps {
   parentTitle?: string
   /** Default status for the new task (defaults to "backlog") */
   initialStatus?: Status
+  /** Project root directory for @-file search */
+  repoRoot?: string
   onSubmit: (data: TaskFormData) => void
   onCancel: () => void
 }
@@ -61,15 +65,20 @@ function cycleOption<T>(options: readonly T[], current: T, delta: 1 | -1): T {
  * for priority, type, and (in create mode) status. Tab/Shift+Tab navigates
  * between fields; Enter advances or submits.
  */
-export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onCancel }: TaskFormProps) {
+export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onSubmit, onCancel }: TaskFormProps) {
   const titleRef = useRef<InputRenderable>(null)
   const descRef = useRef<TextareaRenderable>(null)
   const solutionRef = useRef<TextareaRenderable>(null)
   const scrollRef = useRef<ScrollBoxRenderable>(null)
+  const autocompleteRef = useRef<FileAutocompleteHandle>(null)
   const [priority, setPriority] = useState<Priority>((task?.priority as Priority) || "normal")
   const [taskType, setTaskType] = useState<TaskType | null>((task?.type as TaskType) || null)
   const [status, setStatus] = useState<Status>((task?.status as Status) || initialStatus || "backlog")
   const { height: terminalRows } = useTerminalDimensions()
+
+  // Inline file autocomplete state — tracks which textarea has an active @ search
+  const [autocompleteTarget, setAutocompleteTarget] = useState<"description" | "solution" | null>(null)
+  const [autocompleteQuery, setAutocompleteQuery] = useState("")
 
   // Modal chrome: 4 (modal margin) + 2 (padding) + 2 (title) + 3 (buttons) = 12
   // Parent title line if present: 2 (text + margin)
@@ -129,6 +138,117 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
     }
   }, [onSubmit, priority, status, taskType])
 
+  // ── @ file autocomplete handlers ────────────────────────────────────────
+
+  /** Offset BEFORE the @ character in the editBuffer */
+  const atStartPosRef = useRef<number>(-1)
+
+  /**
+   * onContentChange callback for textareas — fires after buffer is updated.
+   * Detects newly typed @ to activate autocomplete, and updates the query
+   * text while autocomplete is active.
+   */
+  const makeContentChangeHandler = useCallback((
+    textareaRef: React.RefObject<TextareaRenderable | null>,
+    field: "description" | "solution",
+  ) => {
+    return () => {
+      const buf = textareaRef.current?.editBuffer
+      if (!buf) return
+
+      const cursorPos = buf.getCursorPosition().offset
+
+      // If autocomplete is not active, scan backwards from cursor for @
+      if (autocompleteTarget !== field && repoRoot) {
+        if (cursorPos > 0) {
+          // Look backwards from cursor for an @ character
+          const textBeforeCursor = buf.getTextRange(0, cursorPos)
+          const atIdx = textBeforeCursor.lastIndexOf("@")
+          if (atIdx >= 0) {
+            const afterAt = textBeforeCursor.slice(atIdx + 1)
+            // Coherent query: only alphanumeric, underscore, dash, dot, slash
+            if (/^[a-zA-Z0-9_\-./]*$/.test(afterAt)) {
+              atStartPosRef.current = atIdx
+              setAutocompleteTarget(field)
+              setAutocompleteQuery(afterAt)
+              return
+            }
+          }
+        }
+        return
+      }
+
+      // Autocomplete is active — update query from text after @
+      if (autocompleteTarget === field && atStartPosRef.current >= 0) {
+        // Verify @ is still at the stored position
+        const atChar = buf.getTextRange(atStartPosRef.current, atStartPosRef.current + 1)
+        if (atChar !== "@" || cursorPos <= atStartPosRef.current) {
+          // @ was deleted or cursor moved before it — close autocomplete
+          setAutocompleteTarget(null)
+          setAutocompleteQuery("")
+          atStartPosRef.current = -1
+          return
+        }
+        const afterAt = buf.getTextRange(atStartPosRef.current + 1, cursorPos)
+        if (!/^[a-zA-Z0-9_\-./]*$/.test(afterAt)) {
+          // Non-coherent character (space, newline, etc.) — close autocomplete
+          setAutocompleteTarget(null)
+          setAutocompleteQuery("")
+          atStartPosRef.current = -1
+        } else {
+          setAutocompleteQuery(afterAt)
+        }
+      }
+    }
+  }, [repoRoot, autocompleteTarget])
+
+  /**
+   * onCursorChange callback for textareas — fires when cursor moves.
+   * Closes autocomplete if cursor moves before the @ position.
+   */
+  const makeCursorChangeHandler = useCallback((
+    field: "description" | "solution",
+  ) => {
+    return () => {
+      if (autocompleteTarget !== field || atStartPosRef.current < 0) return
+      // Content change handler will validate position on next content update;
+      // cursor-only moves (arrow keys) while autocomplete is active are fine
+      // as long as autocomplete captures them. If cursor escapes, content
+      // change or the keyboard guard will close it.
+    }
+  }, [autocompleteTarget])
+
+  const handleFileSelect = useCallback((filePath: string) => {
+    const textarea = autocompleteTarget === "description" ? descRef.current
+      : autocompleteTarget === "solution" ? solutionRef.current
+      : null
+    if (textarea?.editBuffer && atStartPosRef.current >= 0) {
+      const buf = textarea.editBuffer
+      const cursorPos = buf.getCursorPosition().offset
+
+      // Verify @ is still at the stored position before replacing
+      const atChar = buf.getTextRange(atStartPosRef.current, atStartPosRef.current + 1)
+      if (atChar === "@") {
+        // Convert offsets to line/col for deleteRange
+        const startPos = buf.offsetToPosition(atStartPosRef.current)
+        const endPos = buf.offsetToPosition(cursorPos)
+        if (startPos && endPos) {
+          buf.deleteRange(startPos.row, startPos.col, endPos.row, endPos.col)
+          buf.insertText(filePath)
+        }
+      }
+    }
+    setAutocompleteTarget(null)
+    setAutocompleteQuery("")
+    atStartPosRef.current = -1
+  }, [autocompleteTarget])
+
+  const handleAutocompleteCancel = useCallback(() => {
+    setAutocompleteTarget(null)
+    setAutocompleteQuery("")
+    atStartPosRef.current = -1
+  }, [])
+
   /**
    * Handle arrow-key cycling for a selector field (priority, type, status).
    * Returns true if the event was consumed, false otherwise.
@@ -154,7 +274,16 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
     return false
   }, [advance])
 
-  useActiveKeyboard((event: KeyEvent) => {
+   useActiveKeyboard((event: KeyEvent) => {
+    // When autocomplete is active, delegate navigation keys to it.
+    // If handled, preventDefault stops the textarea from also processing the key.
+    if (autocompleteTarget && autocompleteRef.current) {
+      if (autocompleteRef.current.handleKey(event)) {
+        event.preventDefault()
+        return
+      }
+    }
+
     // Tab / Shift+Tab to navigate fields
     if (event.name === "tab") {
       if (event.shift) {
@@ -222,17 +351,45 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
             placeholder="Description"
             height={DESC_VIEWPORT}
             onMouseDown={() => setFocusField("description")}
+            onContentChange={makeContentChangeHandler(descRef, "description")}
+            onCursorChange={makeCursorChangeHandler("description")}
           />
 
-          {mode === "edit" && (
-            <FormTextarea
-              ref={solutionRef}
-              focused={isSolutionFocused}
-              initialValue={task?.solution?.replace(/\t/g, "  ") || ""}
-              placeholder="Solution"
-              height={DESC_VIEWPORT}
-              onMouseDown={() => setFocusField("solution")}
+          {autocompleteTarget === "description" && repoRoot && (
+            <FileAutocomplete
+              ref={autocompleteRef}
+              repoRoot={repoRoot}
+              isActive={autocompleteTarget === "description"}
+              query={autocompleteQuery}
+              onSelect={handleFileSelect}
+              onCancel={handleAutocompleteCancel}
             />
+          )}
+
+          {mode === "edit" && (
+            <>
+              <FormTextarea
+                ref={solutionRef}
+                focused={isSolutionFocused}
+                initialValue={task?.solution?.replace(/\t/g, "  ") || ""}
+                placeholder="Solution"
+                height={DESC_VIEWPORT}
+                onMouseDown={() => setFocusField("solution")}
+                onContentChange={makeContentChangeHandler(solutionRef, "solution")}
+                onCursorChange={makeCursorChangeHandler("solution")}
+              />
+
+              {autocompleteTarget === "solution" && repoRoot && (
+                <FileAutocomplete
+                  ref={autocompleteRef}
+                  repoRoot={repoRoot}
+                  isActive={autocompleteTarget === "solution"}
+                  query={autocompleteQuery}
+                  onSelect={handleFileSelect}
+                  onCancel={handleAutocompleteCancel}
+                />
+              )}
+            </>
           )}
 
 
@@ -287,6 +444,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
           fg={isFocused("submit") ? theme.blue : theme.fg_0}
           label={mode === "create" ? "Create" : "Save"} />
       </box>
+
     </ModalOverlay>
   )
 }
