@@ -70,6 +70,17 @@ export interface AppState {
 }
 
 export function App({ db, dbPath, repoRoot }: AppProps) {
+  return (
+    // @ts-expect-error ErrorBoundary class component vs OpenTUI JSX type mismatch (runtime-compatible)
+    <ErrorBoundary>
+      <DbContext.Provider value={db}>
+        <AppContent db={db} dbPath={dbPath} repoRoot={repoRoot} />
+      </DbContext.Provider>
+    </ErrorBoundary>
+  )
+}
+
+function AppContent({ db, dbPath, repoRoot }: AppProps) {
   const renderer = useRenderer()
   const { width: terminalColumns, height: terminalRows } = useTerminalDimensions()
   const [state, setState] = useState<AppState>({
@@ -77,7 +88,7 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
     uiMode: "board",
   })
 
-  const actions = useTaskActions(db)
+  const actions = useTaskActions()
   const filterHook = useFilters()
 
   // Clear pendingFocusTaskId after it's been passed to the board components
@@ -296,9 +307,6 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
   }
 
   return (
-    // @ts-expect-error ErrorBoundary class component vs OpenTUI JSX type mismatch (runtime-compatible)
-    <ErrorBoundary>
-      <DbContext.Provider value={db}>
         <ToastContext.Provider value={toastState}>
         <box flexDirection="column" width="100%" height={terminalRows} backgroundColor={theme.bg_1}>
           <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} sortField={sortField} />
@@ -603,7 +611,5 @@ export function App({ db, dbPath, repoRoot }: AppProps) {
         )}
       </box>
     </ToastContext.Provider>
-    </DbContext.Provider>
-  </ErrorBoundary>
   )
 }

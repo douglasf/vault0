@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { KeyEvent } from "@opentui/core"
-import { useDb } from "../lib/db-context.js"
 import { useBoard } from "./useBoard.js"
 import { useNavigation } from "./useNavigation.js"
 import { useActiveKeyboard } from "./useActiveKeyboard.js"
@@ -54,8 +53,7 @@ export function useBoardLogic({
   onMoveTask,
   onDbError,
 }: UseBoardLogicProps): UseBoardLogicResult {
-  const db = useDb()
-  const { tasksByStatus, readyIds, blockedIds, dbError } = useBoard(db, boardId, filters, sortField)
+  const { tasksByStatus, readyIds, blockedIds, dbError } = useBoard(boardId, filters, sortField)
 
   // Report database errors to parent
   useEffect(() => {

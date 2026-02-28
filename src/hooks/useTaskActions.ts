@@ -1,10 +1,10 @@
 import { useCallback } from "react"
-import type { Vault0Database } from "../db/connection.js"
 import type { Status, Priority, TaskType } from "../lib/types.js"
 import { createTask, updateTask, updateTaskStatus, archiveTask, unarchiveTask } from "../db/queries.js"
 import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
 import { recordTaskCreated, recordStatusChange } from "../lib/session-stats.js"
+import { useDb } from "../lib/db-context.js"
 
 export interface UseTaskActionsResult {
   createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => ReturnType<typeof createTask>
@@ -15,7 +15,8 @@ export interface UseTaskActionsResult {
   undeleteTask: (taskId: string) => void
 }
 
-export function useTaskActions(db: Vault0Database): UseTaskActionsResult {
+export function useTaskActions(): UseTaskActionsResult {
+  const db = useDb()
   const createNewTask = useCallback(
     (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => {
       const result = createTask(db, {

@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react"
-import type { Vault0Database } from "../db/connection.js"
 import { isDbClosed } from "../db/connection.js"
 import type { Filters, Status, SortField, TaskCard, Priority } from "../lib/types.js"
 import { getTaskCards } from "../db/queries.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, TASK_TYPE_ORDER, TASK_TYPE_ORDER_NONE } from "../lib/constants.js"
 import type { DbError } from "../lib/db-errors.js"
 import { classifyDbError } from "../lib/db-errors.js"
+import { useDb } from "../lib/db-context.js"
 
 export interface UseBoardResult {
   tasksByStatus: Map<Status, TaskCard[]>
@@ -106,7 +106,8 @@ function groupByParent(cards: TaskCard[], sortField?: SortField): TaskCard[] {
   return result
 }
 
-export function useBoard(db: Vault0Database, boardId: string, filters?: Filters, sortField?: SortField): UseBoardResult {
+export function useBoard(boardId: string, filters?: Filters, sortField?: SortField): UseBoardResult {
+  const db = useDb()
   const [version, setVersion] = useState(0)
 
   const tasksByStatus = new Map<Status, TaskCard[]>()
