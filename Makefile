@@ -40,7 +40,7 @@ build: clean
 	@echo "📦 Installing dependencies..."
 	$(BUN) install
 	@echo "🔨 Building Vault0..."
-	$(BUN) build --compile src/index.tsx --outfile vault0
+	$(BUN) build --compile src/index.tsx --outfile vault0 --define __VAULT0_VERSION__="\"$$(jq -r .version package.json)\""
 	@echo "🔏 Signing binary (required on macOS/Apple Silicon)..."
 	codesign --sign - --force vault0
 	@echo ""

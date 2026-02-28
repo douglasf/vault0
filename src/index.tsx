@@ -15,7 +15,22 @@ import { renderExitScreen } from "./lib/exit-screen.js"
 import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 
-const VERSION = "0.1.0"
+// Version is injected at compile time via --define in Makefile.
+// During dev (bun run), the placeholder remains and we fall back to reading package.json.
+declare const __VAULT0_VERSION__: string | undefined
+const VERSION: string = (() => {
+  // Compile-time injected value (bundled binary)
+  try {
+    if (typeof __VAULT0_VERSION__ !== "undefined") return __VAULT0_VERSION__
+  } catch { /* not defined — dev mode */ }
+  // Dev mode: read from package.json relative to this file
+  try {
+    const path = join(import.meta.dir, "..", "package.json")
+    return JSON.parse(readFileSync(path, "utf-8")).version
+  } catch {
+    return "dev"
+  }
+})()
 
 // ── Single Instance Lock ────────────────────────────────────────────────
 
@@ -172,7 +187,7 @@ async function main() {
       runEmbeddedMigrations(sqlite)
       seedDefaultBoard(db)
 
-      const exitCode = runCli(entity, cliArgs, db)
+      const exitCode = runCli(entity, cliArgs, db, { repoRoot, config: _config })
 
       sqlite.exec("PRAGMA wal_checkpoint(TRUNCATE)")
       sqlite.close()
