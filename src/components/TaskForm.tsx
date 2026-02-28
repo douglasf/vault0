@@ -258,7 +258,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
               <span fg={isFocused("type") ? theme.blue : theme.fg_0}>
                 Type{" "}
               </span>
-              <span fg={getPriorityColor(taskType ? getTaskTypeColor(taskType) : theme.dim_0)}>
+              <span fg={taskType ? getTaskTypeColor(taskType) : theme.dim_0}>
                 {"\u25C0 "}{taskType ? TASK_TYPE_LABELS[taskType] : "None"}{" \u25B6"}
               </span>
             </text>
@@ -273,7 +273,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, onSubmit, onC
                   <span fg={isFocused("status") ? theme.blue : theme.fg_0}>
                     Status{" "}
                   </span>
-                  <span fg={getPriorityColor(status)}>
+                  <span fg={getStatusColor(status)}>
                     {"\u25C0 "}{STATUS_LABELS[status]}{" \u25B6"}
                   </span>
                 </text>
