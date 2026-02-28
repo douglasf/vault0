@@ -34,6 +34,8 @@ When creating a plan:
    - User specified an existing task ID? Use it as parent (do NOT create a duplicate)
    - No ID provided? Create new parent via `vault0-task-add` with `sourceFlag: "opencode-plan"`
    - For very large plans, create multiple parent tasks to break up the work
+   - If user ever says to create two plans, that means two parent tasks. NOT two subtasks to the provided task.
+   - IMPORTANT, vault0 only supports settings parent to a task that does not already have a parent. That means one level of hierarchy. DO NOT try to create a subtask to a subtask!
 
 2. **Create Subtasks** — for each implementation step:
    ```
