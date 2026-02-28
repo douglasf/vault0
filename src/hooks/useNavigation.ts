@@ -14,6 +14,8 @@ export interface UseNavigationResult {
   navigateRight: () => void
   navigateUp: () => void
   navigateDown: () => void
+  navigateUpBy: (n: number) => void
+  navigateDownBy: (n: number) => void
   navigateToColumn: (col: number) => void
   navigateTo: (col: number, row: number) => void
   selectCurrent: () => { column: number; row: number } | null
@@ -48,19 +50,23 @@ export function useNavigation(options: UseNavigationOptions): UseNavigationResul
     })
   }, [options.columnCount, getMaxRow])
 
-  const navigateUp = useCallback(() => {
+  const navigateUpBy = useCallback((n: number) => {
     setPosition((prev) => ({
       ...prev,
-      row: Math.max(0, prev.row - 1),
+      row: Math.max(0, prev.row - n),
     }))
   }, [])
 
-  const navigateDown = useCallback(() => {
+  const navigateUp = useCallback(() => navigateUpBy(1), [navigateUpBy])
+
+  const navigateDownBy = useCallback((n: number) => {
     setPosition((prev) => {
       const maxRow = getMaxRow(prev.column)
-      return { ...prev, row: Math.min(maxRow, prev.row + 1) }
+      return { ...prev, row: Math.min(maxRow, prev.row + n) }
     })
   }, [getMaxRow])
+
+  const navigateDown = useCallback(() => navigateDownBy(1), [navigateDownBy])
 
   const navigateToColumn = useCallback(
     (col: number) => {
@@ -97,6 +103,8 @@ export function useNavigation(options: UseNavigationOptions): UseNavigationResul
     navigateRight,
     navigateUp,
     navigateDown,
+    navigateUpBy,
+    navigateDownBy,
     navigateToColumn,
     navigateTo,
     selectCurrent,

@@ -164,6 +164,8 @@ export function useBoardLogic({
       else if (input === ">") moveTaskInDirection(1)
       else if (event.name === "left") nav.navigateLeft()
       else if (event.name === "right") nav.navigateRight()
+      else if (event.name === "up" && event.shift) nav.navigateUpBy(5)
+      else if (event.name === "down" && event.shift) nav.navigateDownBy(5)
       else if (event.name === "up") nav.navigateUp()
       else if (event.name === "down") nav.navigateDown()
       else if (event.name === "return") {
