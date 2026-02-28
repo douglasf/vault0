@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { parseArgs, runCli } from "../cli/index.js"
-import { cmdView, cmdEdit, cmdMove } from "../cli/commands.js"
+import { cmdAdd, cmdView, cmdEdit, cmdMove } from "../cli/commands.js"
 import { createTestDb, closeTestDb, type TestDb } from "./helpers.js"
 import { tasks } from "../db/schema.js"
 
@@ -432,8 +432,8 @@ describe("parseArgs edge cases", () => {
 
   describe("special characters in values", () => {
     test("unicode/emoji in title", () => {
-      const result = parseArgs(["--title", "Fix 🐛 bug"])
-      expect(result.flags.title).toBe("Fix 🐛 bug")
+      const result = parseArgs(["--title", "Fix \u{1F41B} bug"])
+      expect(result.flags.title).toBe("Fix \u{1F41B} bug")
     })
 
     test("empty string value for title", () => {
@@ -449,6 +449,41 @@ describe("parseArgs edge cases", () => {
     test("value with special regex characters", () => {
       const result = parseArgs(["--title", "Fix (.*) [issue]"])
       expect(result.flags.title).toBe("Fix (.*) [issue]")
+    })
+
+    test("description with backticks", () => {
+      const desc = "Implement `validateInput()` in `src/utils.ts`"
+      const result = parseArgs(["--description", desc])
+      expect(result.flags.description).toBe(desc)
+    })
+
+    test("description with single and double quotes", () => {
+      const desc = "It's a \"quoted\" value"
+      const result = parseArgs(["--description", desc])
+      expect(result.flags.description).toBe(desc)
+    })
+
+    test("description with shell-sensitive characters", () => {
+      const desc = "Check $PATH && run | pipe; echo ~/"
+      const result = parseArgs(["--description", desc])
+      expect(result.flags.description).toBe(desc)
+    })
+
+    test("description with markdown code blocks", () => {
+      const desc = "```typescript\nconst x = 42\n```"
+      const result = parseArgs(["--description", desc])
+      expect(result.flags.description).toBe(desc)
+    })
+
+    test("description with backslashes", () => {
+      const desc = "Path: C:\\Users\\test\\file.txt"
+      const result = parseArgs(["--description", desc])
+      expect(result.flags.description).toBe(desc)
+    })
+
+    test("description that starts with double dash", () => {
+      const result = parseArgs(["--description", "--this is not a flag"])
+      expect(result.flags.description).toBe("--this is not a flag")
     })
   })
 })
@@ -526,5 +561,77 @@ describe("runCli integration", () => {
   test("task edit --help returns exit code 0", () => {
     const code = runCli("task", ["edit", "--help"], testDb.db)
     expect(code).toBe(0)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// Opencode tool simulation — full roundtrip with special characters
+//
+// Simulates how opencode tools build CLI args and parse JSON output,
+// verifying that special characters survive the full pipeline.
+// ═══════════════════════════════════════════════════════════════════
+
+describe("opencode tool roundtrip (special characters)", () => {
+  let testDb: TestDb
+
+  beforeEach(() => {
+    testDb = createTestDb()
+  })
+
+  afterEach(() => {
+    closeTestDb(testDb.sqlite)
+  })
+
+  /**
+   * Simulate what vault0-task-add.ts does:
+   * 1. Build CLI args array (like the opencode tool does)
+   * 2. Call parseArgs (like vault0's CLI router does)
+   * 3. Call cmdAdd with the parsed flags
+   * 4. Parse the JSON output (like runVault0 does)
+   * 5. Verify the description matches the input
+   */
+  function simulateToolAdd(title: string, description: string): Record<string, unknown> {
+    // Step 1: Build args like the opencode tool does
+    const cliArgs = ["--title", title, "--description", description, "--format", "json"]
+
+    // Step 2: Parse like vault0 CLI does
+    const parsed = parseArgs(cliArgs)
+
+    // Step 3: Execute command
+    const result = cmdAdd(testDb.db, parsed.flags, parsed.format)
+    expect(result.success).toBe(true)
+
+    // Step 4: Parse JSON output like runVault0 does
+    return JSON.parse(result.message)
+  }
+
+  test("backticks in description survive roundtrip", () => {
+    const desc = "Implement `validateInput()` in `src/utils.ts`. Use `--strict` mode."
+    const data = simulateToolAdd("Backtick test", desc)
+    expect(data.description).toBe(desc)
+  })
+
+  test("markdown with code blocks survives roundtrip", () => {
+    const desc = "## Steps\n\n1. Edit `src/db/schema.ts`\n2. Run:\n```bash\nbun run db:generate\n```\n3. Verify with `bun test`"
+    const data = simulateToolAdd("Markdown test", desc)
+    expect(data.description).toBe(desc)
+  })
+
+  test("shell metacharacters survive roundtrip", () => {
+    const desc = "Check $HOME && run cmd | grep 'pattern'; echo $(whoami) > /dev/null 2>&1"
+    const data = simulateToolAdd("Shell chars", desc)
+    expect(data.description).toBe(desc)
+  })
+
+  test("mixed quotes and escapes survive roundtrip", () => {
+    const desc = "Handle \"double quotes\", 'single quotes', and C:\\Windows\\path"
+    const data = simulateToolAdd("Quotes test", desc)
+    expect(data.description).toBe(desc)
+  })
+
+  test("description starting with -- survives roundtrip", () => {
+    const desc = "--title should not be empty\n--priority must be valid"
+    const data = simulateToolAdd("Flag-like desc", desc)
+    expect(data.description).toBe(desc)
   })
 })

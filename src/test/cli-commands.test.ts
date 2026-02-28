@@ -176,6 +176,56 @@ describe("cmdAdd", () => {
     expect(result.success).toBe(true)
     expect(getData(result).parentId).toBe(parent.id)
   })
+
+  // ── Special characters in descriptions (roundtrip through JSON output) ──
+
+  test("description with backticks roundtrips through JSON output", () => {
+    const desc = "Implement the `validateInput()` function in `src/utils.ts`"
+    const result = cmdAdd(testDb.db, { title: "Backtick test", description: desc }, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.description).toBe(desc)
+  })
+
+  test("description with single quotes, double quotes, and backslashes", () => {
+    const desc = `It's a "quoted" value with C:\\path\\to\\file`
+    const result = cmdAdd(testDb.db, { title: "Quotes test", description: desc }, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.description).toBe(desc)
+  })
+
+  test("description with newlines and markdown formatting", () => {
+    const desc = "## Acceptance Criteria\n\n- Check `--title` is not empty\n- Validate `priority` values\n\n```typescript\nconst x = 42\n```"
+    const result = cmdAdd(testDb.db, { title: "Markdown test", description: desc }, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.description).toBe(desc)
+  })
+
+  test("description with shell-sensitive characters ($, !, ~, |, &, ;)", () => {
+    const desc = "Run $PATH expansion! Use ~/ and pipe | or && chain; done"
+    const result = cmdAdd(testDb.db, { title: "Shell chars test", description: desc }, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.description).toBe(desc)
+  })
+
+  test("description with unicode, emoji, and non-ASCII characters", () => {
+    const desc = "Fix the na\u00EFve r\u00E9sum\u00E9 parser \u{1F41B} \u2014 handle \u00ABguillemets\u00BB and \u201EAnf\u00FChrungszeichen\u201C"
+    const result = cmdAdd(testDb.db, { title: "Unicode test", description: desc }, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.description).toBe(desc)
+  })
+
+  test("title with backticks and special characters", () => {
+    const title = "Fix `parseArgs` for --description values"
+    const result = cmdAdd(testDb.db, { title }, "json")
+    expect(result.success).toBe(true)
+    const parsed = JSON.parse(result.message)
+    expect(parsed.title).toBe(title)
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════
