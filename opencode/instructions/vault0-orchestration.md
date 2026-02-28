@@ -22,7 +22,9 @@ When no more subtasks are available using `vault0-task-subtasks(id, ready: true)
 ## Review Gate
 
 - The Executor moves tasks to `in_review`, never directly to `done`.
-- Tasks approve via: (1) user says "approve" → The Orchestrator moves to `done`, or (2) commit → The Git Agent auto-approves.
+- **The Orchestrator can move tasks to `backlog`, `todo`, `in_progress`, `in_review`, or `cancelled` — but NEVER to `done`.**
+- Moving tasks to `done` is exclusively handled by the Git Agent via `vault0-task-complete` after a successful commit.
+- Tasks approve via: (1) user says "approve" → delegate to Git Agent, or (2) commit → The Git Agent auto-approves via `vault0-task-complete`.
 - While implementing a task that has many sub tasks or a plan, treat `in_review` as "complete" for dependency resolution — downstream tasks unblock.
 
 ## Quick Task Creation
@@ -33,8 +35,10 @@ User says "create a task": use `vault0-task-add` with `sourceFlag: "opencode"`. 
 
 When user says "approve", "LGTM", "ship it", etc.:
 1. `vault0-task-list(status: "in_review")`
-2. Move each to `done` via `vault0-task-move`
+2. Delegate to the Git Agent to move each to `done` via `vault0-task-complete`
 3. Report what was approved
+
+**Note:** The `vault0-task-move` tool does NOT support `done` status. Only the Git Agent has access to `vault0-task-complete`.
 
 ## Assignment Rules
 

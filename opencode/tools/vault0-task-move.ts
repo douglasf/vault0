@@ -4,15 +4,16 @@ import { runVault0 } from "../lib/vault0-utils"
 export default tool({
   description:
     "Change a vault0 task's status. " +
-    "Use this to move tasks through workflow stages (backlog → todo → in_progress → in_review → done). " +
+    "Use this to move tasks through workflow stages (backlog → todo → in_progress → in_review). " +
+    "Cannot move to done — use vault0-task-complete for that (git agent only). " +
     "For editing task metadata (title, description, priority, tags, dependencies), use vault0-task-update instead.",
   args: {
     id: tool.schema
       .string()
       .describe("Task ID (full ULID or unique suffix match)"),
     status: tool.schema
-      .enum(["backlog", "todo", "in_progress", "in_review", "done", "cancelled"])
-      .describe("Target status"),
+      .enum(["backlog", "todo", "in_progress", "in_review", "cancelled"])
+      .describe("Target status (done is not allowed — use vault0-task-complete)"),
     solution: tool.schema
       .string()
       .optional()

@@ -40,12 +40,21 @@ Example:
   )
   ```
 
-- **`vault0-task-move`**: Status transitions only — backlog → todo → in_progress → in_review → done. Accepts optional `solution` parameter.
+- **`vault0-task-move`**: Status transitions only — backlog → todo → in_progress → in_review → cancelled. **Cannot move to `done`** — use `vault0-task-complete` for that. Accepts optional `solution` parameter.
 Example:
   ```
   vault0-task-move(
     id: "<task-id>", status: "in_progress",
     solution: "<optional-notes>"
+  )
+  ```
+
+- **`vault0-task-complete`**: Moves a task to `done` status. **Git Agent only** — this is the exclusive mechanism for marking tasks complete. Accepts `id` and optional `solution`.
+Example:
+  ```
+  vault0-task-complete(
+    id: "<task-id>",
+    solution: "<commit details or resolution summary>"
   )
   ```
 

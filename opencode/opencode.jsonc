@@ -24,7 +24,7 @@
 
   "agent": {
     // Role: The Orchestrator (task discovery, execution loop, approvals)
-    // Full vault0 access — all 6 tools
+    // 6 tools — no vault0-task-complete (cannot move to done)
     "marsellus": {
       "tools": {
         "vault0-task-add": true,
@@ -32,7 +32,8 @@
         "vault0-task-view": true,
         "vault0-task-update": true,
         "vault0-task-move": true,
-        "vault0-task-subtasks": true
+        "vault0-task-subtasks": true,
+        "vault0-task-complete": false
       },
       "permission": {
         "vault0-task-add": "allow",
@@ -45,7 +46,7 @@
     },
 
     // Role: The Executor (task implementation, status updates)
-    // 5 tools — no add (executes tasks, doesn't create them)
+    // 5 tools — no add, no complete (executes tasks, doesn't create or finish them)
     "wolf": {
       "tools": {
         "vault0-task-add": false,
@@ -53,7 +54,8 @@
         "vault0-task-view": true,
         "vault0-task-update": true,
         "vault0-task-move": true,
-        "vault0-task-subtasks": true
+        "vault0-task-subtasks": true,
+        "vault0-task-complete": false
       },
       "permission": {
         "vault0-task-list": "allow",
@@ -65,7 +67,7 @@
     },
 
     // Role: The Planner (plan creation, subtask/dependency setup)
-    // 5 tools — no move (creates plans, doesn't change status)
+    // 5 tools — no move, no complete (creates plans, doesn't change status)
     "architect": {
       "tools": {
         "vault0-task-add": true,
@@ -73,6 +75,7 @@
         "vault0-task-view": true,
         "vault0-task-update": true,
         "vault0-task-move": false,
+        "vault0-task-complete": false,
         "vault0-task-subtasks": true
       },
         "permission": {
@@ -99,19 +102,20 @@
     },
 
     // Role: The Git Agent (post-commit task approval)
-    // 2 tools — list + move for post-commit approvals only
+    // 2 tools — list + complete for post-commit approvals only
     "git": {
       "tools": {
         "vault0-task-add": false,
         "vault0-task-list": true,
         "vault0-task-view": false,
         "vault0-task-update": false,
-        "vault0-task-move": true,
+        "vault0-task-move": false,
+        "vault0-task-complete": true,
         "vault0-task-subtasks": false
       },
       "permission": {
         "vault0-task-list": "allow",
-        "vault0-task-move": "allow"
+        "vault0-task-complete": "allow"
       }
     }
   }
