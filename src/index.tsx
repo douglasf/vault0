@@ -3,6 +3,7 @@ import { createCliRenderer, ConsolePosition } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import React from "react"
 import { App } from "./components/App.js"
+import { KeybindProvider } from "./lib/keybind-context.js"
 import { initDatabase, markDbClosed } from "./db/connection.js"
 import { seedDefaultBoard } from "./db/seed.js"
 import { runCli } from "./cli/index.js"
@@ -320,7 +321,11 @@ async function main() {
       }
     })
 
-    createRoot(renderer).render(<App db={db} dbPath={dbPath} repoRoot={repoRoot} />)
+    createRoot(renderer).render(
+      <KeybindProvider>
+        <App db={db} dbPath={dbPath} repoRoot={repoRoot} />
+      </KeybindProvider>,
+    )
   } catch (error) {
     console.error("\nError starting Vault0:")
 

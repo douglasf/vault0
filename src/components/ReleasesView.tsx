@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback } from "react"
-import type { KeyEvent, ScrollBoxRenderable, TabSelectRenderable, TabSelectOption } from "@opentui/core"
+import type { ScrollBoxRenderable, TabSelectRenderable, TabSelectOption } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import type { ReleaseWithTaskCount, Task, TaskCard as TaskCardType } from "../lib/types.js"
 import { theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 import { getStatusLabel, getPriorityLabel, formatDate } from "../lib/format.js"
@@ -108,91 +110,100 @@ export function ReleasesView({
     }
   }, [activeColumn, moveToColumn])
 
-  // ── Keyboard handler ──────────────────────────────────────────
+  // ── Keybind scope ──────────────────────────────────────────
 
-  useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "escape" || event.raw === "q") {
-      if (activeColumn !== "releases") {
-        navigateLeft()
-        return
-      }
-      onBack()
+  const scope = useKeybindScope("releases", {
+    priority: SCOPE_PRIORITY.VIEW,
+    active: inputActive,
+  })
+
+  // Escape/q — navigate left or close
+  useKeybind(scope, ["Escape", "q"], useCallback(() => {
+    if (activeColumn !== "releases") {
+      navigateLeft()
       return
     }
+    onBack()
+  }, [activeColumn, navigateLeft, onBack]))
 
-    if (releases.length === 0) return
+  // X — delete release from any column
+  useKeybind(scope, "X", useCallback(() => {
+    if (selectedRelease) onShowDeleteConfirmation(selectedRelease)
+  }, [selectedRelease, onShowDeleteConfirmation]), { description: "Delete release" })
 
+  // Releases column navigation
+  useKeybind(scope, "ArrowUp", useCallback(() => {
     if (activeColumn === "releases") {
-      if (event.name === "up") {
-        setSelectedReleaseIdx((prev) => {
-          const next = Math.max(0, prev - 1)
-          if (next !== prev) {
-            releasesScrollRef.current?.scrollBy(-1)
-            setSelectedTaskIdx(0)
-          }
-          return next
-        })
-      } else if (event.name === "down") {
-        setSelectedReleaseIdx((prev) => {
-          const next = Math.min(releases.length - 1, prev + 1)
-          if (next !== prev) {
-            releasesScrollRef.current?.scrollBy(1)
-            setSelectedTaskIdx(0)
-          }
-          return next
-        })
-      } else if (event.name === "return" || event.name === "right" || event.raw === "l") {
-        navigateRight()
-      }
-    } else if (activeColumn === "tasks") {
-      if (event.name === "up") {
-        setSelectedTaskIdx((prev) => {
-          const next = Math.max(0, prev - 1)
-          if (next !== prev) tasksScrollRef.current?.scrollBy(-1)
-          return next
-        })
-      } else if (event.name === "down") {
-        setSelectedTaskIdx((prev) => {
-          const next = Math.min(releaseTasks.length - 1, prev + 1)
-          if (next !== prev) tasksScrollRef.current?.scrollBy(1)
-          return next
-        })
-      } else if (event.name === "return" || event.name === "right" || event.raw === "l") {
-        navigateRight()
-      } else if (event.name === "left" || event.raw === "h") {
-        navigateLeft()
-      }
-    } else if (activeColumn === "detail") {
-      if (event.name === "up") {
-        detailScrollRef.current?.scrollBy(-1)
-      } else if (event.name === "down") {
-        detailScrollRef.current?.scrollBy(1)
-      } else if (event.name === "pageup") {
-        detailScrollRef.current?.scrollBy(-contentHeight)
-      } else if (event.name === "pagedown") {
-        detailScrollRef.current?.scrollBy(contentHeight)
-      } else if (event.name === "left" || event.raw === "h") {
-        navigateLeft()
-      } else if (event.raw === "r") {
-        // Restore selected task
-        if (selectedTask) {
-          onRestoreTask(selectedTask.id)
-          // Adjust selection if needed
-          if (selectedTaskIdx >= releaseTasks.length - 1) {
-            setSelectedTaskIdx(Math.max(0, releaseTasks.length - 2))
-          }
-          if (releaseTasks.length <= 1) {
-            moveToColumn("tasks")
-          }
+      setSelectedReleaseIdx((prev) => {
+        const next = Math.max(0, prev - 1)
+        if (next !== prev) {
+          releasesScrollRef.current?.scrollBy(-1)
+          setSelectedTaskIdx(0)
         }
+        return next
+      })
+    } else if (activeColumn === "tasks") {
+      setSelectedTaskIdx((prev) => {
+        const next = Math.max(0, prev - 1)
+        if (next !== prev) tasksScrollRef.current?.scrollBy(-1)
+        return next
+      })
+    } else if (activeColumn === "detail") {
+      detailScrollRef.current?.scrollBy(-1)
+    }
+  }, [activeColumn]), { when: releases.length > 0 })
+
+  useKeybind(scope, "ArrowDown", useCallback(() => {
+    if (activeColumn === "releases") {
+      setSelectedReleaseIdx((prev) => {
+        const next = Math.min(releases.length - 1, prev + 1)
+        if (next !== prev) {
+          releasesScrollRef.current?.scrollBy(1)
+          setSelectedTaskIdx(0)
+        }
+        return next
+      })
+    } else if (activeColumn === "tasks") {
+      setSelectedTaskIdx((prev) => {
+        const next = Math.min(releaseTasks.length - 1, prev + 1)
+        if (next !== prev) tasksScrollRef.current?.scrollBy(1)
+        return next
+      })
+    } else if (activeColumn === "detail") {
+      detailScrollRef.current?.scrollBy(1)
+    }
+  }, [activeColumn, releases.length, releaseTasks.length]), { when: releases.length > 0 })
+
+  useKeybind(scope, "PageUp", useCallback(() => {
+    if (activeColumn === "detail") detailScrollRef.current?.scrollBy(-contentHeight)
+  }, [activeColumn, contentHeight]), { when: releases.length > 0 })
+
+  useKeybind(scope, "PageDown", useCallback(() => {
+    if (activeColumn === "detail") detailScrollRef.current?.scrollBy(contentHeight)
+  }, [activeColumn, contentHeight]), { when: releases.length > 0 })
+
+  // Right/Enter/l — navigate right
+  useKeybind(scope, ["ArrowRight", "Enter", "l"], useCallback(() => {
+    if (activeColumn === "releases" || activeColumn === "tasks") navigateRight()
+  }, [activeColumn, navigateRight]), { when: releases.length > 0 })
+
+  // Left/h — navigate left
+  useKeybind(scope, ["ArrowLeft", "h"], useCallback(() => {
+    if (activeColumn === "tasks" || activeColumn === "detail") navigateLeft()
+  }, [activeColumn, navigateLeft]), { when: releases.length > 0 })
+
+  // r — restore task (detail column only)
+  useKeybind(scope, "r", useCallback(() => {
+    if (activeColumn === "detail" && selectedTask) {
+      onRestoreTask(selectedTask.id)
+      if (selectedTaskIdx >= releaseTasks.length - 1) {
+        setSelectedTaskIdx(Math.max(0, releaseTasks.length - 2))
+      }
+      if (releaseTasks.length <= 1) {
+        moveToColumn("tasks")
       }
     }
-
-    // X to delete release works from any column as long as a release is selected
-    if (event.raw === "X" && selectedRelease) {
-      onShowDeleteConfirmation(selectedRelease)
-    }
-  }, inputActive)
+  }, [activeColumn, selectedTask, selectedTaskIdx, releaseTasks.length, onRestoreTask, moveToColumn]), { when: releases.length > 0, description: "Restore task" })
 
   // ── Empty state ───────────────────────────────────────────────
 

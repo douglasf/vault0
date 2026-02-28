@@ -1,8 +1,10 @@
 import { useState, useCallback, useMemo, useRef } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, ScrollBoxRenderable, SelectOption, InputRenderable } from "@opentui/core"
+import type { ScrollBoxRenderable, SelectOption, InputRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import type { Task } from "../lib/types.js"
 import type { DetectedVersionFile } from "../lib/version-detect.js"
 import { theme } from "../lib/theme.js"
@@ -204,57 +206,63 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     if (option?.value) toggleTask(option.value)
   }, [toggleTask])
 
-  useActiveKeyboard((event: KeyEvent) => {
-    // Tab / Shift+Tab navigation
-    if (event.name === "tab") {
-      if (event.shift) {
-        retreat()
-      } else {
-        advance()
-      }
-      return
-    }
+  const scope = useKeybindScope("create-release", {
+    priority: SCOPE_PRIORITY.WIDGET,
+    opaque: false,
+  })
 
-    // Field-specific handling
-    if (focusField === "name" && event.name === "return") {
-      advance()
-      return
-    }
+  // ── Form navigation ────────────────────────────────────────────────────
+  useKeybind(scope, "Tab", advance, { description: "Next field" })
+  useKeybind(scope, "Shift+Tab", retreat, { description: "Previous field" })
 
-    if (focusField === "version-bump") {
-      if (event.name === "return" || event.raw === " ") {
-        const newBump = !bumpVersion
-        setBumpVersion(newBump)
-        if (newBump && selectedVersionFile) {
-          setVersionValue(selectedVersionFile.version)
-        }
-        return
-      }
-      if (event.name === "left" || event.name === "right") {
-        // Cycle through version files if multiple
-        if (versionFiles.length > 1) {
-          const delta = event.name === "right" ? 1 : -1
-          const newIdx = (selectedVersionFileIdx + delta + versionFiles.length) % versionFiles.length
-          setSelectedVersionFileIdx(newIdx)
-          if (bumpVersion) {
-            setVersionValue(versionFiles[newIdx].version)
-          }
-        }
-        return
-      }
-    }
+  // ── Field-specific: name ───────────────────────────────────────────────
+  useKeybind(scope, "Enter", advance, {
+    when: focusField === "name",
+    description: "Advance from name",
+  })
 
-    if (focusField === "version-value" && event.name === "return") {
-      advance()
-      return
+  // ── Field-specific: version-bump ───────────────────────────────────────
+  useKeybind(scope, ["Enter", "Space"], useCallback(() => {
+    const newBump = !bumpVersion
+    setBumpVersion(newBump)
+    if (newBump && selectedVersionFile) {
+      setVersionValue(selectedVersionFile.version)
     }
+  }, [bumpVersion, selectedVersionFile]), {
+    when: focusField === "version-bump",
+    description: "Toggle version bump",
+  })
+  useKeybind(scope, "ArrowLeft", useCallback(() => {
+    if (versionFiles.length > 1) {
+      const newIdx = (selectedVersionFileIdx - 1 + versionFiles.length) % versionFiles.length
+      setSelectedVersionFileIdx(newIdx)
+      if (bumpVersion) setVersionValue(versionFiles[newIdx].version)
+    }
+  }, [versionFiles, selectedVersionFileIdx, bumpVersion]), {
+    when: focusField === "version-bump",
+    description: "Previous version file",
+  })
+  useKeybind(scope, "ArrowRight", useCallback(() => {
+    if (versionFiles.length > 1) {
+      const newIdx = (selectedVersionFileIdx + 1) % versionFiles.length
+      setSelectedVersionFileIdx(newIdx)
+      if (bumpVersion) setVersionValue(versionFiles[newIdx].version)
+    }
+  }, [versionFiles, selectedVersionFileIdx, bumpVersion]), {
+    when: focusField === "version-bump",
+    description: "Next version file",
+  })
 
-    if (focusField === "tasks") {
-      if (event.raw === "a") {
-        toggleAllTasks()
-        return
-      }
-    }
+  // ── Field-specific: version-value ──────────────────────────────────────
+  useKeybind(scope, "Enter", advance, {
+    when: focusField === "version-value",
+    description: "Advance from version value",
+  })
+
+  // ── Field-specific: tasks ──────────────────────────────────────────────
+  useKeybind(scope, "a", toggleAllTasks, {
+    when: focusField === "tasks",
+    description: "Toggle all tasks",
   })
 
   return (

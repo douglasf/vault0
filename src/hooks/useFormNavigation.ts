@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 
 export interface UseFormNavigationResult<F extends string> {
   focusField: F
@@ -20,19 +20,26 @@ export interface UseFormNavigationResult<F extends string> {
 export function useFormNavigation<F extends string>(fields: F[], initial: F): UseFormNavigationResult<F> {
   const [focusField, setFocusField] = useState<F>(initial)
 
+  // Keep a ref to the latest fields array so advance/retreat are stable
+  // and always see the current field list without depending on array identity.
+  const fieldsRef = useRef(fields)
+  fieldsRef.current = fields
+
   const advance = useCallback(() => {
-    const idx = fields.indexOf(focusField)
-    if (idx < fields.length - 1) {
-      setFocusField(fields[idx + 1])
-    }
-  }, [focusField, fields])
+    setFocusField((prev) => {
+      const f = fieldsRef.current
+      const idx = f.indexOf(prev)
+      return idx < f.length - 1 ? f[idx + 1] : prev
+    })
+  }, [])
 
   const retreat = useCallback(() => {
-    const idx = fields.indexOf(focusField)
-    if (idx > 0) {
-      setFocusField(fields[idx - 1])
-    }
-  }, [focusField, fields])
+    setFocusField((prev) => {
+      const f = fieldsRef.current
+      const idx = f.indexOf(prev)
+      return idx > 0 ? f[idx - 1] : prev
+    })
+  }, [])
 
   const isFocused = useCallback((field: F) => focusField === field, [focusField])
 

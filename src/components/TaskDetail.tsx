@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
+import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { Task, TaskDetail as TaskDetailType } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
@@ -8,7 +8,9 @@ import { getTaskDetail } from "../db/queries.js"
 import { getStatusLabel, getPriorityLabel, getTypeLabel, formatDate, formatDateTime, isResolvedStatus, truncateText } from "../lib/format.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 import { copyToClipboard } from "../lib/clipboard.js"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 
 export interface TaskDetailProps {
   taskId: string
@@ -91,45 +93,40 @@ export function TaskDetail({
   const { height: rows } = useTerminalDimensions()
   const scrollHeight = Math.max(1, (rows || 24) - 9)
 
-  useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "escape") {
-      onBack()
-    } else if (event.raw === "e" && !event.ctrl && !event.meta) {
-      onEdit(detail)
-    } else if (event.raw === "s" && !event.ctrl && !event.meta) {
-      onStatusPick(detail)
-    } else if (event.raw === "p" && !event.ctrl && !event.meta) {
-      onCyclePriority(detail.id)
-    } else if (event.raw === "d" && !event.ctrl && !event.meta) {
-      onShowDeleteConfirm()
-    } else if (event.raw === "u" && !event.ctrl && !event.meta) {
-      if (detail.archivedAt !== null) {
-        onUnarchive(detail.id)
-      }
-    } else if (event.raw === "A" && !event.ctrl && !event.meta) {
-      // Only allow adding subtasks to top-level tasks (not subtasks of subtasks)
-      if (!detail.parentId) {
-        onCreateSubtask(detail)
-      }
-    } else if (event.raw === "c" && !event.ctrl && !event.meta) {
-      const ok = copyToClipboard(detail.id)
-      showCopyToast(ok ? `Copied: ${detail.id}` : "Copy failed")
-    } else if (event.raw === "+" && !event.ctrl && !event.meta) {
-      onShowDependencyPicker()
-      setDependencyError("")
-    } else if (event.raw === "-" && !event.ctrl && !event.meta && detail.dependsOn.length > 0) {
+  const scope = useKeybindScope("detail", {
+    priority: SCOPE_PRIORITY.VIEW,
+    active: inputActive,
+  })
+
+  useKeybind(scope, "Escape", onBack, { description: "Close detail" })
+  useKeybind(scope, "e", useCallback(() => onEdit(detail), [detail, onEdit]), { description: "Edit task" })
+  useKeybind(scope, "s", useCallback(() => onStatusPick(detail), [detail, onStatusPick]), { description: "Change status" })
+  useKeybind(scope, "p", useCallback(() => onCyclePriority(detail.id), [detail.id, onCyclePriority]), { description: "Cycle priority" })
+  useKeybind(scope, "d", onShowDeleteConfirm, { description: "Delete task" })
+  useKeybind(scope, "u", useCallback(() => {
+    if (detail.archivedAt !== null) onUnarchive(detail.id)
+  }, [detail.archivedAt, detail.id, onUnarchive]), { description: "Unarchive task" })
+  useKeybind(scope, "A", useCallback(() => {
+    if (!detail.parentId) onCreateSubtask(detail)
+  }, [detail, onCreateSubtask]), { description: "Add subtask" })
+  useKeybind(scope, "c", useCallback(() => {
+    const ok = copyToClipboard(detail.id)
+    showCopyToast(ok ? `Copied: ${detail.id}` : "Copy failed")
+  }, [detail.id, showCopyToast]), { description: "Copy task ID" })
+  useKeybind(scope, "+", useCallback(() => {
+    onShowDependencyPicker()
+    setDependencyError("")
+  }, [onShowDependencyPicker]), { description: "Add dependency" })
+  useKeybind(scope, "-", useCallback(() => {
+    if (detail.dependsOn.length > 0) {
       onShowDependencyRemover()
       setDependencyError("")
-    } else if (event.name === "up") {
-      scrollRef.current?.scrollBy(-1)
-    } else if (event.name === "down") {
-      scrollRef.current?.scrollBy(1)
-    } else if (event.name === "pageup") {
-      scrollRef.current?.scrollBy(-scrollHeight)
-    } else if (event.name === "pagedown") {
-      scrollRef.current?.scrollBy(scrollHeight)
     }
-  }, inputActive)
+  }, [detail.dependsOn.length, onShowDependencyRemover]), { description: "Remove dependency" })
+  useKeybind(scope, "ArrowUp", useCallback(() => scrollRef.current?.scrollBy(-1), []), { description: "Scroll up" })
+  useKeybind(scope, "ArrowDown", useCallback(() => scrollRef.current?.scrollBy(1), []), { description: "Scroll down" })
+  useKeybind(scope, "PageUp", useCallback(() => scrollRef.current?.scrollBy(-scrollHeight), [scrollHeight]), { description: "Page up" })
+  useKeybind(scope, "PageDown", useCallback(() => scrollRef.current?.scrollBy(scrollHeight), [scrollHeight]), { description: "Page down" })
 
 
   return (

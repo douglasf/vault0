@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { useRenderer, useTerminalDimensions } from "@opentui/react"
-import type { KeyEvent } from "@opentui/core"
 import type { Vault0Database } from "../db/connection.js"
 import { DbContext } from "../lib/db-context.js"
 import { ToastContext } from "../lib/toast-context.js"
@@ -29,7 +28,10 @@ import { ThemePicker } from "./ThemePicker.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { useToastState } from "../hooks/useToast.js"
 import type { Task, Status, SortField, ReleaseWithTaskCount } from "../lib/types.js"
 import type { DbError } from "../lib/db-errors.js"
@@ -179,85 +181,125 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
   // Board input is active only in pure board mode (not during overlays or text-filter)
   const boardInputActive = state.uiMode === "board"
 
-  useActiveKeyboard((event: KeyEvent) => {
-    const input = event.raw || ""
-    if (input === "a") {
-      setState((prev) => ({ ...prev, uiMode: "create", createParent: undefined }))
-    } else if (input === "A") {
-      const task = highlightedTaskRef.current
-      if (task && !task.parentId) {
-        setState((prev) => ({ ...prev, uiMode: "create", createParent: task }))
-      }
-    } else if (input === "e") {
-      const task = highlightedTaskRef.current
-      if (task) {
-        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "edit" }))
-      }
-    } else if (input === "d") {
-      const task = highlightedTaskRef.current
-      if (task) {
-        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "confirm-delete", deleteReturnMode: "board" }))
-      }
-    } else if (input === "u") {
-      const task = highlightedTaskRef.current
-      if (task && task.archivedAt !== null) {
-        actions.undeleteTask(task.id)
-        forceRefresh()
-      }
-    } else if (input === "s") {
-      const task = highlightedTaskRef.current
-      if (task) {
-        setState((prev) => ({ ...prev, selectedTask: task, uiMode: "status-picker" }))
-      }
-    } else if (input === "p") {
-      const task = highlightedTaskRef.current
-      if (task) {
-        actions.cyclePriority(task.id)
-        // Force re-render so Board fetches fresh data
-        forceRefresh()
-      }
-    } else if (input === "f") {
-      setState((prev) => ({ ...prev, uiMode: "text-filter" }))
-    } else if (input === "F") {
-      setState((prev) => ({ ...prev, uiMode: "filter" }))
-    } else if (input === "r") {
-      filterHook.toggleReady()
-    } else if (input === "b") {
-      filterHook.toggleBlocked()
-    } else if (input === "c") {
-      const task = highlightedTaskRef.current
-      if (task) {
-        const ok = copyToClipboard(task.id)
-        showToast(ok ? "Copied" : "Copy failed", ok ? task.id : "Could not copy to clipboard")
-      }
-    } else if (input === "?") {
-      setState((prev) => ({ ...prev, uiMode: "help" }))
-    } else if (input === "h") {
-      setHideSubtasks((prev) => !prev)
-    } else if (input === "S") {
-      setSortField((prev) => {
-        const idx = SORT_FIELDS.indexOf(prev)
-        return SORT_FIELDS[(idx + 1) % SORT_FIELDS.length]
-      })
-    } else if (input === "v") {
-      setPreviewVisible((prev) => !prev)
-    } else if (input === "t") {
-      setState((prev) => ({ ...prev, uiMode: "theme-picker" }))
-    } else if (input === "R") {
-      setState((prev) => ({ ...prev, uiMode: "create-release" }))
-    } else if (input === "W") {
-      setState((prev) => ({ ...prev, uiMode: "releases" }))
-    } else if (input === "q") {
-      renderer.destroy()
+  // ── New keybinding system: root scope (always active) ────────────────
+  useKeybindScope("root", { priority: SCOPE_PRIORITY.ROOT })
+
+  useKeybind("root", "?", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "help" }))
+  }, []), { description: "Show help" })
+
+  useKeybind("root", "q", useCallback(() => {
+    renderer.destroy()
+  }, [renderer]), { description: "Quit", when: state.uiMode === "board" })
+
+  // ── New keybinding system: board scope (active only in board mode) ──
+  useKeybindScope("board", { priority: SCOPE_PRIORITY.VIEW, active: appInputActive })
+
+  useKeybind("board", "a", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "create", createParent: undefined }))
+  }, []), { description: "Create task" })
+
+  useKeybind("board", "A", useCallback(() => {
+    const task = highlightedTaskRef.current
+    if (task && !task.parentId) {
+      setState((prev) => ({ ...prev, uiMode: "create", createParent: task }))
     }
-  }, appInputActive)
+  }, []), { description: "Create subtask" })
+
+  useKeybind("board", "e", useCallback(() => {
+    const task = highlightedTaskRef.current
+    if (task) {
+      setState((prev) => ({ ...prev, selectedTask: task, uiMode: "edit" }))
+    }
+  }, []), { description: "Edit task" })
+
+  useKeybind("board", "d", useCallback(() => {
+    const task = highlightedTaskRef.current
+    if (task) {
+      setState((prev) => ({ ...prev, selectedTask: task, uiMode: "confirm-delete", deleteReturnMode: "board" }))
+    }
+  }, []), { description: "Delete task" })
+
+  useKeybind("board", "u", useCallback(() => {
+    const task = highlightedTaskRef.current
+    if (task && task.archivedAt !== null) {
+      actions.undeleteTask(task.id)
+      forceRefresh()
+    }
+  }, [actions, forceRefresh]), { description: "Undelete task" })
+
+  useKeybind("board", "s", useCallback(() => {
+    const task = highlightedTaskRef.current
+    if (task) {
+      setState((prev) => ({ ...prev, selectedTask: task, uiMode: "status-picker" }))
+    }
+  }, []), { description: "Status picker" })
+
+  useKeybind("board", "p", useCallback(() => {
+    const task = highlightedTaskRef.current
+    if (task) {
+      actions.cyclePriority(task.id)
+      forceRefresh()
+    }
+  }, [actions, forceRefresh]), { description: "Cycle priority" })
+
+  useKeybind("board", "f", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "text-filter" }))
+  }, []), { description: "Text filter" })
+
+  useKeybind("board", "F", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "filter" }))
+  }, []), { description: "Filter bar" })
+
+  useKeybind("board", "r", useCallback(() => {
+    filterHook.toggleReady()
+  }, [filterHook]), { description: "Toggle ready filter" })
+
+  useKeybind("board", "b", useCallback(() => {
+    filterHook.toggleBlocked()
+  }, [filterHook]), { description: "Toggle blocked filter" })
+
+  useKeybind("board", "c", useCallback(() => {
+    const task = highlightedTaskRef.current
+    if (task) {
+      const ok = copyToClipboard(task.id)
+      showToast(ok ? "Copied" : "Copy failed", ok ? task.id : "Could not copy to clipboard")
+    }
+  }, [showToast]), { description: "Copy task ID" })
+
+  useKeybind("board", "h", useCallback(() => {
+    setHideSubtasks((prev) => !prev)
+  }, []), { description: "Toggle hide subtasks" })
+
+  useKeybind("board", "S", useCallback(() => {
+    setSortField((prev) => {
+      const idx = SORT_FIELDS.indexOf(prev)
+      return SORT_FIELDS[(idx + 1) % SORT_FIELDS.length]
+    })
+  }, []), { description: "Cycle sort" })
+
+  useKeybind("board", "v", useCallback(() => {
+    setPreviewVisible((prev) => !prev)
+  }, []), { description: "Toggle preview" })
+
+  useKeybind("board", "t", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "theme-picker" }))
+  }, []), { description: "Theme picker" })
+
+  useKeybind("board", "R", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "create-release" }))
+  }, []), { description: "Create release" })
+
+  useKeybind("board", "W", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "releases" }))
+  }, []), { description: "Releases view" })
 
   // Escape dismisses toasts when in board mode (doesn't interfere with modal overlays)
-  useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "escape" && toastState.toasts.length > 0) {
+  useKeybind("board", "Escape", useCallback(() => {
+    if (toastState.toasts.length > 0) {
       toastState.dismissAll()
     }
-  }, appInputActive)
+  }, [toastState]), { description: "Dismiss toasts" })
 
   // ── Shared board/narrow-terminal props and renderer ────────────────────
   const isNarrow = terminalColumns < MIN_COLS_NARROW

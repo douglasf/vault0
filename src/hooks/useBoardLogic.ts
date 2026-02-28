@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
-import type { KeyEvent } from "@opentui/core"
 import { useBoard } from "./useBoard.js"
 import { useNavigation } from "./useNavigation.js"
-import { useActiveKeyboard } from "./useActiveKeyboard.js"
+import { useKeybind } from "./useKeybind.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import type { Task, Filters, Status, SortField, TaskCard } from "../lib/types.js"
 import type { DbError } from "../lib/db-errors.js"
@@ -155,31 +154,28 @@ export function useBoardLogic({
     [currentColumnTasks, nav.selectedRow, nav.selectedColumn, onMoveTask],
   )
 
-  // Keyboard handler for board navigation
-  useActiveKeyboard(
-    (event: KeyEvent) => {
-      const input = event.raw || ""
+  // Keyboard handlers for board navigation (registered in shared "board" scope)
+  const navActive = totalTasks > 0 && inputActive !== false
 
-      if (input === "<") moveTaskInDirection(-1)
-      else if (input === ">") moveTaskInDirection(1)
-      else if (event.name === "left") nav.navigateLeft()
-      else if (event.name === "right") nav.navigateRight()
-      else if (event.name === "up" && event.shift) nav.navigateUpBy(5)
-      else if (event.name === "down" && event.shift) nav.navigateDownBy(5)
-      else if (event.name === "up") nav.navigateUp()
-      else if (event.name === "down") nav.navigateDown()
-      else if (event.name === "return") {
-        const selected = nav.selectCurrent()
-        if (selected) {
-          const tasks = getColumnTasks(VISIBLE_STATUSES[selected.column])
-          if (tasks[selected.row]) {
-            onSelectTask(tasks[selected.row])
-          }
-        }
+  useKeybind("board", "<", useCallback(() => moveTaskInDirection(-1), [moveTaskInDirection]), { description: "Move task left", when: navActive })
+  useKeybind("board", ">", useCallback(() => moveTaskInDirection(1), [moveTaskInDirection]), { description: "Move task right", when: navActive })
+  useKeybind("board", "ArrowLeft", useCallback(() => nav.navigateLeft(), [nav]), { description: "Navigate left", when: navActive })
+  useKeybind("board", "ArrowRight", useCallback(() => nav.navigateRight(), [nav]), { description: "Navigate right", when: navActive })
+  useKeybind("board", "Shift+ArrowUp", useCallback(() => nav.navigateUpBy(5), [nav]), { description: "Navigate up 5", when: navActive })
+  useKeybind("board", "Shift+ArrowDown", useCallback(() => nav.navigateDownBy(5), [nav]), { description: "Navigate down 5", when: navActive })
+  useKeybind("board", "ArrowUp", useCallback(() => nav.navigateUp(), [nav]), { description: "Navigate up", when: navActive })
+  useKeybind("board", "ArrowDown", useCallback(() => nav.navigateDown(), [nav]), { description: "Navigate down", when: navActive })
+
+  const handleEnter = useCallback(() => {
+    const selected = nav.selectCurrent()
+    if (selected) {
+      const tasks = getColumnTasks(VISIBLE_STATUSES[selected.column])
+      if (tasks[selected.row]) {
+        onSelectTask(tasks[selected.row])
       }
-    },
-    totalTasks > 0 && inputActive !== false,
-  )
+    }
+  }, [nav, getColumnTasks, onSelectTask])
+  useKeybind("board", "Enter", handleEnter, { description: "Open task detail", when: navActive })
 
   return {
     tasksByStatus,

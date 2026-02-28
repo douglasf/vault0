@@ -1,11 +1,13 @@
 import { useCallback, useRef, useState } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
+import type { ScrollBoxRenderable, SelectOption } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { Filters, Status, Priority, Source } from "../lib/types.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
 import { theme } from "../lib/theme.js"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { ModalOverlay } from "./ModalOverlay.js"
 
 export interface FilterBarProps {
@@ -120,18 +122,22 @@ export function FilterBar({
   // Scroll when section changes
   scrollToSection(sectionIdx)
 
-  useActiveKeyboard((event: KeyEvent) => {
-    const input = event.raw || ""
-
-    if (event.name === "tab" && !event.shift) {
-      setSectionIdx((prev) => Math.min(SECTIONS.length - 1, prev + 1))
-    } else if ((event.name === "tab" && event.shift) || event.name === "btab") {
-      setSectionIdx((prev) => Math.max(0, prev - 1))
-    } else if (input === "c") {
-      onClear()
-    } else if (currentSection === "actions" && (event.name === "return" || input === " ")) {
-      onClear()
-    }
+  const scope = useKeybindScope("filter-bar", {
+    priority: SCOPE_PRIORITY.WIDGET,
+    opaque: false,
+  })
+  useKeybind(scope, "Tab", useCallback(() => {
+    setSectionIdx((prev) => Math.min(SECTIONS.length - 1, prev + 1))
+  }, []), { description: "Next section" })
+  useKeybind(scope, "Shift+Tab", useCallback(() => {
+    setSectionIdx((prev) => Math.max(0, prev - 1))
+  }, []), { description: "Previous section" })
+  useKeybind(scope, "c", onClear, { description: "Clear all filters" })
+  useKeybind(scope, ["Enter", "Space"], useCallback(() => {
+    if (currentSection === "actions") onClear()
+  }, [currentSection, onClear]), {
+    description: "Activate action",
+    when: currentSection === "actions",
   })
 
   const handleStatusSelect = (_index: number, option: SelectOption | null) => {

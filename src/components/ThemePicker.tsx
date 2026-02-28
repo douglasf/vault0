@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react"
-import type { KeyEvent, ScrollBoxRenderable } from "@opentui/core"
+import type { ScrollBoxRenderable } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { theme, listThemes, setTheme, getActiveThemeName, getAppearance, toggleAppearance } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
 
@@ -79,29 +81,34 @@ export function ThemePicker({ onSelect, onCancel, onPreview }: ThemePickerProps)
     onCancel()
   }, [originalTheme, originalAppearance, onCancel])
 
-  useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "up") {
-      setSelectedIndex((prev) => {
-        const next = Math.max(0, prev - 1)
-        setTheme(themes[next].name)
-        onPreview?.()
-        return next
-      })
-    } else if (event.name === "down") {
-      setSelectedIndex((prev) => {
-        const next = Math.min(themes.length - 1, prev + 1)
-        setTheme(themes[next].name)
-        onPreview?.()
-        return next
-      })
-    } else if (event.name === "return") {
-      onSelect(themes[selectedIndex].name, getAppearance())
-    } else if (event.raw === "t") {
-      const newAppearance = toggleAppearance()
-      setAppearance(newAppearance)
-      onPreview?.()
-    }
+  const scope = useKeybindScope("theme-picker", {
+    priority: SCOPE_PRIORITY.WIDGET,
+    opaque: false,
   })
+  useKeybind(scope, "ArrowUp", useCallback(() => {
+    setSelectedIndex((prev) => {
+      const next = Math.max(0, prev - 1)
+      setTheme(themes[next].name)
+      onPreview?.()
+      return next
+    })
+  }, [themes, onPreview]), { description: "Previous theme" })
+  useKeybind(scope, "ArrowDown", useCallback(() => {
+    setSelectedIndex((prev) => {
+      const next = Math.min(themes.length - 1, prev + 1)
+      setTheme(themes[next].name)
+      onPreview?.()
+      return next
+    })
+  }, [themes, onPreview]), { description: "Next theme" })
+  useKeybind(scope, "Enter", useCallback(() => {
+    onSelect(themes[selectedIndex].name, getAppearance())
+  }, [themes, selectedIndex, onSelect]), { description: "Select theme" })
+  useKeybind(scope, "t", useCallback(() => {
+    const newAppearance = toggleAppearance()
+    setAppearance(newAppearance)
+    onPreview?.()
+  }, [onPreview]), { description: "Toggle dark/light" })
 
   return (
     <ModalOverlay onClose={handleCancel} size="medium" title="Select Theme">

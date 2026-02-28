@@ -129,6 +129,44 @@ The `.vault0/` directory is automatically git-ignored on creation and is safe to
 | ID Generation | [ULID](https://github.com/ulid/spec) (time-sortable unique IDs) |
 
 
+### Keybinding Architecture
+
+The keybinding system uses a priority-based scope registry. Each component creates a keybinding scope at an appropriate priority level, then registers individual keybindings via hooks. Higher-priority scopes shadow lower-priority ones, and opaque scopes block all key propagation even for unmatched keys.
+
+**Scope priorities:**
+
+| Priority | Level | Use Case |
+|----------|-------|----------|
+| 0 | ROOT | Global keys that always work (help toggle, quit) |
+| 10 | VIEW | Board, detail view, releases view |
+| 20 | OVERLAY | Modal dialogs, overlays, forms |
+| 30 | WIDGET | Inline pickers, search bars, autocompletes |
+
+**Adding a keybinding to a component:**
+
+```typescript
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
+
+// 1. Create a scope
+const scope = useKeybindScope("my-overlay", {
+  priority: SCOPE_PRIORITY.OVERLAY,
+  opaque: true,  // blocks lower-priority keys even if not handled
+})
+
+// 2. Register keybindings
+useKeybind(scope, "Escape", onClose, { description: "Close" })
+useKeybind(scope, ["k", "ArrowUp"], scrollUp, { description: "Scroll up" })
+```
+
+**Key concepts:**
+- **Opaque scopes** block all keys from reaching lower-priority scopes, even if the key isn't handled. Use for modals and forms to prevent accidental board actions.
+- **`when` flag** on individual bindings allows conditional activation without removing the scope.
+- **`active` flag** on scopes deactivates all bindings in the scope (used for sub-mode layering, e.g. detail view deactivates when dependency picker opens).
+
+See `src/lib/keybind-registry.ts` for the registry implementation and `src/lib/keybind-context.ts` for the React provider/context setup.
+
 ## Development
 
 ### Development Commands

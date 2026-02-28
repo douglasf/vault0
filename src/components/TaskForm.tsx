@@ -1,8 +1,10 @@
 import type React from "react"
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useMemo } from "react"
 import type { KeyEvent, ScrollBoxRenderable, InputRenderable, TextareaRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import type { Task, Priority, Status, TaskType } from "../lib/types.js"
 import { PRIORITY_LABELS, STATUS_LABELS, TASK_TYPE_LABELS, TASK_TYPES, VISIBLE_STATUSES } from "../lib/constants.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme } from "../lib/theme.js"
@@ -83,9 +85,10 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onS
   // Modal chrome: 4 (modal margin) + 2 (padding) + 2 (title) + 3 (buttons) = 12
   // Parent title line if present: 2 (text + margin)
   const chromeHeight = 11 + (parentTitle ? 2 : 0)
-  const fields: FormField[] = mode === "create"
+  const fields: FormField[] = useMemo(() => mode === "create"
     ? ["title", "description", "priority", "type", "status", "submit"]
-    : ["title", "description", "solution", "priority", "type", "submit"]
+    : ["title", "description", "solution", "priority", "type", "submit"],
+  [mode])
 
   const { focusField, setFocusField, advance, retreat, isFocused } = useFormNavigation(fields, "title" as FormField)
 
@@ -249,75 +252,62 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onS
     atStartPosRef.current = -1
   }, [])
 
-  /**
-   * Handle arrow-key cycling for a selector field (priority, type, status).
-   * Returns true if the event was consumed, false otherwise.
-   */
-  const handleCyclerKeys = useCallback(<T,>(
-    event: KeyEvent,
-    options: readonly T[],
-    current: T,
-    setter: React.Dispatch<React.SetStateAction<T>>,
-  ): boolean => {
-    if (event.name === "left" || event.name === "up") {
-      setter(cycleOption(options, current, -1))
-      return true
-    }
-    if (event.name === "right" || event.name === "down") {
-      setter(cycleOption(options, current, 1))
-      return true
-    }
-    if (event.name === "return") {
-      advance()
-      return true
-    }
-    return false
-  }, [advance])
-
-   useActiveKeyboard((event: KeyEvent) => {
-    // When autocomplete is active, delegate navigation keys to it.
-    // If handled, preventDefault stops the textarea from also processing the key.
-    if (autocompleteTarget && autocompleteRef.current) {
-      if (autocompleteRef.current.handleKey(event)) {
-        event.preventDefault()
-        return
-      }
-    }
-
-    // Tab / Shift+Tab to navigate fields
-    if (event.name === "tab") {
-      if (event.shift) {
-        retreat()
-      } else {
-        advance()
-      }
-      return
-    }
-    if (event.name === "btab") {
-      retreat()
-      return
-    }
-
-    // Enter on submit button
-    if (event.name === "return" && focusField === "submit") {
-      handleFormSubmit()
-      return
-    }
-
-    // Arrow-key cycling for selector fields
-    if (focusField === "priority") {
-      handleCyclerKeys(event, PRIORITIES, priority, setPriority)
-      return
-    }
-    if (focusField === "type") {
-      handleCyclerKeys(event, TYPE_OPTIONS, taskType, setTaskType)
-      return
-    }
-    if (focusField === "status") {
-      handleCyclerKeys(event, VISIBLE_STATUSES, status, setStatus)
-      return
-    }
+  const scope = useKeybindScope("task-form", {
+    priority: SCOPE_PRIORITY.WIDGET,
+    opaque: false,
   })
+
+  // ── Autocomplete keybinds (higher priority when active) ────────────────
+  const isAutocompleteActive = !!autocompleteTarget
+  useKeybind(scope, "Escape", useCallback(() => {
+    autocompleteRef.current?.handleKey({ name: "escape", raw: "", ctrl: false, shift: false, meta: false, option: false, sequence: "", preventDefault: () => {} } as KeyEvent)
+  }, []), { when: isAutocompleteActive, description: "Cancel autocomplete" })
+  useKeybind(scope, ["Enter", "Tab"], useCallback(() => {
+    const fakeEvent = { name: "return", raw: "", ctrl: false, shift: false, meta: false, option: false, sequence: "", preventDefault: () => {} } as KeyEvent
+    autocompleteRef.current?.handleKey(fakeEvent)
+  }, []), { when: isAutocompleteActive, description: "Select autocomplete" })
+  useKeybind(scope, "ArrowUp", useCallback(() => {
+    autocompleteRef.current?.handleKey({ name: "up", raw: "", ctrl: false, shift: false, meta: false, option: false, sequence: "", preventDefault: () => {} } as KeyEvent)
+  }, []), { when: isAutocompleteActive, description: "Autocomplete previous" })
+  useKeybind(scope, "ArrowDown", useCallback(() => {
+    autocompleteRef.current?.handleKey({ name: "down", raw: "", ctrl: false, shift: false, meta: false, option: false, sequence: "", preventDefault: () => {} } as KeyEvent)
+  }, []), { when: isAutocompleteActive, description: "Autocomplete next" })
+
+  // ── Form navigation keybinds ───────────────────────────────────────────
+  useKeybind(scope, "Tab", advance, { when: !isAutocompleteActive, description: "Next field" })
+  useKeybind(scope, "Shift+Tab", retreat, { when: !isAutocompleteActive, description: "Previous field" })
+  useKeybind(scope, "Enter", handleFormSubmit, { when: !isAutocompleteActive && focusField === "submit", description: "Submit form" })
+  useKeybind(scope, "Escape", onCancel, { when: !isAutocompleteActive, description: "Close form" })
+
+  // ── Cycler keybinds for priority field ─────────────────────────────────
+  const isPriorityFocused = focusField === "priority"
+  useKeybind(scope, ["ArrowLeft", "ArrowUp"], useCallback(() => {
+    setPriority((prev) => cycleOption(PRIORITIES, prev, -1))
+  }, []), { when: !isAutocompleteActive && isPriorityFocused, description: "Previous priority" })
+  useKeybind(scope, ["ArrowRight", "ArrowDown"], useCallback(() => {
+    setPriority((prev) => cycleOption(PRIORITIES, prev, 1))
+  }, []), { when: !isAutocompleteActive && isPriorityFocused, description: "Next priority" })
+  useKeybind(scope, "Enter", advance, { when: !isAutocompleteActive && isPriorityFocused, description: "Confirm priority" })
+
+  // ── Cycler keybinds for type field ─────────────────────────────────────
+  const isTypeFocused = focusField === "type"
+  useKeybind(scope, ["ArrowLeft", "ArrowUp"], useCallback(() => {
+    setTaskType((prev) => cycleOption(TYPE_OPTIONS, prev, -1))
+  }, []), { when: !isAutocompleteActive && isTypeFocused, description: "Previous type" })
+  useKeybind(scope, ["ArrowRight", "ArrowDown"], useCallback(() => {
+    setTaskType((prev) => cycleOption(TYPE_OPTIONS, prev, 1))
+  }, []), { when: !isAutocompleteActive && isTypeFocused, description: "Next type" })
+  useKeybind(scope, "Enter", advance, { when: !isAutocompleteActive && isTypeFocused, description: "Confirm type" })
+
+  // ── Cycler keybinds for status field ───────────────────────────────────
+  const isStatusFocused = focusField === "status"
+  useKeybind(scope, ["ArrowLeft", "ArrowUp"], useCallback(() => {
+    setStatus((prev) => cycleOption(VISIBLE_STATUSES, prev, -1))
+  }, []), { when: !isAutocompleteActive && isStatusFocused, description: "Previous status" })
+  useKeybind(scope, ["ArrowRight", "ArrowDown"], useCallback(() => {
+    setStatus((prev) => cycleOption(VISIBLE_STATUSES, prev, 1))
+  }, []), { when: !isAutocompleteActive && isStatusFocused, description: "Next status" })
+  useKeybind(scope, "Enter", advance, { when: !isAutocompleteActive && isStatusFocused, description: "Confirm status" })
 
   const isTitleFocused = isFocused("title")
   const isDescFocused = isFocused("description")

@@ -1,9 +1,10 @@
 import type { ReactNode } from "react"
 import { useTerminalDimensions } from "@opentui/react"
 import { RGBA } from "@opentui/core"
-import type { KeyEvent } from "@opentui/core"
 import { theme, toRGBA } from "../lib/theme.js"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 
 /** Preset modal size names mapped to max column widths. */
 type ModalSize = "small" | "medium" | "large"
@@ -54,11 +55,14 @@ export function ModalOverlay({
   const modalWidth = Math.min(effectiveMaxWidth, width - 4)
   const maxModalHeight = height - 4
 
-  useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "escape" && onClose) {
-      onClose()
-    }
-  }, true)
+  const scope = useKeybindScope("modal-overlay", {
+    priority: SCOPE_PRIORITY.OVERLAY,
+    opaque: true,
+  })
+  useKeybind(scope, "Escape", () => { if (onClose) onClose() }, {
+    description: "Close modal",
+    when: !!onClose,
+  })
 
   return (
     <box

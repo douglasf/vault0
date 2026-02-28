@@ -1,7 +1,9 @@
 import React, { useRef, useState } from "react"
 import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeyboard } from "@opentui/react"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import type { Task } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"
 import { getTasksByStatus } from "../db/queries.js"
@@ -70,7 +72,14 @@ export function DependencyPicker({
     scrollRef.current?.scrollTo(0)
   }
 
-  useActiveKeyboard((event: KeyEvent) => {
+  const depPickerScope = useKeybindScope("dep-picker", {
+    priority: SCOPE_PRIORITY.WIDGET,
+    opaque: false,
+  })
+
+  // Character input for search filter — uses useKeyboard directly since
+  // the keybind registry doesn't handle arbitrary character input
+  useKeyboard((event: KeyEvent) => {
     if (event.name === "backspace" || event.name === "delete") {
       setSearchFilter((s) => s.slice(0, -1))
     } else if (event.raw && event.raw.length === 1 && !event.ctrl && !event.meta && /[a-zA-Z0-9 _\-]/.test(event.raw)) {

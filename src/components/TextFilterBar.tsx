@@ -1,8 +1,9 @@
 import { useCallback } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent } from "@opentui/core"
 import { theme } from "../lib/theme.js"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 
 export interface TextFilterBarProps {
   /** Current search value (so the input starts with existing filter text) */
@@ -27,11 +28,12 @@ export function TextFilterBar({ initialValue, onSearch, onClose }: TextFilterBar
     onClose()
   }, [onSearch, onClose])
 
-  useActiveKeyboard((event: KeyEvent) => {
-    if (event.name === "escape") {
-      handleEscapeClear()
-    }
+  const scope = useKeybindScope("text-filter", {
+    priority: SCOPE_PRIORITY.OVERLAY,
+    opaque: true,
   })
+
+  useKeybind(scope, "Escape", handleEscapeClear, { description: "Clear and close filter" })
 
   return (
     <box paddingX={1} flexDirection="row">

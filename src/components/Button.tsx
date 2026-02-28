@@ -1,7 +1,8 @@
-import { memo, useCallback } from "react"
-import type { KeyEvent } from "@opentui/core"
+import { memo } from "react"
 import { TextAttributes } from "@opentui/core"
-import { useKeyboard } from "@opentui/react"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { theme } from "../lib/theme.js"
 
 export interface ButtonProps {
@@ -21,13 +22,13 @@ export interface ButtonProps {
  * so dialogs that contain buttons won't leak key handlers after closing.
  */
 export const Button = memo(function Button({ label, onPress, hotkey, fg, bg }: ButtonProps) {
-  useKeyboard(useCallback((event: KeyEvent) => {
-    if (!hotkey) return
-    const input = event.raw || ""
-    if (input === hotkey) {
-      onPress()
-    }
-  }, [hotkey, onPress]))
+  const scope = useKeybindScope("button-widget", {
+    priority: SCOPE_PRIORITY.WIDGET,
+  })
+  useKeybind(scope, hotkey ?? "", onPress, {
+    when: !!hotkey,
+    description: `Button: ${label}`,
+  })
 
   const buttonFg = fg ?? theme.fg_1
   const buttonBg = bg ?? theme.bg_2

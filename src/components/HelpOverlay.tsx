@@ -1,8 +1,11 @@
 import { useState, useMemo, useRef, useCallback } from "react"
-import type { InputRenderable, KeyEvent, ScrollBoxRenderable } from "@opentui/core"
+import type { InputRenderable, ScrollBoxRenderable } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { useKeybindRegistry } from "../lib/keybind-context.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { theme } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
 
@@ -118,6 +121,40 @@ const shortcutSections: readonly ShortcutSection[] = [
     ],
   },
 ]
+
+// ── Display key → registry key mapping ──────────────────────────────
+// Maps display labels from shortcutSections to the key specs used in useKeybind().
+// Compound display keys (e.g. "←/→") map to multiple registry keys.
+
+const DISPLAY_TO_REGISTRY: Record<string, string[]> = {
+  "←/→": ["ArrowLeft", "ArrowRight"],
+  "↑/↓": ["ArrowUp", "ArrowDown"],
+  "</>": ["<", ">"],
+  "Enter": ["Enter"],
+  "A (Shift+a)": ["A"],
+  "S (Shift+s)": ["S"],
+  "F (Shift+f)": ["F"],
+  "R (Shift+r)": ["R"],
+  "W (Shift+w)": ["W"],
+  "Ctrl+C": ["Ctrl+c"],
+  "Esc": ["Escape"],
+  "+": ["+"],
+  "-": ["-"],
+}
+
+/**
+ * Check if a display key from the static shortcut list is currently active
+ * in the keybinding registry. Falls back to checking the raw display key
+ * character for single-char shortcuts (e.g. "a", "s", "p").
+ */
+function isKeyActive(displayKey: string, activeKeySet: Set<string>): boolean {
+  const registryKeys = DISPLAY_TO_REGISTRY[displayKey]
+  if (registryKeys) {
+    return registryKeys.some((k) => activeKeySet.has(k))
+  }
+  // Single character shortcut — check directly
+  return activeKeySet.has(displayKey)
+}
 
 // ── Flattened render items ──────────────────────────────────────────
 
@@ -239,6 +276,13 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
 
   const [filter, setFilter] = useState("")
 
+  // Cross-reference registry to determine which keybindings are currently active
+  const registry = useKeybindRegistry()
+  const activeKeySet = useMemo(() => {
+    const bindings = registry.getActiveBindings()
+    return new Set(bindings.map((b) => b.key))
+  }, [registry])
+
   const filteredItems = useMemo(() => filterItems(allItems, filter), [filter])
 
   // ── Adaptive scroll height (shrink-to-content) ─────────────────────────
@@ -259,31 +303,15 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [])
 
-  useActiveKeyboard((event: KeyEvent) => {
-    // Close overlay on `?` toggle
-    if (event.raw === "?") {
-      onClose()
-      return
-    }
-
-    // Scroll via ScrollBox ref
-    if (event.name === "up") {
-      scrollRef.current?.scrollBy(-1)
-      return
-    }
-    if (event.name === "down") {
-      scrollRef.current?.scrollBy(1)
-      return
-    }
-    if (event.name === "pagedown") {
-      scrollRef.current?.scrollBy(contentHeight)
-      return
-    }
-    if (event.name === "pageup") {
-      scrollRef.current?.scrollBy(-contentHeight)
-      return
-    }
+  const scope = useKeybindScope("help-overlay", {
+    priority: SCOPE_PRIORITY.WIDGET,
+    opaque: false,
   })
+  useKeybind(scope, "?", onClose, { description: "Close help" })
+  useKeybind(scope, "ArrowUp", useCallback(() => scrollRef.current?.scrollBy(-1), []), { description: "Scroll up" })
+  useKeybind(scope, "ArrowDown", useCallback(() => scrollRef.current?.scrollBy(1), []), { description: "Scroll down" })
+  useKeybind(scope, "PageDown", useCallback(() => scrollRef.current?.scrollBy(contentHeight), [contentHeight]), { description: "Page down" })
+  useKeybind(scope, "PageUp", useCallback(() => scrollRef.current?.scrollBy(-contentHeight), [contentHeight]), { description: "Page up" })
 
   const matchCount = filteredItems.filter(
     (i) => i.kind === "shortcut" || i.kind === "legend",
@@ -368,14 +396,15 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
               )
             }
             // shortcut
+            const active = isKeyActive(item.key, activeKeySet)
             return (
               <box key={k} flexDirection="row">
                 <box width={16}>
-                  <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>
+                  <text fg={active ? theme.fg_1 : theme.dim_0} attributes={TextAttributes.BOLD}>
                     {item.key}
                   </text>
                 </box>
-                <text fg={theme.fg_0}>{item.desc}</text>
+                <text fg={active ? theme.fg_0 : theme.dim_0}>{item.desc}</text>
               </box>
             )
           })

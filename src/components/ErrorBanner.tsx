@@ -1,10 +1,11 @@
-import React, { useCallback } from "react"
+import React from "react"
 import { TextAttributes } from "@opentui/core"
-import type { KeyEvent } from "@opentui/core"
 import { theme } from "../lib/theme.js"
 import type { DbError, DbErrorKind } from "../lib/db-errors.js"
 import { truncateText } from "../lib/format.js"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { useKeybind } from "../hooks/useKeybind.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 
 // Re-export so consumers can import from the component barrel
 export type { DbError, DbErrorKind } from "../lib/db-errors.js"
@@ -85,18 +86,15 @@ export interface ErrorBannerProps {
 export function ErrorBanner({ error, onRetry, onDismiss }: ErrorBannerProps) {
   const recovery = RECOVERY_MAP[error.kind]
 
-  const handleKey = useCallback(
-    (event: KeyEvent) => {
-      if (event.raw === "r") {
-        onRetry()
-      } else if ((event.raw === "q" || event.name === "escape") && onDismiss) {
-        onDismiss()
-      }
-    },
-    [onRetry, onDismiss],
-  )
-
-  useActiveKeyboard(handleKey)
+  const scope = useKeybindScope("error-banner", {
+    priority: SCOPE_PRIORITY.OVERLAY,
+    opaque: true,
+  })
+  useKeybind(scope, "r", onRetry, { description: "Retry" })
+  useKeybind(scope, ["q", "Escape"], () => { if (onDismiss) onDismiss() }, {
+    description: "Dismiss error",
+    when: !!onDismiss,
+  })
 
   return (
     <box

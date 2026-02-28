@@ -1,7 +1,9 @@
 import { useRef, useState, useMemo } from "react"
 import type { KeyEvent, ScrollBoxRenderable, SelectOption } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
-import { useActiveKeyboard } from "../hooks/useActiveKeyboard.js"
+import { useKeyboard } from "@opentui/react"
+import { useKeybindScope } from "../hooks/useKeybindScope.js"
+import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { getProjectFiles, searchFiles } from "../lib/file-search.js"
 import { theme } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
@@ -51,7 +53,14 @@ export function FilePicker({ repoRoot, onSelect, onCancel }: FilePickerProps) {
     scrollRef.current?.scrollTo(0)
   }
 
-  useActiveKeyboard((event: KeyEvent) => {
+  useKeybindScope("file-picker", {
+    priority: SCOPE_PRIORITY.WIDGET,
+    opaque: false,
+  })
+
+  // Character input for search filter — uses useKeyboard directly since
+  // the keybind registry doesn't handle arbitrary character input
+  useKeyboard((event: KeyEvent) => {
     if (event.name === "backspace" || event.name === "delete") {
       setSearchFilter((s) => s.slice(0, -1))
     } else if (
