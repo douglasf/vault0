@@ -47,10 +47,10 @@ export interface AppProps {
   repoRoot: string
 }
 
-export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "help" | "confirm-delete" | "theme-picker" | "create-release" | "detail-dep-picker" | "detail-dep-remover" | "detail-confirm-delete" | "releases-confirm-delete"
+export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "confirm-delete" | "theme-picker" | "create-release" | "detail-dep-picker" | "detail-dep-remover" | "detail-confirm-delete" | "releases-confirm-delete"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
-const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["help", "confirm-delete", "status-picker", "filter", "theme-picker", "create", "edit", "create-release"])
+const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["confirm-delete", "status-picker", "filter", "theme-picker", "create", "edit", "create-release"])
 
 // Layout thresholds
 const MIN_COLS_NARROW = 80
@@ -69,6 +69,8 @@ export interface AppState {
   deleteReturnMode?: UIMode
   /** When set, the board will focus this task after the next render */
   pendingFocusTaskId?: string
+  /** Help overlay is independent of uiMode — it can appear on top of any view */
+  showHelp?: boolean
 }
 
 export function App({ db, dbPath, repoRoot }: AppProps) {
@@ -175,22 +177,22 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
   // Board-like modes where the board/narrow terminal is visible
   const isBoardVisible = (state.uiMode === "board" || state.uiMode === "text-filter" || state.uiMode === "filter" || isModalOverlay) && state.uiMode !== "releases"
 
-  // App-level input is active only in board mode (not during overlays).
-  const appInputActive = state.uiMode === "board"
+  // App-level input is active only in board mode (not during overlays or help).
+  const appInputActive = state.uiMode === "board" && !state.showHelp
 
-  // Board input is active only in pure board mode (not during overlays or text-filter)
-  const boardInputActive = state.uiMode === "board"
+  // Board input is active only in pure board mode (not during overlays, text-filter, or help)
+  const boardInputActive = state.uiMode === "board" && !state.showHelp
 
   // ── New keybinding system: root scope (always active) ────────────────
   useKeybindScope("root", { priority: SCOPE_PRIORITY.ROOT })
 
   useKeybind("root", "?", useCallback(() => {
-    setState((prev) => ({ ...prev, uiMode: "help" }))
+    setState((prev) => ({ ...prev, showHelp: true }))
   }, []), { description: "Show help" })
 
   useKeybind("root", "q", useCallback(() => {
     renderer.destroy()
-  }, [renderer]), { description: "Quit", when: state.uiMode === "board" })
+  }, [renderer]), { description: "Quit", when: state.uiMode === "board" && !state.showHelp })
 
   // ── New keybinding system: board scope (active only in board mode) ──
   useKeybindScope("board", { priority: SCOPE_PRIORITY.VIEW, active: appInputActive })
@@ -397,7 +399,7 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
         {(state.uiMode === "detail" || state.uiMode === "detail-dep-picker" || state.uiMode === "detail-dep-remover" || state.uiMode === "detail-confirm-delete") && state.selectedTask && (
           <TaskDetail
             taskId={state.selectedTask.id}
-            inputActive={state.uiMode === "detail"}
+            inputActive={state.uiMode === "detail" && !state.showHelp}
             onBack={() =>
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }
@@ -477,9 +479,9 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
           />
         )}
 
-        {state.uiMode === "help" && (
+        {state.showHelp && (
           <HelpOverlay
-            onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+            onClose={() => setState((prev) => ({ ...prev, showHelp: false }))}
           />
         )}
 
@@ -635,7 +637,7 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
               setState((prev) => ({ ...prev, uiMode: "releases-confirm-delete", selectedRelease: release }))
             }}
             onBack={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
-            inputActive={state.uiMode === "releases"}
+            inputActive={state.uiMode === "releases" && !state.showHelp}
           />
         )}
 
