@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
@@ -8,6 +8,7 @@ import { getTaskDetail } from "../db/queries.js"
 import { getStatusLabel, getPriorityLabel, getTypeLabel, formatDate, formatDateTime, isResolvedStatus, truncateText } from "../lib/format.js"
 import { getPriorityColor, getStatusColor, getTaskTypeColor, theme, getMarkdownSyntaxStyle } from "../lib/theme.js"
 import { copyToClipboard } from "../lib/clipboard.js"
+import { useToast } from "../lib/toast-context.js"
 import { useKeybindScope } from "../hooks/useKeybindScope.js"
 import { useKeybind } from "../hooks/useKeybind.js"
 import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
@@ -52,21 +53,7 @@ export function TaskDetail({
   const db = useDb()
   const scrollRef = useRef<ScrollBoxRenderable>(null)
   const [dependencyError, setDependencyError] = useState("")
-  const [copyToast, setCopyToast] = useState("")
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const showCopyToast = useCallback((message: string) => {
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-    setCopyToast(message)
-    copyTimerRef.current = setTimeout(() => setCopyToast(""), 2000)
-  }, [])
-
-  // Clean up dangling timer on unmount
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-    }
-  }, [])
+  const { showToast } = useToast()
 
   // Fetch fresh detail data on every render (sync DB, no caching needed)
   let detail: TaskDetailType
@@ -111,8 +98,8 @@ export function TaskDetail({
   }, [detail, onCreateSubtask]), { description: "Add subtask" })
   useKeybind(scope, "c", useCallback(() => {
     const ok = copyToClipboard(detail.id)
-    showCopyToast(ok ? `Copied: ${detail.id}` : "Copy failed")
-  }, [detail.id, showCopyToast]), { description: "Copy task ID" })
+    showToast(ok ? "Copied" : "Copy failed", ok ? detail.id : "Could not copy to clipboard")
+  }, [detail.id, showToast]), { description: "Copy task ID" })
   useKeybind(scope, "+", useCallback(() => {
     onShowDependencyPicker()
     setDependencyError("")
@@ -148,13 +135,6 @@ export function TaskDetail({
         {dependencyError && (
           <box marginTop={1}>
             <text fg={theme.red}>⚠ {dependencyError}</text>
-          </box>
-        )}
-
-        {/* Copy toast */}
-        {copyToast && (
-          <box marginTop={dependencyError ? 0 : 1}>
-            <text fg={theme.green} attributes={TextAttributes.BOLD}>✓ {copyToast}</text>
           </box>
         )}
 

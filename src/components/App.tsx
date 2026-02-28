@@ -493,7 +493,10 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
               showToast("Theme changed", `${themeName} (${appearance})`)
               setState((prev) => ({ ...prev, uiMode: "board" }))
             }}
-            onCancel={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+            onCancel={() => {
+              forceRefresh()
+              setState((prev) => ({ ...prev, uiMode: "board" }))
+            }}
           />
         )}
 

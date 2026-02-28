@@ -32,12 +32,13 @@ export interface ThemePickerProps {
  */
 export function ThemePicker({ onSelect, onCancel, onPreview }: ThemePickerProps) {
   const themes = listThemes()
-  const originalTheme = getActiveThemeName()
-  const originalAppearance = getAppearance()
+  // Capture the theme at mount time so re-renders during preview don't lose it
+  const originalThemeRef = useRef(getActiveThemeName())
+  const originalAppearanceRef = useRef(getAppearance())
   const { height: termHeight } = useTerminalDimensions()
 
   // Find initial index matching the active theme
-  const initialIndex = Math.max(0, themes.findIndex((t) => t.name === originalTheme))
+  const initialIndex = Math.max(0, themes.findIndex((t) => t.name === originalThemeRef.current))
   const [selectedIndex, setSelectedIndex] = useState(initialIndex)
   const [appearance, setAppearance] = useState(getAppearance)
   const scrollRef = useRef<ScrollBoxRenderable>(null)
@@ -73,13 +74,13 @@ export function ThemePicker({ onSelect, onCancel, onPreview }: ThemePickerProps)
   }, [selectedIndex, scrollHeight, themes.length])
 
   const handleCancel = useCallback(() => {
-    // Restore original theme on cancel
-    setTheme(originalTheme)
-    if (getAppearance() !== originalAppearance) {
+    // Restore original theme on cancel — refs are stable from mount time
+    setTheme(originalThemeRef.current)
+    if (getAppearance() !== originalAppearanceRef.current) {
       toggleAppearance()
     }
     onCancel()
-  }, [originalTheme, originalAppearance, onCancel])
+  }, [onCancel])
 
   const scope = useKeybindScope("theme-picker", {
     priority: SCOPE_PRIORITY.WIDGET,
