@@ -114,7 +114,7 @@ function acquireTuiLock(repoRoot: string, watchMode = false): (() => void) | nul
 
 // ── CLI Entities (subcommand routing) ───────────────────────────────────
 
-const CLI_ENTITIES = new Set(["task", "board"])
+const CLI_ENTITIES = new Set(["task", "board", "mcp-serve", "integration", "configure"])
 
 // ── CLI Argument Parsing ────────────────────────────────────────────────
 
@@ -126,6 +126,9 @@ Usage:
   vault0                          Launch interactive board (TUI)
   vault0 task <command> [options] Manage tasks via CLI
   vault0 board <command>          Manage boards via CLI
+  vault0 integration get          Query integration config
+  vault0 configure opencode       Setup OpenCode integration wizard
+  vault0 mcp-serve                Start MCP server (stdio transport)
   vault0 --path DIR               Launch board for specific directory
   vault0 --help                   Show this help message
   vault0 --version                Show version
@@ -166,6 +169,27 @@ async function main() {
   // Extract --path from anywhere in the args for CLI mode too
 
   const firstArg = args[0]
+
+  // ── MCP server mode ─────────────────────────────────────────────────
+  if (firstArg === "mcp-serve") {
+    // Extract --path if present
+    const pathIdx = args.indexOf("--path")
+    if (pathIdx !== -1 && args[pathIdx + 1]) {
+      repoRoot = args[pathIdx + 1]
+    }
+    const { startMcpServer } = await import("./mcp/server.js")
+    await startMcpServer(repoRoot)
+    return
+  }
+
+  // ── Configure command (no DB needed) ─────────────────────────────
+  if (firstArg === "configure") {
+    const { runCli } = await import("./cli/index.js")
+    // runCli handles configure internally and calls process.exit
+    runCli("configure", args.slice(1), null as never)
+    return
+  }
+
   const isCliMode = firstArg !== undefined && CLI_ENTITIES.has(firstArg)
 
   if (isCliMode) {

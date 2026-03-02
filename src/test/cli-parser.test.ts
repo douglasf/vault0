@@ -254,10 +254,14 @@ describe("parseArgs", () => {
       expect(result.format).toBe("json")
     })
 
-    test("--key=value syntax treats '=' as part of the key (not supported)", () => {
+    test("--key=value syntax splits on first '=' sign", () => {
       const result = parseArgs(["--title=hello"])
-      expect(result.flags["title=hello"]).toBeDefined()
-      expect(result.flags.title).toBeUndefined()
+      expect(result.flags.title).toBe("hello")
+    })
+
+    test("--key=value with value containing '=' preserves full value", () => {
+      const result = parseArgs(["--description=a=b=c"])
+      expect(result.flags.description).toBe("a=b=c")
     })
 
     test("single-dash flags like -t are treated as positional args", () => {
