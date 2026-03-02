@@ -102,12 +102,12 @@
     },
 
     // Role: The Git Agent (post-commit task approval)
-    // 2 tools — list + complete for post-commit approvals only
+    // 3 tools — list + view + complete for post-commit approvals
     "git": {
       "tools": {
         "vault0-task-add": false,
         "vault0-task-list": true,
-        "vault0-task-view": false,
+        "vault0-task-view": true,
         "vault0-task-update": false,
         "vault0-task-move": false,
         "vault0-task-complete": true,
@@ -115,6 +115,7 @@
       },
       "permission": {
         "vault0-task-list": "allow",
+        "vault0-task-view": "allow",
         "vault0-task-complete": "allow"
       }
     }
