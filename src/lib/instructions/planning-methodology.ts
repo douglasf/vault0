@@ -13,13 +13,13 @@ Plans MUST be created via vault0 task tools only. No markdown plans.
 
 1. **Determine Parent Task**
    - User specified an existing task ID? Use it as parent (do NOT create a duplicate).
-   - No ID provided? Create new parent via \`vault0-task-add\` with \`sourceFlag: "opencode-plan"\`.
+   - No ID provided? Create new parent via \`vault0_task-add\` with \`sourceFlag: "opencode-plan"\`.
    - For very large plans, create multiple parent tasks.
    - vault0 only supports one level of hierarchy — do NOT create a subtask to a subtask.
 
 2. **Create Subtasks** — for each implementation step:
    \`\`\`
-   vault0-task-add(
+   vault0_task-add(
      title: "Step N: <description>",
      description: "<details with acceptance criteria, files affected, verification>",
      priority: "normal",
@@ -31,7 +31,7 @@ Plans MUST be created via vault0 task tools only. No markdown plans.
 
 3. **Add Dependencies** — for sequential steps only:
    \`\`\`
-   vault0-task-update(id: "<step-B>", depAdd: "<step-A>")
+   vault0_task-update(id: "<step-B>", depAdd: "<step-A>")
    \`\`\`
    Do NOT add dependencies for parallel steps.
 

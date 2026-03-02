@@ -71,10 +71,10 @@ function toolComplete(db: TestDb["db"], id: string, solution?: string): CommandR
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// vault0-task-add
+// vault0_task-add
 // ═══════════════════════════════════════════════════════════════════
 
-describe("vault0-task-add", () => {
+describe("vault0_task-add", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -138,10 +138,10 @@ describe("vault0-task-add", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// vault0-task-list
+// vault0_task-list
 // ═══════════════════════════════════════════════════════════════════
 
-describe("vault0-task-list", () => {
+describe("vault0_task-list", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -227,10 +227,10 @@ describe("vault0-task-list", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// vault0-task-view
+// vault0_task-view
 // ═══════════════════════════════════════════════════════════════════
 
-describe("vault0-task-view", () => {
+describe("vault0_task-view", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -280,10 +280,10 @@ describe("vault0-task-view", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// vault0-task-move
+// vault0_task-move
 // ═══════════════════════════════════════════════════════════════════
 
-describe("vault0-task-move", () => {
+describe("vault0_task-move", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -329,10 +329,10 @@ describe("vault0-task-move", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// vault0-task-update
+// vault0_task-update
 // ═══════════════════════════════════════════════════════════════════
 
-describe("vault0-task-update", () => {
+describe("vault0_task-update", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -409,10 +409,10 @@ describe("vault0-task-update", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// vault0-task-subtasks
+// vault0_task-subtasks
 // ═══════════════════════════════════════════════════════════════════
 
-describe("vault0-task-subtasks", () => {
+describe("vault0_task-subtasks", () => {
   let testDb: TestDb
 
   beforeEach(() => {
@@ -464,10 +464,10 @@ describe("vault0-task-subtasks", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// vault0-task-complete
+// vault0_task-complete
 // ═══════════════════════════════════════════════════════════════════
 
-describe("vault0-task-complete", () => {
+describe("vault0_task-complete", () => {
   let testDb: TestDb
 
   beforeEach(() => {

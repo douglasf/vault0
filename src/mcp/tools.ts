@@ -45,9 +45,9 @@ function withErrorHandling(fn: () => CommandResult) {
  * Register all 7 vault0 task management tools on the MCP server.
  */
 export function registerTools(server: McpServer, db: Vault0Database): void {
-  // 1. vault0-task-list
+  // 1. task-list
   server.tool(
-    "vault0-task-list",
+    "task-list",
     "List tasks from vault0 with optional filters. Returns top-level task cards with enrichment (blocked/ready status, subtask counts).",
     {
       status: z.enum(["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]).optional().describe("Filter by status"),
@@ -67,9 +67,9 @@ export function registerTools(server: McpServer, db: Vault0Database): void {
     },
   )
 
-  // 2. vault0-task-add
+  // 2. task-add
   server.tool(
-    "vault0-task-add",
+    "task-add",
     "Create a new task in vault0.",
     {
       title: z.string().describe("Task title (required)"),
@@ -94,9 +94,9 @@ export function registerTools(server: McpServer, db: Vault0Database): void {
     },
   )
 
-  // 3. vault0-task-view
+  // 3. task-view
   server.tool(
-    "vault0-task-view",
+    "task-view",
     "Get full details of a single vault0 task by ID. Returns subtasks, dependencies, and status history.",
     {
       id: z.string().describe("Task ID (full ULID or suffix match)"),
@@ -106,10 +106,10 @@ export function registerTools(server: McpServer, db: Vault0Database): void {
     },
   )
 
-  // 4. vault0-task-move
+  // 4. task-move
   server.tool(
-    "vault0-task-move",
-    "Change a vault0 task's status. Cannot move to done — use vault0-task-complete for that.",
+    "task-move",
+    "Change a vault0 task's status. Cannot move to done — use task-complete for that.",
     {
       id: z.string().describe("Task ID (full ULID or suffix match)"),
       status: z.enum(["backlog", "todo", "in_progress", "in_review", "cancelled"]).describe("Target status"),
@@ -122,10 +122,10 @@ export function registerTools(server: McpServer, db: Vault0Database): void {
     },
   )
 
-  // 5. vault0-task-update
+  // 5. task-update
   server.tool(
-    "vault0-task-update",
-    "Update a task's metadata and dependencies. For status changes, use vault0-task-move instead.",
+    "task-update",
+    "Update a task's metadata and dependencies. For status changes, use task-move instead.",
     {
       id: z.string().describe("Task ID (full ULID or suffix match)"),
       title: z.string().optional().describe("New title"),
@@ -151,9 +151,9 @@ export function registerTools(server: McpServer, db: Vault0Database): void {
     },
   )
 
-  // 6. vault0-task-subtasks
+  // 6. task-subtasks
   server.tool(
-    "vault0-task-subtasks",
+    "task-subtasks",
     "List subtasks of a vault0 task. Use ready filter to get only actionable subtasks.",
     {
       id: z.string().describe("Parent task ID (full ULID or suffix match)"),
@@ -166,9 +166,9 @@ export function registerTools(server: McpServer, db: Vault0Database): void {
     },
   )
 
-  // 7. vault0-task-complete
+  // 7. task-complete
   server.tool(
-    "vault0-task-complete",
+    "task-complete",
     "Move a task to done status. This is the exclusive mechanism for marking tasks complete.",
     {
       id: z.string().describe("Task ID (full ULID or suffix match)"),

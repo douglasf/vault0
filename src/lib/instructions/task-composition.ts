@@ -5,13 +5,13 @@ export const TASK_COMPOSITION = `# Task Composition
 
 ## Tool Separation
 
-- **\`vault0-task-add\`**: Create new tasks only. Never use to modify existing tasks.
-- **\`vault0-task-list\`**: Query tasks with filters (status, priority, search, blocked, ready).
-- **\`vault0-task-view\`**: Get full task details by ID (subtasks, dependencies, history).
-- **\`vault0-task-update\`**: Edit metadata only — title, description, priority, tags, type, solution, dependencies (\`depAdd\`/\`depRemove\`). Does NOT change status.
-- **\`vault0-task-move\`**: Status transitions only — backlog → todo → in_progress → in_review → cancelled. **Cannot move to \`done\`**.
-- **\`vault0-task-complete\`**: Moves a task to \`done\` status. **Git Agent only**.
-- **\`vault0-task-subtasks\`**: List subtasks of a parent task. Use \`ready: true\` to filter to actionable work.
+- **\`vault0_task-add\`**: Create new tasks only. Never use to modify existing tasks.
+- **\`vault0_task-list\`**: Query tasks with filters (status, priority, search, blocked, ready).
+- **\`vault0_task-view\`**: Get full task details by ID (subtasks, dependencies, history).
+- **\`vault0_task-update\`**: Edit metadata only — title, description, priority, tags, type, solution, dependencies (\`depAdd\`/\`depRemove\`). Does NOT change status.
+- **\`vault0_task-move\`**: Status transitions only — backlog → todo → in_progress → in_review → cancelled. **Cannot move to \`done\`**.
+- **\`vault0_task-complete\`**: Moves a task to \`done\` status. **Git Agent only**.
+- **\`vault0_task-subtasks\`**: List subtasks of a parent task. Use \`ready: true\` to filter to actionable work.
 
 ## Hierarchy Rules
 
