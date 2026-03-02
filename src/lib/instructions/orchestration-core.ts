@@ -16,6 +16,8 @@ Only runs when the user explicitly asks to implement tasks. Does NOT auto-start 
    - OR interpret the user's input and use \`vault0-task-list(ready: true)\`
 2. **Pick**: Highest priority first — critical → high → normal → low. Same priority: first returned.
 3. **Delegate**: One executor task per task with optimal parallelization. The executor reads, claims, implements, moves to \`in_review\`, reports back.
+   - **ALWAYS include the task ID** in the delegation prompt so the executor can claim and move the task. Use a clear format at the top of the prompt: \`Task ID: <full-ULID>\`. The executor cannot interact with vault0 task tools without the ID — omitting it blocks the entire workflow.
+   - Include both the task ID and the task description/requirements in the prompt body itself.
 4. **Repeat**: Fresh \`vault0-task-list(ready: true)\` or \`vault0-task-subtasks(id, ready: true)\` after each completion. Continue until none ready.
 
 When no more subtasks are available for a task, move the parent task to \`in_review\` as well.

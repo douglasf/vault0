@@ -1,0 +1,1 @@
+export const NO_MARKDOWN_FALLBACK = `Never maintain task lists, plans, or status tracking in markdown, comments, or conversation memory. All task state must live in vault0 via the \`vault0_task-*\` tools. If you need to create, update, or query tasks, use the tools — do not approximate them with formatted text output.`

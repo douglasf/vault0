@@ -463,7 +463,7 @@ export async function cmdConfigureOpencode(flags: Record<string, string>): Promi
       const defaultBlocks = getDefaultBlocksForAgent(agent)
       const preset = guessPresetForAgent(agent)
       agentMap.set(agent, {
-        blocks: defaultBlocks.length > 0 ? defaultBlocks : ["execution-core"],
+        blocks: defaultBlocks.length > 0 ? defaultBlocks : ["tool-reference", "task-execution"],
         tools: { ...DEFAULT_TOOL_PRESETS[preset] },
       })
     }

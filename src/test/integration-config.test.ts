@@ -12,14 +12,14 @@ describe("getAgentInstructions", () => {
       integrations: {
         opencode: {
           agents: {
-            wolf: { instructions: ["execution-core", "error-handling"] },
+            wolf: { instructions: ["tool-reference", "task-execution"] },
           },
         },
       },
     }
 
     const result = getAgentInstructions(config, "opencode", "wolf")
-    expect(result).toEqual(["execution-core", "error-handling"])
+    expect(result).toEqual(["tool-reference", "task-execution"])
   })
 
   test("returns empty array for unconfigured agent", () => {
@@ -27,7 +27,7 @@ describe("getAgentInstructions", () => {
       integrations: {
         opencode: {
           agents: {
-            wolf: { instructions: ["execution-core"] },
+            wolf: { instructions: ["tool-reference"] },
           },
         },
       },
@@ -88,30 +88,26 @@ describe("integration config composition", () => {
       integrations: {
         opencode: {
           agents: {
-            orchestrator: { instructions: ["orchestration-core", "delegation-patterns", "task-discovery"] },
-            wolf: { instructions: ["execution-core", "error-handling"] },
-            vincent: { instructions: ["investigation-methodology"] },
-            architect: { instructions: ["planning-methodology", "task-composition"] },
-            git: { instructions: ["git-workflow", "post-commit-approval"] },
+            orchestrator: { instructions: ["tool-reference", "task-delegation"] },
+            wolf: { instructions: ["tool-reference", "task-execution"] },
+            architect: { instructions: ["tool-reference", "task-planning"] },
+            git: { instructions: ["tool-reference", "task-completion"] },
           },
         },
       },
     }
 
     expect(getAgentInstructions(config, "opencode", "orchestrator")).toEqual([
-      "orchestration-core", "delegation-patterns", "task-discovery",
+      "tool-reference", "task-delegation",
     ])
     expect(getAgentInstructions(config, "opencode", "wolf")).toEqual([
-      "execution-core", "error-handling",
-    ])
-    expect(getAgentInstructions(config, "opencode", "vincent")).toEqual([
-      "investigation-methodology",
+      "tool-reference", "task-execution",
     ])
     expect(getAgentInstructions(config, "opencode", "architect")).toEqual([
-      "planning-methodology", "task-composition",
+      "tool-reference", "task-planning",
     ])
     expect(getAgentInstructions(config, "opencode", "git")).toEqual([
-      "git-workflow", "post-commit-approval",
+      "tool-reference", "task-completion",
     ])
   })
 
@@ -120,19 +116,19 @@ describe("integration config composition", () => {
       integrations: {
         opencode: {
           agents: {
-            wolf: { instructions: ["execution-core"] },
+            wolf: { instructions: ["tool-reference", "task-execution"] },
           },
         },
         cursor: {
           agents: {
-            default: { instructions: ["orchestration-core", "execution-core"] },
+            default: { instructions: ["tool-reference", "task-delegation", "task-execution"] },
           },
         },
       },
     }
 
-    expect(getAgentInstructions(config, "opencode", "wolf")).toEqual(["execution-core"])
-    expect(getAgentInstructions(config, "cursor", "default")).toEqual(["orchestration-core", "execution-core"])
+    expect(getAgentInstructions(config, "opencode", "wolf")).toEqual(["tool-reference", "task-execution"])
+    expect(getAgentInstructions(config, "cursor", "default")).toEqual(["tool-reference", "task-delegation", "task-execution"])
     expect(getAgentInstructions(config, "opencode", "default")).toEqual([])
   })
 })

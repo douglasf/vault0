@@ -1,0 +1,1 @@
+export const PROMOTE_PARENT_WHEN_SUBTASKS_EXHAUSTED = `After completing or reviewing the last subtask of a parent, check the parent's remaining subtasks via \`vault0_task-subtasks\`. If all subtasks are \`done\` or \`cancelled\`, move the parent to \`in_review\` via \`vault0_task-move\`. The parent should not linger in \`in_progress\` once all its children are finished.`

@@ -87,22 +87,17 @@ The MCP server runs as a **stdio subprocess** — OpenCode starts it automatical
 
 #### Composable Instruction Blocks
 
-Instructions are split into focused, composable blocks that map to agent roles:
+Instructions are split into focused, composable blocks organized by **concept/workflow** — not by agent role. Any agent config can compose them based on which vault0 tools the agent has access to:
 
-| Block | Purpose | Typical Agent |
-|-------|---------|---------------|
-| `orchestration-core` | Task flow coordination | Orchestrator |
-| `delegation-patterns` | Work delegation rules | Orchestrator |
-| `task-discovery` | Finding ready tasks | Orchestrator |
-| `execution-core` | Task implementation workflow | Executor |
-| `error-handling` | Error recovery patterns | Executor |
-| `investigation-methodology` | Deep code investigation | Investigator |
-| `planning-methodology` | Plan creation rules | Planner |
-| `task-composition` | Task decomposition | Planner |
-| `git-workflow` | Commit/push rules | Git Agent |
-| `post-commit-approval` | Auto-approve after commit | Git Agent |
+| Block | Purpose | Tool trigger |
+|-------|---------|-------------|
+| `tool-reference` | All 7 vault0 tools, valid values, hierarchy rules | Any vault0 tool |
+| `task-delegation` | Discovering ready tasks and delegating to other agents | `task-list`, `task-subtasks` |
+| `task-execution` | Claiming a task, implementing it, submitting for review | `task-view`, `task-move` |
+| `task-planning` | Creating structured plans as vault0 tasks | `task-add` |
+| `task-completion` | Marking tasks done after commits | `task-complete` |
 
-Each agent only receives the instruction blocks relevant to its role, keeping context windows focused.
+Blocks are role-agnostic — the same blocks work whether your agents are named "Orchestrator"/"Executor" or "Build"/"Plan" or a single "Executor" agent with every tool.
 
 #### Manual MCP Configuration
 

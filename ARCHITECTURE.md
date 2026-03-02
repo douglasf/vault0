@@ -86,21 +86,16 @@ This allows users to customize instruction content without modifying vault0's so
 
 ### Instruction Blocks (`src/lib/instructions/`)
 
-Ten composable instruction blocks, each a TypeScript file exporting a string constant:
+Five composable instruction blocks, each a TypeScript file exporting a string constant. Blocks are granular by **concept/workflow**, not by agent role — any agent config can compose them based on which tools the agent has:
 
 ```
 src/lib/instructions/
-  orchestration-core.ts      — Task flow coordination
-  delegation-patterns.ts     — Work delegation rules
-  task-discovery.ts          — Finding ready tasks
-  execution-core.ts          — Task implementation workflow
-  error-handling.ts          — Error recovery patterns
-  investigation-methodology.ts — Deep code investigation
-  planning-methodology.ts    — Plan creation rules
-  task-composition.ts        — Task decomposition
-  git-workflow.ts            — Commit/push rules
-  post-commit-approval.ts    — Auto-approve after commit
-  index.ts                   — Barrel exports
+  tool-reference.ts    — All 7 vault0 tools, valid values, hierarchy rules
+  task-delegation.ts   — Discovering ready tasks and delegating to other agents
+  task-execution.ts    — Claiming a task, implementing it, submitting for review
+  task-planning.ts     — Creating structured plans as vault0 tasks
+  task-completion.ts   — Marking tasks done after commits (vault0_task-complete)
+  index.ts             — Barrel exports
 ```
 
 ## Instruction Composition
@@ -114,8 +109,8 @@ The integration config (`~/.config/vault0/config.json`) maps each agent to its i
   "integrations": {
     "opencode": {
       "agents": {
-        "orchestrator": { "instructions": ["orchestration-core", "delegation-patterns", "task-discovery"] },
-        "wolf": { "instructions": ["execution-core", "error-handling"] }
+        "orchestrator": { "instructions": ["tool-reference", "task-delegation"] },
+        "wolf": { "instructions": ["tool-reference", "task-execution"] }
       }
     }
   }

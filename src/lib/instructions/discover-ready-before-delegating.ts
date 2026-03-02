@@ -1,0 +1,1 @@
+export const DISCOVER_READY_BEFORE_DELEGATING = `Before delegating work, query vault0 for actionable tasks using \`vault0_task-list\` with \`ready: true\` or \`vault0_task-subtasks\` with \`ready: true\`. Do not rely on memory of previously seen tasks — the board state changes between turns. Always discover the current set of ready tasks before choosing what to delegate.`

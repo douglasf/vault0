@@ -1,0 +1,1 @@
+export const POST_COMMIT_STOP = `After completing post-commit task housekeeping (marking correlated \`in_review\` tasks as \`done\`), stop immediately and return control to the orchestrator. Do not start new work, pick up the next task, or continue implementation. The commit boundary is a natural stopping point — let the orchestrator decide what happens next.`

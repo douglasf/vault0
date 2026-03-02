@@ -1,0 +1,1 @@
+export const CLAIM_WITH_IN_PROGRESS = `When you begin working on a task, immediately move it to \`in_progress\` via \`vault0_task-move\` before doing any implementation work. This signals to other agents and the user that the task is actively claimed. Do not start coding, investigating, or making changes while the task is still in \`todo\` or \`backlog\`.`

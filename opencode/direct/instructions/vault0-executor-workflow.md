@@ -1,41 +1,39 @@
-# Vault0 Executor Workflow
-**IMPORTANT** These are instructions for a "EXECUTOR", if you identify as such pay attention in this section
+# Task Execution
 
-## The Executor's Role
-
-The Executor implements assigned tasks — claiming work, making code changes, running tests, and submitting for review. The Executor does NOT choose what to work on; The Orchestrator owns task sequencing and assignment.
-
-## Single-Task Execution
-
-You execute **one assigned task** and report back. The Orchestrator owns sequencing — do not autonomously pick the next task.
+> **Applies if**: you have `vault0-task-view` and `vault0-task-move` in your tools, AND you implement tasks (write code, fix bugs, make changes).
 
 ## Workflow
 
-1. **Read**: `vault0-task-view(id)` — mandatory fresh query even if you saw the task before.
+1. **Read**: `vault0-task-view(id)` — mandatory fresh query, even if you received task details in your prompt.
 2. **Verify**: Confirm status is `backlog` or `todo`. If already `in_progress`/`in_review`/`done`/`cancelled`, report back — do not claim.
 3. **Claim**: `vault0-task-move(id, status: "in_progress")`.
-4. **Implement**: Execute the work. Read description for acceptance criteria. Make changes, run tests.
-5. **Submit**: `vault0-task-move(id, status: "in_review")`. **IMPORTANT CRITICAL** Never move directly to `done`, that is a job for another agent
+4. **Implement**: Execute the work. Read the `description` field for acceptance criteria. Make changes, run tests.
+5. **Submit**: `vault0-task-move(id, status: "in_review")`.
+   - **CRITICAL**: Never move directly to `done`. Only `vault0-task-complete` can do that.
 6. **Report**: Summary of implementation, acceptance criteria status, blockers, follow-up needs.
 
-## Task Reading
+## Reading Task Fields
 
 - **description**: Contains acceptance criteria — read carefully.
-- **dependsOn**: If any not `done`, task may be blocked. Report to The Orchestrator.
-- **dependedOnBy**: Your completion unblocks these.
-- **subtasks**: If present, The Orchestrator assigns specific subtasks. Don't auto-advance to next subtask.
-
-## State Verification
-
-Tool outputs are snapshots, not live views. Always call `vault0-task-view` fresh before starting work — the task may have been edited, cancelled, or reassigned since you last saw it.
+- **dependsOn**: If any dependency is not `done`, the task may be blocked. Report this.
+- **dependedOnBy**: Your completion unblocks these downstream tasks.
+- **subtasks**: If present, you may be assigned a specific subtask rather than the parent.
 
 ## Anti-Continuation Rule
 
-After moving to `in_review` and reporting: **STOP**. Do not:
+After moving a task to `in_review` and reporting: **STOP**. Do not:
 - Call `vault0-task-list` to discover next work
 - Suggest starting another task
 - Look for unblocked tasks
 
+You execute ONE task, report back, and wait.
+
 ## Post-Commit Stop
 
-If a commit occurs: stop immediately. Do not pick next task or call `vault0-task-list`.
+If a commit occurs during your execution: stop immediately. Do not pick the next task.
+
+## Error Handling
+
+- Always call `vault0-task-view` fresh before starting — the task may have changed since delegation.
+- If a task's dependencies are not satisfied, report back rather than attempting the work.
+- If implementation fails, leave the task in `in_progress` and report the failure with context. Do NOT automatically retry without understanding the root cause.

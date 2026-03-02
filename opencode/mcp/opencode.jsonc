@@ -46,60 +46,64 @@
     },
 
     // Role: The Executor (task implementation, status updates)
-    // 5 tools — no add, no complete (executes tasks, doesn't create or finish them)
+    // 3 tools — view, move, update only
     "wolf": {
       "tools": {
         "vault0-task-add": false,
-        "vault0-task-list": true,
+        "vault0-task-list": false,
         "vault0-task-view": true,
         "vault0-task-update": true,
         "vault0-task-move": true,
-        "vault0-task-subtasks": true,
+        "vault0-task-subtasks": false,
         "vault0-task-complete": false
       },
       "permission": {
-        "vault0-task-list": "allow",
         "vault0-task-view": "allow",
         "vault0-task-update": "allow",
-        "vault0-task-move": "allow",
-        "vault0-task-subtasks": "allow"
+        "vault0-task-move": "allow"
       }
     },
 
+    // Role: The Investigator (read-only, no vault0 tools needed)
+    // Vincent has no vault0 tools
+    "vincent": {},
+
     // Role: The Planner (plan creation, subtask/dependency setup)
-    // 5 tools — no move, no complete (creates plans, doesn't change status)
+    // 3 tools — view, add, update only (no move, no list, no subtasks)
     "architect": {
       "tools": {
         "vault0-task-add": true,
-        "vault0-task-list": true,
+        "vault0-task-list": false,
         "vault0-task-view": true,
         "vault0-task-update": true,
         "vault0-task-move": false,
         "vault0-task-complete": false,
-        "vault0-task-subtasks": true
+        "vault0-task-subtasks": false
       },
-        "permission": {
-          "bash": {
-            "*": "deny",  // Deny ALL bash — architect doesn't need bash in vault0 environment
-            "vault0 --version": "allow" // Except this :O
-          },
-          "write": {
-            "*": "deny",
-            ".opencode/plans/*": "deny",
-            ".opencode/plans/**/*": "deny"
-          },
-          "edit": {
-            "*": "deny",
-            ".opencode/plans/*": "deny",
-            ".opencode/plans/**/*": "deny"
-          },
-          "vault0-task-add": "allow",
-          "vault0-task-list": "allow",
-          "vault0-task-view": "allow",
-          "vault0-task-update": "allow",
-          "vault0-task-subtasks": "allow"
-        }
+      "permission": {
+        "bash": {
+          "*": "deny",  // Deny ALL bash — architect doesn't need bash in vault0 environment
+          "vault0 --version": "allow" // Except this :O
+        },
+        "write": {
+          "*": "deny",
+          ".opencode/plans/*": "deny",
+          ".opencode/plans/**/*": "deny"
+        },
+        "edit": {
+          "*": "deny",
+          ".opencode/plans/*": "deny",
+          ".opencode/plans/**/*": "deny"
+        },
+        "vault0-task-add": "allow",
+        "vault0-task-view": "allow",
+        "vault0-task-update": "allow"
+      }
     },
+
+    // Role: The Coordinator (read-only, no vault0 tools needed)
+    // Jules has no vault0 tools
+    "jules": {},
 
     // Role: The Git Agent (post-commit task approval)
     // 3 tools — list + view + complete for post-commit approvals

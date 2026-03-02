@@ -163,8 +163,8 @@ describe("MCP config generation", () => {
 describe("integration config generation", () => {
   test("generates correct structure from agent map", () => {
     const agentMap = new Map<string, string[]>([
-      ["orchestrator", ["orchestration-core", "delegation-patterns"]],
-      ["wolf", ["execution-core", "error-handling"]],
+      ["orchestrator", ["tool-reference", "task-delegation"]],
+      ["wolf", ["tool-reference", "task-execution"]],
     ])
 
     // Mirrors generateIntegrationConfig()
@@ -175,10 +175,10 @@ describe("integration config generation", () => {
     const config = { opencode: { agents } }
 
     expect(config.opencode.agents.orchestrator.instructions).toEqual([
-      "orchestration-core", "delegation-patterns",
+      "tool-reference", "task-delegation",
     ])
     expect(config.opencode.agents.wolf.instructions).toEqual([
-      "execution-core", "error-handling",
+      "tool-reference", "task-execution",
     ])
   })
 })

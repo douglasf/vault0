@@ -1,0 +1,1 @@
+export const PARENT_BEFORE_SUBTASKS = `When creating a task hierarchy, always create the parent task first via \`vault0_task-add\`, then create subtasks using the parent's returned ID in the \`parent\` parameter. The parent must exist before any child can reference it. Never batch-create parents and subtasks in parallel — the parent call must complete first.`

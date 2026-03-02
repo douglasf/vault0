@@ -1,0 +1,1 @@
+export const SOLUTION_NOTES_ON_UPDATE = `Use the \`solution\` field on \`vault0_task-update\`, \`vault0_task-move\`, and \`vault0_task-complete\` to record implementation context: what was done, which files were changed, what approach was taken. Solution notes persist on the task and help other agents (and the user) understand the outcome without re-investigating.`
