@@ -41,108 +41,54 @@ async function fetchInstructionContent(
 }
 
 export const Vault0Plugin = async ({ client }: any) => {
+  const injectedSessions = new Set<string>()
+  const sessionAgentCache = new Map<string, string>()
+  const instructionCache = new Map<string, string>()
+
   return {
-    event: async ({ event }: any) => {
-      if (event.type !== "session.created") return
-      
-      // Log the ENTIRE event structure to see what properties exist
-      await client.app.log({
-        body: {
-          service: "vault0-plugin",
-          level: "info",
-          message: `Full event.type=${event.type} keys=${Object.keys(event).join(", ")}`,
-        },
-      })
+    "chat.message": async (input: any, _output: any) => {
+      if (input.sessionID && input.agent) {
+        sessionAgentCache.set(input.sessionID, input.agent)
+      }
+    },
 
-      // Dump the full event.properties object to see its structure
-      if (event.properties) {
-        const dump = JSON.stringify(event.properties, null, 2)
-        // Split into chunks if too large for a single log line
-        const lines = dump.split("\n")
-        const chunkSize = 20
-        for (let i = 0; i < lines.length; i += chunkSize) {
-          const chunk = lines.slice(i, i + chunkSize).join("\n")
-          await client.app.log({
-            body: {
-              service: "vault0-plugin",
-              level: "info",
-              message: `event.properties [${i}-${Math.min(i + chunkSize, lines.length)}]:\n${chunk}`,
-            },
-          })
+    "experimental.chat.system.transform": async (input: any, output: any) => {
+      const sessionID = input.sessionID
+      if (!sessionID) return
+
+      // Already injected for this session? Skip.
+      if (injectedSessions.has(sessionID)) return
+
+      const agentName = sessionAgentCache.get(sessionID)
+      if (!agentName) return
+
+      // Fetch and inject (reuse instruction cache across agents)
+      let combined = instructionCache.get(agentName)
+      if (combined === undefined) {
+        const blockNames = await fetchAgentInstructions(agentName)
+        if (blockNames.length === 0) {
+          instructionCache.set(agentName, "")
+          injectedSessions.add(sessionID)
+          return
         }
-      } else {
-        await client.app.log({
-          body: {
-            service: "vault0-plugin",
-            level: "warn",
-            message: "event.properties is undefined/null",
-          },
-        })
+
+        const contents = await Promise.all(
+          blockNames.map((name) => fetchInstructionContent(client, name)),
+        )
+        combined = contents.filter(Boolean).join("\n\n")
+        instructionCache.set(agentName, combined)
       }
 
-      const agentName = event.agent?.name || event.session?.agent?.name
+      injectedSessions.add(sessionID)
 
-      if (!agentName) {
-        await client.app.log({
-          body: {
-            service: "vault0-plugin",
-            level: "warn",
-            message: "Could not find agent name in event",
-          },
-        })
-        return
-      }
-
-      await client.app.log({
-        body: {
-          service: "vault0-plugin",
-          level: "info",
-          message: `Found agent: ${agentName}`,
-        },
-      })
-
-      const blockNames = await fetchAgentInstructions(agentName)
-      
-      if (blockNames.length === 0) {
-        await client.app.log({
-          body: {
-            service: "vault0-plugin",
-            level: "info",
-            message: `No instruction blocks configured for ${agentName}`,
-          },
-        })
-        return
-      }
-
-      await client.app.log({
-        body: {
-          service: "vault0-plugin",
-          level: "info",
-          message: `Fetching ${blockNames.length} blocks: ${blockNames.join(", ")}`,
-        },
-      })
-
-      const contents = await Promise.all(
-        blockNames.map((name) => fetchInstructionContent(client, name)),
-      )
-
-      const combined = contents.filter(Boolean).join("\n\n")
       if (combined) {
-        await client.app.log({
-          body: {
-            service: "vault0-plugin",
-            level: "info",
-            message: `Injecting ${combined.length} chars into systemPrompt`,
-          },
-        })
-        // Inject into system prompt
-        if (event.systemPrompt) {
-          event.systemPrompt = [event.systemPrompt, combined]
-            .filter(Boolean)
-            .join("\n\n")
-        } else {
-          event.systemPrompt = combined
-        }
+        output.system.push(combined)
+      }
+    },
+
+    "experimental.session.compacting": async (input: any, _output: any) => {
+      if (input.sessionID) {
+        injectedSessions.delete(input.sessionID)
       }
     },
   }
