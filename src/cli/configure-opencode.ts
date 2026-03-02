@@ -6,6 +6,7 @@ import { createInterface } from "node:readline"
 import { saveGlobalConfig } from "../lib/config.js"
 import type { IntegrationsConfig } from "../lib/config.js"
 import { BLOCK_DESCRIPTORS, getDefaultBlocksForAgent, guessRoleForAgent } from "../lib/instructions/block-descriptions.js"
+import { OPENCODE_PLUGIN_TEMPLATE } from "./plugin-template.js"
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -39,6 +40,21 @@ const ALL_VAULT0_TOOLS = [
   "vault0-task-subtasks",
   "vault0-task-complete",
 ]
+
+const PLUGINS_DIR = join(OPENCODE_DIR, "plugins")
+const PLUGIN_PATH = join(PLUGINS_DIR, "vault0.ts")
+
+/** Base MCP config structure (without agent section — that gets merged in) */
+const BASE_MCP_CONFIG: Record<string, unknown> = {
+  "$schema": "https://opencode.ai/config.json",
+  mcp: {
+    vault0: {
+      type: "local",
+      command: ["vault0", "mcp-serve"],
+      enabled: true,
+    },
+  },
+}
 
 /** Default tool permissions per role archetype */
 const DEFAULT_TOOL_PRESETS: Record<string, Record<string, boolean>> = {
@@ -401,6 +417,9 @@ function generateAgentSection(agentMap: Map<string, AgentConfig>): Record<string
 /** Merge agent config into the base opencode.jsonc that was copied by make */
 function mergeIntoOpenCodeConfig(basePath: string, agentSection: Record<string, unknown>): string {
   const existing = readJsonFile(basePath) ?? {}
+  // Ensure base MCP structure is always present
+  if (!existing["$schema"]) existing["$schema"] = BASE_MCP_CONFIG.$schema
+  if (!existing.mcp) existing.mcp = BASE_MCP_CONFIG.mcp
   existing.agent = agentSection
   return `${JSON.stringify(existing, null, 2)}\n`
 }
@@ -464,22 +483,13 @@ export async function cmdConfigureOpencode(flags: Record<string, string>): Promi
     return 0
   }
 
-  // 3. Run make target to copy base config files
-  const makeTarget = mode === "mcp" ? "opencode-mcp" : "opencode-direct"
+  // 3. Install base config files (plugin + directories)
   if (!dryRun) {
-    try {
-      console.log(`  Running 'make ${makeTarget}' to install base config...`)
-      execSync(`make ${makeTarget}`, {
-        encoding: "utf-8",
-        timeout: 15000,
-        stdio: ["pipe", "pipe", "pipe"],
-      })
-      console.log("  Base config files installed.\n")
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      console.log(`  Warning: 'make ${makeTarget}' failed: ${message}`)
-      console.log("  Continuing with config generation...\n")
-    }
+    console.log("  Installing base config files...")
+    mkdirSync(PLUGINS_DIR, { recursive: true })
+    writeFileSync(PLUGIN_PATH, OPENCODE_PLUGIN_TEMPLATE, "utf-8")
+    console.log(`  Wrote plugin: ${PLUGIN_PATH}`)
+    console.log("  Base config files installed.\n")
   }
 
   // 4. Generate configs
