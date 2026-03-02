@@ -98,10 +98,22 @@ clean:
 	rm -f vault0 vault0.exe
 	@echo "✓ Clean"
 
-opencode:
-	@echo "📦 Installing opencode configuration..."
+opencode-mcp:
+	@echo "📦 Installing opencode mcp configuration..."
 	@mkdir -p $(HOME)/.config/vault0/opencode
-	@cp -R opencode/* $(HOME)/.config/vault0/opencode/
+	@cp -R opencode/mcp/* $(HOME)/.config/vault0/opencode/
+	@echo ""
+	@echo "✓ Opencode config installed to ~/.config/vault0/opencode"
+	@echo ""
+	@echo "Add this to your ~/.zshrc or ~/.bashrc:"
+	@echo ""
+	@echo "  export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode"
+	@echo ""
+
+opencode-direct:
+	@echo "📦 Installing opencode direct configuration..."
+	@mkdir -p $(HOME)/.config/vault0/opencode
+	@cp -R opencode/direct/* $(HOME)/.config/vault0/opencode/
 	@echo ""
 	@echo "✓ Opencode config installed to ~/.config/vault0/opencode"
 	@echo ""

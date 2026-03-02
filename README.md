@@ -51,21 +51,76 @@ Override the install prefix with `make install PREFIX=/usr/local/bin`.
 
 ### OpenCode Integration (Optional)
 
-Vault0 ships with an [opencode](https://opencode.ai/) configuration in the `opencode/` directory. This is **entirely optional** — you only need this if you use opencode as your AI coding assistant.
+Vault0 integrates with [OpenCode](https://opencode.ai/) via the **Model Context Protocol (MCP)**. This gives AI agents direct access to vault0's task management tools and composable instruction blocks — no file copying or environment variable overrides required.
 
-To install the opencode config:
-
-```bash
-make opencode
-```
-
-This copies the `opencode/` directory to `~/.config/vault0/opencode`. Then add this environment variable to your `~/.zshrc` or `~/.bashrc`:
+#### Quick Setup
 
 ```bash
-export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode
+vault0 configure opencode            # Interactive wizard
+vault0 configure opencode --defaults # Accept all defaults (no prompts)
+vault0 configure opencode --dry-run  # Preview changes without writing
 ```
 
-> **Note**: Sorry — `OPENCODE_CONFIG_DIR` only accepts a single path, so setting it here will override any existing opencode configuration directory you may already be using.
+This command:
+1. Detects your OpenCode agents (from `~/.config/opencode/agent/`)
+2. Asks which agents should get vault0 integration (or uses smart defaults)
+3. Configures the MCP server in OpenCode's config
+4. Generates a plugin that injects per-agent instruction blocks
+5. Saves integration config to `~/.config/vault0/config.json`
+
+#### What Gets Configured
+
+| File | Purpose |
+|------|---------|
+| `~/.config/opencode/config.json` | Adds `vault0` MCP server entry |
+| `~/.config/opencode/plugins/vault0.ts` | Plugin that fetches per-agent instructions |
+| `~/.config/vault0/config.json` | Stores which instruction blocks each agent receives |
+
+#### How It Works
+
+The MCP server runs as a **stdio subprocess** — OpenCode starts it automatically and manages its lifecycle. The server:
+
+- Opens the repo's `.vault0/vault0.db` directly (no CLI subprocess bridge)
+- Exposes 7 task management tools (`vault0-task-list`, `vault0-task-add`, etc.)
+- Serves composable instruction blocks as MCP resources (`vault0://instructions/<name>`)
+- Supports filesystem overrides via `~/.config/vault0/instructions/<name>.md`
+
+#### Composable Instruction Blocks
+
+Instructions are split into focused, composable blocks that map to agent roles:
+
+| Block | Purpose | Typical Agent |
+|-------|---------|---------------|
+| `orchestration-core` | Task flow coordination | Orchestrator |
+| `delegation-patterns` | Work delegation rules | Orchestrator |
+| `task-discovery` | Finding ready tasks | Orchestrator |
+| `execution-core` | Task implementation workflow | Executor |
+| `error-handling` | Error recovery patterns | Executor |
+| `investigation-methodology` | Deep code investigation | Investigator |
+| `planning-methodology` | Plan creation rules | Planner |
+| `task-composition` | Task decomposition | Planner |
+| `git-workflow` | Commit/push rules | Git Agent |
+| `post-commit-approval` | Auto-approve after commit | Git Agent |
+
+Each agent only receives the instruction blocks relevant to its role, keeping context windows focused.
+
+#### Manual MCP Configuration
+
+If you prefer manual setup, add this to your OpenCode config:
+
+```json
+{
+  "mcpServers": {
+    "vault0": {
+      "type": "stdio",
+      "command": "vault0",
+      "args": ["mcp-serve"]
+    }
+  }
+}
+```
+
+> **Migrating from the old `make opencode` setup?** See [MIGRATION.md](MIGRATION.md) for step-by-step instructions.
 
 ## Usage
 
@@ -183,7 +238,7 @@ make typecheck            # Run TypeScript type checker
 make build                # Build standalone binary (no install)
 make install              # Build, sign, and install to ~/.local/bin
 make uninstall            # Remove from ~/.local/bin
-make opencode             # Install opencode config (optional)
+vault0 configure opencode # Configure OpenCode integration (optional)
 make clean                # Remove build artifacts
 
 # Database management (via Drizzle Kit)
