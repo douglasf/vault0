@@ -6,7 +6,6 @@ import { createInterface } from "node:readline"
 import { saveGlobalConfig } from "../lib/config.js"
 import type { IntegrationsConfig } from "../lib/config.js"
 import { BLOCK_DESCRIPTORS, getDefaultBlocksForAgent, guessRoleForAgent } from "../lib/instructions/block-descriptions.js"
-import { OPENCODE_PLUGIN_TEMPLATE } from "./plugin-template.js"
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -487,7 +486,6 @@ export async function cmdConfigureOpencode(flags: Record<string, string>): Promi
   if (!dryRun) {
     console.log("  Installing base config files...")
     mkdirSync(PLUGINS_DIR, { recursive: true })
-    writeFileSync(PLUGIN_PATH, OPENCODE_PLUGIN_TEMPLATE, "utf-8")
     console.log(`  Wrote plugin: ${PLUGIN_PATH}`)
     console.log("  Base config files installed.\n")
   }
