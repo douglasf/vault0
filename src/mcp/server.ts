@@ -111,7 +111,7 @@ export async function startMcpServer(repoRoot: string): Promise<void> {
   // Create MCP server and register tools/resources
   const server = createMcpServer()
   registerInstructionResources(server)
-  registerTools(server, db)
+  registerTools(server, db, sqlite)
 
   // Connect via stdio transport
   const transport = new StdioServerTransport()
