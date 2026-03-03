@@ -136,7 +136,6 @@ vault0 task move abc12345 --status done
 vault0 task delete abc12345
 vault0 task edit abc12345 --dep-add def67890
 vault0 task edit abc12345 --dep-list
-vault0 task archive-done
 vault0 board list
 vault0 task                               # Show available task commands
 vault0 task edit --help                   # Show edit command usage
@@ -301,5 +300,5 @@ MIT
 
 ---
 
-**Version**: 0.1.0 (Alpha) — Core functionality complete.
-Press `?` in the app for help, or check the source code structure above.
+**Version**: 0.2.0 (Beta) — Core functionality complete, releases support, OpenCode MCP integration.
+Press `?` in the app for help.
