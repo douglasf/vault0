@@ -550,7 +550,6 @@ describe("formatTaskDetail", () => {
     test("defaults source to 'manual' when falsy", () => {
       const detail = mockTaskDetail()
       // Simulate a null source at runtime (e.g., from raw DB data)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(detail as Record<string, unknown>).source = null
       expect(formatTaskDetail(detail)).toContain("manual")
     })

@@ -9,8 +9,6 @@ export interface FormInputProps {
   focused?: boolean
   onMouseDown?: () => void
   onSubmit?: () => void
-  // Allow spreading other input props
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 

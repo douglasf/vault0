@@ -2,7 +2,6 @@ import type { KeyEvent } from "@opentui/core"
 
 // ── Types ────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-invalid-void-type
 export type KeyHandler = (event: KeyEvent) => void | boolean
 export type KeyMatch = string
 

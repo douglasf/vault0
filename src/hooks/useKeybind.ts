@@ -58,6 +58,5 @@ export function useKeybind(
     })
 
     return cleanup
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, scopeName, when, description])
 }

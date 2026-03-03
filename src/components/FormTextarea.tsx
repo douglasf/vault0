@@ -8,8 +8,6 @@ export interface FormTextareaProps {
   focused?: boolean
   height?: number
   onMouseDown?: () => void
-  // Allow spreading other textarea props
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any
 }
 
