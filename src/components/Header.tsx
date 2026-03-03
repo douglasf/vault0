@@ -1,4 +1,3 @@
-import React from "react"
 import { TextAttributes } from "@opentui/core"
 import type { Filters, SortField } from "../lib/types.js"
 import { useDb } from "../lib/db-context.js"

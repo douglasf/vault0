@@ -1,4 +1,4 @@
-import React, { memo } from "react"
+import { memo } from "react"
 import { TextAttributes } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import { theme } from "../lib/theme.js"
