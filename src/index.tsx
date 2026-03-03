@@ -14,6 +14,7 @@ import { errorMessage } from "./lib/format.js"
 import { renderExitScreen } from "./lib/exit-screen.js"
 import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
+import { execSync } from "node:child_process"
 
 // Version is injected at compile time via --define in Makefile.
 // During dev (bun run), the placeholder remains and we fall back to reading package.json.
@@ -156,11 +157,29 @@ function printVersion() {
   console.log(`Vault0 v${VERSION}`)
 }
 
+// ── Git Repo Root Detection ─────────────────────────────────────────────
+
+/**
+ * Finds the Git repository root by running `git rev-parse --show-toplevel`.
+ * Falls back to the current working directory if not inside a git repo.
+ */
+function findRepoRoot(): string {
+  try {
+    return execSync("git rev-parse --show-toplevel", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim()
+  } catch {
+    // Not in a git repo — fall back to cwd
+    return process.cwd()
+  }
+}
+
 // ── Main Entry Point ────────────────────────────────────────────────────
 
 async function main() {
   const args = process.argv.slice(2)
-  let repoRoot = process.cwd()
+  let repoRoot = findRepoRoot()
   let showHelp = false
   let showVersion = false
 

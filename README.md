@@ -164,7 +164,7 @@ All data is stored locally in `.vault0/vault0.db` (per repository):
   .gitignore         # Auto-created — prevents .vault0/* from being committed
 ```
 
-The `.vault0/` directory is automatically git-ignored on creation and is safe to leave in your repository root.
+The `.vault0/` directory is automatically git-ignored on creation and is safe to leave in your repository root. Vault0 automatically detects the Git repository root, so you can run it from any subdirectory and it will always use the same database. If you're not inside a Git repository, it falls back to the current working directory.
 
 ## Architecture
 
