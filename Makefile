@@ -1,4 +1,4 @@
-.PHONY: build install uninstall clean dev start help typecheck test opencode
+.PHONY: build install uninstall clean dev start help typecheck test opencode-mcp opencode-direct
 
 # Ensure bun is discoverable (installed via ~/.bun)
 BUN := $(or $(shell which bun 2>/dev/null),$(HOME)/.bun/bin/bun)
@@ -19,7 +19,8 @@ help:
 	@echo "  make start      - Run once (bun run)"
 	@echo "  make typecheck  - Run TypeScript type checker"
 	@echo "  make clean      - Remove build artifacts"
-	@echo "  make opencode   - Install opencode config to ~/.config/vault0"
+	@echo "  make opencode-mcp    - Install opencode MCP config to ~/.config/vault0"
+	@echo "  make opencode-direct - Install opencode direct config to ~/.config/vault0"
 	@echo "  make help       - Show this message"
 	@echo ""
 	@echo "Installation:"
