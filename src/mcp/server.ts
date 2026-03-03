@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { initDatabase } from "../db/connection.js"
 import { runEmbeddedMigrations } from "../db/migrations.js"
 import { seedDefaultBoard } from "../db/seed.js"
@@ -52,16 +54,30 @@ function setupLogging(): void {
   console.debug = stderrWrite
 }
 
+// ── Version ─────────────────────────────────────────────────────────────
+
+declare const __VAULT0_VERSION__: string | undefined
+const MCP_VERSION: string = (() => {
+  try {
+    if (typeof __VAULT0_VERSION__ !== "undefined") return __VAULT0_VERSION__
+  } catch { /* not defined — dev mode */ }
+  try {
+    const path = join(import.meta.dir, "..", "..", "package.json")
+    return JSON.parse(readFileSync(path, "utf-8")).version
+  } catch {
+    return "dev"
+  }
+})()
+
 // ── Server Factory ──────────────────────────────────────────────────────
 
 /**
  * Create and configure the vault0 MCP server instance.
- * Placeholder — tools and resources will be registered in subsequent steps.
  */
 export function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "vault0",
-    version: "0.2.0",
+    version: MCP_VERSION,
   })
 
   return server
