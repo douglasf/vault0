@@ -82,7 +82,7 @@ function resolveTaskId(db: Vault0Database, idFragment: string): string {
   const matches = db
     .select({ id: tasks.id })
     .from(tasks)
-    .where(sql`${tasks.id} LIKE ${`%${idFragment}`}`)
+    .where(sql`${tasks.id} LIKE ${`%${idFragment.replace(/[%_]/g, "\\$&")}`} ESCAPE '\\'`)
     .all()
 
   if (matches.length === 0) {
