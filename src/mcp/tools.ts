@@ -208,7 +208,7 @@ export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Da
   // ── 5. task-move-orchestrator (Marsellus) ──────────────────────────
   server.tool(
     "task-move-orchestrator",
-    "Move task through workflow: backlog → todo → in_progress → in_review. When all subtasks are done/cancelled, promote the parent from todo to in_review. Use solution field to record context about why you moved it. Always call task-view first to verify current status. Valid targets: backlog, todo, in_progress, in_review, cancelled. Cannot move to done. On error, stop and report.",
+    "Move task through workflow: backlog → todo → in_progress → in_review. When all subtasks are in in_review, promote the parent from todo to in_review. Use solution field to record context about why you moved it. Always call task-view first to verify current status. Valid targets: backlog, todo, in_progress, in_review. Cannot move to done. On error, stop and report.",
     moveSchema,
     (args) => { const r = handleMove(db, args.id, args); checkpoint(); return r },
   )
@@ -240,7 +240,7 @@ export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Da
   // ── 9. task-complete-git (Git) ─────────────────────────────────────
   server.tool(
     "task-complete-git",
-    "Mark task as done. After a successful commit, complete correlated in_review tasks with a solution referencing the commit. After completing, STOP immediately — do not pick next tasks. Always call task-view first. On error, stop and report.",
+    "MANDATORY post-commit workflow — run this AFTER EVERY COMMIT. First, call task-list(status: 'in_review') to discover all in_review tasks. For each, call task-view to read its details and correlate it to the commits you just made by scope, keywords, or intent. For every correlated task, call this tool with a solution referencing the commit hash and what was done. Before returning, verify you completed ALL correlated in_review tasks. After completing, STOP immediately — do not pick next tasks or continue other work. On error, stop and report.",
     completeSchema,
     (args) => { const r = handleComplete(db, args); checkpoint(); return r },
   )
