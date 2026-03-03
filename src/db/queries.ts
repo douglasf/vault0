@@ -612,32 +612,6 @@ export function getReleaseTasks(db: Vault0Database, releaseId: string): Task[] {
 }
 
 /**
- * Validate that all selected top-level tasks and their subtasks are done.
- * Returns an array of error messages (empty if valid).
- */
-export function validateReleaseTasks(db: Vault0Database, taskIds: string[]): string[] {
-  const errors: string[] = []
-  for (const taskId of taskIds) {
-    const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
-    if (!task) continue
-    if (task.status !== "done") {
-      errors.push(`Task "${task.title}" has status ${task.status} — all work must be complete`)
-    }
-    const subtasks = db
-      .select()
-      .from(tasks)
-      .where(and(eq(tasks.parentId, taskId), isNull(tasks.archivedAt)))
-      .all()
-    for (const sub of subtasks) {
-      if (sub.status !== "done") {
-        errors.push(`Task "${task.title}" has subtask "${sub.title}" with status ${sub.status} — all work must be complete`)
-      }
-    }
-  }
-  return errors
-}
-
-/**
  * Create a release and assign selected top-level tasks (and their subtasks) to it.
  * Returns the created release.
  */

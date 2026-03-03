@@ -63,8 +63,3 @@ export const SORT_FIELD_LABELS: Record<SortField, string> = {
   priority: "Priority",
 }
 
-// Column configuration
-export const COLUMNS = VISIBLE_STATUSES.map((status) => ({
-  status,
-  label: STATUS_LABELS[status],
-}))

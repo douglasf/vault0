@@ -23,7 +23,7 @@ interface ErrorBoundaryState {
  * and displays a fallback UI instead of crashing the TUI.
  *
  * Errors are logged to stderr so they don't interfere with the terminal UI.
- * Users can press "r" to attempt recovery by resetting the error state.
+ * Users must restart vault0 to recover from render errors.
  */
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -43,11 +43,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       `Component stack: ${errorInfo.componentStack}\n`,
     )
     this.props.onError?.(error, errorInfo)
-  }
-
-  /** Reset the error state, allowing the child tree to re-render. */
-  private handleReset = (): void => {
-    this.setState({ hasError: false, error: undefined })
   }
 
   render(): ReactNode {
