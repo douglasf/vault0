@@ -1,1 +1,0 @@
-export const SUBMIT_WITH_IN_REVIEW = `When you finish implementing a task, move it to \`in_review\` via \`vault0_task-move\` — do not move it directly to \`done\`. The \`in_review\` status signals that work is complete and awaiting verification (commit, test pass, or user approval). Add a \`solution\` note summarizing what was done.`

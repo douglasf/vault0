@@ -6,7 +6,6 @@ import { initDatabase } from "../db/connection.js"
 import { runEmbeddedMigrations } from "../db/migrations.js"
 import { seedDefaultBoard } from "../db/seed.js"
 import { registerTools } from "./tools.js"
-import { registerInstructionResources } from "./resources.js"
 import type { Database } from "bun:sqlite"
 import type { Vault0Database } from "../db/connection.js"
 
@@ -124,9 +123,8 @@ export async function startMcpServer(repoRoot: string): Promise<void> {
   // Start periodic WAL checkpoints
   const stopCheckpoints = startWalCheckpoints(sqlite)
 
-  // Create MCP server and register tools/resources
+  // Create MCP server and register tools
   const server = createMcpServer()
-  registerInstructionResources(server)
   registerTools(server, db, sqlite)
 
   // Connect via stdio transport

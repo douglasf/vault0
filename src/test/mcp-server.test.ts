@@ -38,19 +38,6 @@ describe("tool registration", () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// Resource registration
-// ═══════════════════════════════════════════════════════════════════
-
-describe("resource registration", () => {
-  test("registerInstructionResources does not throw", async () => {
-    const { registerInstructionResources } = await import("../mcp/resources.js")
-    const server = createMcpServer()
-
-    expect(() => registerInstructionResources(server)).not.toThrow()
-  })
-})
-
-// ═══════════════════════════════════════════════════════════════════
 // WAL checkpoint logic
 // ═══════════════════════════════════════════════════════════════════
 

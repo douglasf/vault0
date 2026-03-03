@@ -1,1 +1,0 @@
-export const SOURCE_FLAG_PROVENANCE = `When creating tasks via \`vault0_task-add\`, set the \`sourceFlag\` parameter to indicate origin: \`"user"\` for tasks the user explicitly requested, \`"agent"\` for tasks you inferred or decomposed yourself. This provenance tracking helps distinguish user intent from agent-generated work during review and prioritization.`

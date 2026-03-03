@@ -1,1 +1,0 @@
-export const DEPENDENCIES_FOR_SEQUENTIAL_ONLY = `Only add dependency edges (via \`depAdd\` on \`vault0_task-update\`) when there is a true sequential constraint — task B literally cannot start until task A is complete. Do not add dependencies for loose ordering preferences or thematic grouping. Unnecessary dependencies reduce parallelism and block the ready-task pipeline.`

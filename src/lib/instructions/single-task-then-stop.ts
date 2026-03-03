@@ -1,1 +1,0 @@
-export const SINGLE_TASK_THEN_STOP = `Execute exactly one task per turn, then stop and return control to the orchestrator. Do not pick up additional tasks, continue to the next subtask, or start new work after completing your assigned task. The orchestrator decides what happens next — your job is to finish the single delegated task and report back.`

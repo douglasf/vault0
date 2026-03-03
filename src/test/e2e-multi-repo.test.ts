@@ -10,7 +10,7 @@ import { runEmbeddedMigrations } from "../db/migrations.js"
 import { seedDefaultBoard } from "../db/seed.js"
 import { boards } from "../db/schema.js"
 import { cmdAdd, cmdList } from "../cli/commands.js"
-import { loadConfig, getAgentInstructions } from "../lib/config.js"
+import { loadConfig } from "../lib/config.js"
 import type { Vault0Config } from "../lib/config.js"
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -168,16 +168,10 @@ describe("config discovery per repo", () => {
   })
 
   test("project config in repo A does not affect repo B", () => {
-    // Create project config in repo A
+    // Create project config in repo A with theme
     mkdirSync(join(repoA, ".vault0"), { recursive: true })
     const configA: Vault0Config = {
-      integrations: {
-        opencode: {
-          agents: {
-            wolf: { instructions: ["repo-a-instruction"] },
-          },
-        },
-      },
+      theme: { name: "selenized", appearance: "dark" },
     }
     writeFileSync(join(repoA, ".vault0", "config.json"), JSON.stringify(configA))
 
@@ -185,8 +179,9 @@ describe("config discovery per repo", () => {
     const loadedA = loadConfig(repoA)
     const loadedB = loadConfig(repoB)
 
-    expect(getAgentInstructions(loadedA, "opencode", "wolf")).toEqual(["repo-a-instruction"])
-    expect(getAgentInstructions(loadedB, "opencode", "wolf")).toEqual([])
+    expect(loadedA.theme?.name).toBe("selenized")
+    // Repo B may pick up global config theme but not repo A's project config
+    expect(loadedB.theme?.name).not.toBe("selenized")
   })
 
   test("each repo can have different project configs", () => {
@@ -196,26 +191,22 @@ describe("config discovery per repo", () => {
     writeFileSync(
       join(repoA, ".vault0", "config.json"),
       JSON.stringify({
-        integrations: {
-          opencode: { agents: { wolf: { instructions: ["strategy-a"] } } },
-        },
+        theme: { name: "selenized" },
       } satisfies Vault0Config),
     )
 
     writeFileSync(
       join(repoB, ".vault0", "config.json"),
       JSON.stringify({
-        integrations: {
-          opencode: { agents: { wolf: { instructions: ["strategy-b"] } } },
-        },
+        theme: { name: "solarized" },
       } satisfies Vault0Config),
     )
 
     const cfgA = loadConfig(repoA)
     const cfgB = loadConfig(repoB)
 
-    expect(getAgentInstructions(cfgA, "opencode", "wolf")).toEqual(["strategy-a"])
-    expect(getAgentInstructions(cfgB, "opencode", "wolf")).toEqual(["strategy-b"])
+    expect(cfgA.theme?.name).toBe("selenized")
+    expect(cfgB.theme?.name).toBe("solarized")
   })
 
   test("loadConfig returns empty config for repo without project config", () => {

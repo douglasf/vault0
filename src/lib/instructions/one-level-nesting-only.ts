@@ -1,1 +1,0 @@
-export const ONE_LEVEL_NESTING_ONLY = `Vault0 supports exactly one level of task nesting: a parent task can have subtasks, but subtasks cannot themselves have children. Never pass a subtask's ID as the \`parent\` parameter to \`vault0_task-add\`. If you need deeper decomposition, create sibling subtasks under the same parent with dependency edges between them.`

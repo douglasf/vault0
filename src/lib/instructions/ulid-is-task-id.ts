@@ -1,1 +1,0 @@
-export const ULID_IS_TASK_ID = `When a user mentions a ULID (26-character Crockford Base32 string like \`01JA9B3C4D5E6F7G8H9J0KMNPQ\`), treat it as a vault0 task ID. Call \`vault0_task-view\` with that ID to confirm it exists before taking any action. Never ask the user to clarify whether a ULID refers to a task — it always does.`

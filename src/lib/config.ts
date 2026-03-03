@@ -6,25 +6,6 @@ import { homedir } from "node:os"
 
 export type Appearance = "dark" | "light" | "os"
 
-// ── Integration Config Types ────────────────────────────────────────────
-
-/** Instruction block for a specific agent within an integration */
-export interface AgentConfig {
-  /** Ordered list of instruction blocks to inject for this agent */
-  instructions?: string[]
-}
-
-/** Configuration for a single integration (e.g. "opencode") */
-export interface IntegrationConfig {
-  /** Per-agent configuration keyed by agent name */
-  agents?: Record<string, AgentConfig>
-}
-
-/** Top-level integrations section of the config */
-export interface IntegrationsConfig {
-  [integrationName: string]: IntegrationConfig
-}
-
 // ── Main Config ─────────────────────────────────────────────────────────
 
 export interface Vault0Config {
@@ -38,12 +19,6 @@ export interface Vault0Config {
     /** Appearance mode: "dark", "light", or "os" (auto-detect from OS). Defaults to "dark". */
     appearance?: Appearance
   }
-
-  /**
-   * Integration configurations keyed by integration name.
-   * Example: `{ "opencode": { "agents": { "wolf": { "instructions": ["block1"] } } } }`
-   */
-  integrations?: IntegrationsConfig
 }
 
 // ── Paths ───────────────────────────────────────────────────────────────
@@ -82,82 +57,6 @@ function loadConfigFile(path: string): Partial<Vault0Config> {
 
 /**
  * Deep-merge two config objects. Project values override global values.
- * Only handles the known two-level structure (no recursive generic merge).
- */
-/**
- * Validate and normalize an integrations config object.
- * Strips invalid entries and ensures correct shape.
- */
-function validateIntegrations(raw: unknown): IntegrationsConfig | undefined {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined
-
-  const result: IntegrationsConfig = {}
-  for (const [intName, intValue] of Object.entries(raw as Record<string, unknown>)) {
-    if (!intValue || typeof intValue !== "object" || Array.isArray(intValue)) continue
-    const intObj = intValue as Record<string, unknown>
-
-    const agents = intObj.agents
-    if (!agents || typeof agents !== "object" || Array.isArray(agents)) {
-      result[intName] = { agents: {} }
-      continue
-    }
-
-    const validAgents: Record<string, AgentConfig> = {}
-    for (const [agentName, agentValue] of Object.entries(agents as Record<string, unknown>)) {
-      if (!agentValue || typeof agentValue !== "object" || Array.isArray(agentValue)) continue
-      const agentObj = agentValue as Record<string, unknown>
-
-      const instructions = Array.isArray(agentObj.instructions)
-        ? agentObj.instructions.filter((i): i is string => typeof i === "string")
-        : undefined
-
-      validAgents[agentName] = { instructions }
-    }
-
-    result[intName] = { agents: validAgents }
-  }
-
-  return Object.keys(result).length > 0 ? result : undefined
-}
-
-/**
- * Deep-merge two integrations config objects. Project values override global values.
- * Agent-level merge: project agent config replaces global agent config entirely.
- */
-function mergeIntegrations(
-  global?: IntegrationsConfig,
-  project?: IntegrationsConfig,
-): IntegrationsConfig | undefined {
-  if (!global && !project) return undefined
-
-  const allKeys = new Set([
-    ...Object.keys(global ?? {}),
-    ...Object.keys(project ?? {}),
-  ])
-
-  const merged: IntegrationsConfig = {}
-  for (const intName of allKeys) {
-    const gInt = global?.[intName]
-    const pInt = project?.[intName]
-
-    // Merge agents maps — project agent replaces global agent entirely
-    const gAgents = gInt?.agents ?? {}
-    const pAgents = pInt?.agents ?? {}
-    const allAgents = new Set([...Object.keys(gAgents), ...Object.keys(pAgents)])
-
-    const mergedAgents: Record<string, AgentConfig> = {}
-    for (const agentName of allAgents) {
-      mergedAgents[agentName] = pAgents[agentName] ?? gAgents[agentName]
-    }
-
-    merged[intName] = { agents: mergedAgents }
-  }
-
-  return merged
-}
-
-/**
- * Deep-merge two config objects. Project values override global values.
  */
 function mergeConfigs(
   global: Partial<Vault0Config>,
@@ -168,15 +67,6 @@ function mergeConfigs(
   // Merge theme section
   if (global.theme || project.theme) {
     merged.theme = { ...global.theme, ...project.theme }
-  }
-
-  // Merge integrations section
-  const mergedIntegrations = mergeIntegrations(
-    validateIntegrations(global.integrations),
-    validateIntegrations(project.integrations),
-  )
-  if (mergedIntegrations) {
-    merged.integrations = mergedIntegrations
   }
 
   return merged
@@ -225,29 +115,6 @@ export function saveGlobalConfig(updates: Partial<Vault0Config>): void {
     existing.theme = { ...existing.theme, ...updates.theme }
   }
 
-  // Deep-merge integrations section
-  if (updates.integrations) {
-    const merged = mergeIntegrations(
-      validateIntegrations(existing.integrations),
-      validateIntegrations(updates.integrations),
-    )
-    if (merged) {
-      existing.integrations = merged
-    }
-  }
-
   ensureGlobalConfig()
   writeFileSync(configPath, `${JSON.stringify(existing, null, 2)}\n`, "utf-8")
-}
-
-/**
- * Get instruction blocks for a specific agent within an integration.
- * Returns an empty array if the integration, agent, or instructions are not configured.
- */
-export function getAgentInstructions(
-  config: Vault0Config,
-  integration: string,
-  agentName: string,
-): string[] {
-  return config.integrations?.[integration]?.agents?.[agentName]?.instructions ?? []
 }

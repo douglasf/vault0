@@ -1,1 +1,0 @@
-export const INCLUDE_TASK_ID_WHEN_DELEGATING = `When delegating a task to another agent, always include the full ULID in the delegation prompt. The receiving agent needs the exact ID to call \`vault0_task-view\`, \`vault0_task-move\`, and other tools. Never describe a task by title alone — IDs are the only reliable reference across agent boundaries.`

@@ -5,7 +5,6 @@ import type { CommandDef } from "./command-defs.js"
 import { errorMessage } from "../lib/format.js"
 import { TOP_LEVEL_LOOKUP } from "./command-defs.js"
 import { generateHelp, generateUsage } from "./help.js"
-import { cmdIntegrationGet } from "./integration.js"
 
 
 // ── Argument Parser ─────────────────────────────────────────────────
@@ -128,16 +127,11 @@ export interface CliContext {
 
 export function runCli(entity: string, args: string[], db: Vault0Database, context?: CliContext): number {
   try {
-    // Handle "integration" command separately — it doesn't need DB access
-    if (entity === "integration") {
-      return handleIntegration(args, context)
-    }
-
     // Look up the top-level container command
     const container = TOP_LEVEL_LOOKUP.get(entity)
 
     if (!container) {
-      console.error(`Unknown command: "${entity}". Use "vault0 task ...", "vault0 board ...", or "vault0 integration ...".`)
+      console.error(`Unknown command: "${entity}". Use "vault0 task ..." or "vault0 board ...".`)
       console.log(generateUsage())
       return 1
     }
@@ -148,24 +142,6 @@ export function runCli(entity: string, args: string[], db: Vault0Database, conte
     console.error(`Error: ${message}`)
     return 1
   }
-}
-
-function handleIntegration(args: string[], context?: CliContext): number {
-  if (!context) {
-    console.error("Error: integration command requires config context")
-    return 1
-  }
-
-  const subcommand = args[0]
-  if (subcommand !== "get") {
-    console.error(`Unknown integration command: "${subcommand || ""}". Usage: vault0 integration get --integration=<name> [--agent=<name>]`)
-    return 1
-  }
-
-  const parsed = parseArgs(args.slice(1))
-  const result = cmdIntegrationGet(context.config, parsed.flags)
-  console.log(result.output)
-  return result.exitCode
 }
 
 function handleContainer(container: CommandDef, args: string[], db: Vault0Database): number {

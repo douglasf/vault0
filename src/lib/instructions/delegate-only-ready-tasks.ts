@@ -1,1 +1,0 @@
-export const DELEGATE_ONLY_READY_TASKS = `Only delegate tasks that are unblocked and actionable. A task is ready when it has no unfinished dependencies and is in \`todo\` status. Never delegate a task that is \`blocked\`, already \`in_progress\`, or still waiting on dependencies — the receiving agent will be unable to make progress and will waste a turn.`

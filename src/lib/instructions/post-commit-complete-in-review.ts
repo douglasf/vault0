@@ -1,1 +1,0 @@
-export const POST_COMMIT_COMPLETE_IN_REVIEW = `After a successful git commit, check for any \`in_review\` tasks that correlate with the committed changes. Complete them via \`vault0_task-complete\` with a \`solution\` referencing the commit. This is the only valid path to \`done\` — tasks must pass through \`in_review\` and be confirmed by a commit or explicit user approval.`
