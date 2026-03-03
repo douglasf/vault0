@@ -2,6 +2,33 @@
 
 Terminal kanban board with dependency tracking, built with Bun + React (OpenTUI) + Drizzle ORM + SQLite.
 
+## Vault0 Is a Standalone Application
+
+Vault0 is a self-contained app. It has **no dependency on any specific AI agent framework, OpenCode configuration, or agent naming scheme**. Do not assume or reference specific agent names (e.g., personal OpenCode agent names) in this codebase — Vault0 does not know about them, and they are not part of this project.
+
+## Task Terminology
+
+Vault0 has two types of tasks:
+
+- **Parent task** — a task without a `parentId`. It is a top-level item on the board.
+- **Subtask** — a task with a `parentId` field pointing to another task.
+- **"Task"** used generically refers to either type.
+
+Both types share the same schema and API surface. The only difference is whether `parentId` is set.
+
+## OpenCode Integration
+
+Vault0 can integrate with [OpenCode](https://opencode.ai) as a tool provider. The integration configuration lives in the `opencode/` directory of this repository. There are two integration methods:
+
+1. **MCP** (`opencode/mcp/`) — Vault0 runs as an MCP server (`vault0 mcp-serve`). OpenCode discovers tools via the MCP protocol.
+2. **Direct** (`opencode/direct/`) — Vault0 tools are registered directly in the OpenCode config as custom tools.
+
+**Important rules:**
+
+- The `opencode/` configs are **examples/templates**. They use placeholder agent names to illustrate role-based tool permissions (orchestrator, executor, planner, etc.). Users must adapt agent names to match their own OpenCode configuration.
+- **Parity between methods** — if one integration method (MCP or direct) is updated with new tools, changed permissions, or modified instructions, the equivalent update **must** be made to the other method.
+- The integration is part of this repository but does **not** tie Vault0 to any specific OpenCode setup. Vault0 works independently as a CLI and TUI app regardless of OpenCode integration.
+
 ## Build / Test / Lint Commands
 
 ```bash

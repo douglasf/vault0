@@ -6,10 +6,10 @@
   // Merge into or reference from your main opencode.jsonc.
   //
   // Role mapping (adapt agent names to your setup):
-  //   marsellus = The Orchestrator (task discovery, execution loop, approvals)
-  //   wolf      = The Executor (task implementation, status updates)
-  //   architect = The Planner (plan creation, subtask/dependency setup)
-  //   git       = The Git Agent (post-commit task approval)
+  //   orchestrator = Task discovery, execution loop, approvals
+  //   executor     = Task implementation, status updates
+  //   planner      = Plan creation, subtask/dependency setup
+  //   git          = Post-commit task approval
   // ============================================================================
 
   "$schema": "https://opencode.ai/config.json",
