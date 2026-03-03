@@ -1,5 +1,5 @@
 export { INSTRUCTION_BLOCKS, getInstructionContent } from "./content.js"
-export { BLOCK_DESCRIPTORS, getBlockDescriptor, getBlocksForTools, getDefaultBlocksForAgent, guessRoleForAgent } from "./block-descriptions.js"
+export { BLOCK_DESCRIPTORS, getDefaultBlocksForAgent, guessRoleForAgent } from "./block-descriptions.js"
 export type { BlockDescriptor } from "./block-descriptions.js"
 export { TOOL_REFERENCE } from "./tool-reference.js"
 export { TASK_DELEGATION } from "./task-delegation.js"

@@ -69,23 +69,6 @@ function walk(dir: string, rootDir: string, files: string[], depth: number): voi
 }
 
 /**
- * Simple fuzzy match — checks if all characters of the query appear
- * in order in the target string (case-insensitive).
- */
-export function fuzzyMatch(query: string, target: string): boolean {
-  if (!query) return true
-  const lowerQuery = query.toLowerCase()
-  const lowerTarget = target.toLowerCase()
-  let qi = 0
-  for (let ti = 0; ti < lowerTarget.length && qi < lowerQuery.length; ti++) {
-    if (lowerTarget[ti] === lowerQuery[qi]) {
-      qi++
-    }
-  }
-  return qi === lowerQuery.length
-}
-
-/**
  * Score a fuzzy match — lower is better. Returns -1 if no match.
  * Prioritises: exact substring > path segment match > fuzzy spread.
  */

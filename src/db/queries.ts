@@ -120,20 +120,6 @@ export function getTaskCards(db: Vault0Database, boardId: string, opts?: { inclu
     })
 }
 
-/**
- * Get tasks that have all dependencies satisfied (ready to start).
- */
-export function getReadyTasks(db: Vault0Database, boardId: string): TaskCard[] {
-  return getTaskCards(db, boardId).filter((c) => c.isReady)
-}
-
-/**
- * Get tasks that have at least one incomplete dependency.
- */
-export function getBlockedTasks(db: Vault0Database, boardId: string): TaskCard[] {
-  return getTaskCards(db, boardId).filter((c) => c.isBlocked)
-}
-
 // ── Task Mutations ──────────────────────────────────────────────────
 
 /**
@@ -577,18 +563,6 @@ export function getTaskDetail(db: Vault0Database, taskId: string): TaskDetail {
     dependedOnBy: dependedOnByTasks,
     statusHistory: history,
   }
-}
-
-/**
- * Get the status transition history for a task, newest first.
- */
-export function getStatusHistory(db: Vault0Database, taskId: string) {
-  return db
-    .select()
-    .from(taskStatusHistory)
-    .where(eq(taskStatusHistory.taskId, taskId))
-    .orderBy(sql`${taskStatusHistory.changedAt} DESC`)
-    .all()
 }
 
 // ── Release Queries ─────────────────────────────────────────────────

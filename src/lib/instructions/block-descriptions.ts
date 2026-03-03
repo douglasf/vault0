@@ -129,23 +129,7 @@ export const BLOCK_DESCRIPTORS: BlockDescriptor[] = [
   },
 ]
 
-/** Get block descriptor by name */
-export function getBlockDescriptor(name: string): BlockDescriptor | undefined {
-  return BLOCK_DESCRIPTORS.find(b => b.name === name)
-}
-
 /**
- * Get instruction blocks for an agent based on its available tools.
- * If the agent has ANY tool listed in a block's requiredTools, it gets that block.
- */
-export function getBlocksForTools(tools: string[]): string[] {
-  return BLOCK_DESCRIPTORS
-    .filter(b => b.requiredTools.some(t => tools.includes(t)))
-    .map(b => b.name)
-}
-
-/**
- * @deprecated Use getBlocksForTools instead. Kept for backward compatibility.
  * Guess the role keyword for a given agent name and return default blocks.
  */
 export function guessRoleForAgent(agent: string): string {
@@ -157,7 +141,6 @@ export function guessRoleForAgent(agent: string): string {
   return "executor"
 }
 
-/** @deprecated Use getBlocksForTools instead. */
 export function getDefaultBlocksForAgent(agent: string): string[] {
   const role = guessRoleForAgent(agent)
   const roleToBlocks: Record<string, string[]> = {

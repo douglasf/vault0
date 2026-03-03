@@ -102,15 +102,6 @@ const BUILTIN_FAMILIES: Record<string, ThemeFamily> = {
   },
 }
 
-/**
- * Legacy built-in themes keyed by old-style slug (e.g. "selenized-dark").
- * Supports backward compatibility with existing config files.
- */
-const LEGACY_BUILTIN_THEMES: Record<string, ThemeDefinition> = {
-  "selenized-dark": SELENIZED_DARK_THEME,
-  "selenized-light": SELENIZED_LIGHT_THEME,
-}
-
 const DEFAULT_THEME_NAME = "selenized"
 const DEFAULT_APPEARANCE: Appearance = "dark"
 
@@ -334,7 +325,7 @@ function resolveFamily(name: string, visited = new Set<string>()): ThemeFamily {
  * 2. COLORFGBG environment variable — common in terminal emulators
  * 3. Default to "dark" if detection fails
  */
-export function detectOsAppearance(): "dark" | "light" {
+function detectOsAppearance(): "dark" | "light" {
   // macOS: check AppleInterfaceStyle
   try {
     const result = Bun.spawnSync(["defaults", "read", "-g", "AppleInterfaceStyle"])
@@ -437,21 +428,6 @@ export function toggleAppearance(): "dark" | "light" {
 }
 
 /**
- * Set the appearance explicitly at runtime.
- * Returns the new resolved appearance.
- */
-export function setAppearance(appearance: Appearance): "dark" | "light" {
-  activeAppearance = appearance
-  resolvedAppearance = resolveAppearance(appearance)
-
-  if (activeFamily) {
-    activeTheme = resolvedAppearance === "light" ? activeFamily.light : activeFamily.dark
-  }
-  invalidateThemeCaches()
-  return resolvedAppearance
-}
-
-/**
  * Get the current resolved appearance ("dark" or "light").
  */
 export function getAppearance(): "dark" | "light" {
@@ -542,11 +518,6 @@ export function toRGBA(hex: string, alpha = 255): RGBA {
     rgba.a = alpha / 255
   }
   return rgba
-}
-
-/** Create a semi-transparent black background for modal overlay dimming */
-export function overlayBg(alpha = 150): RGBA {
-  return RGBA.fromInts(0, 0, 0, alpha)
 }
 
 // ── Markdown Syntax Style ───────────────────────────────────────────
