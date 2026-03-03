@@ -6,7 +6,7 @@ import { errorMessage } from "../lib/format.js"
 import { TOP_LEVEL_LOOKUP } from "./command-defs.js"
 import { generateHelp, generateUsage } from "./help.js"
 import { cmdIntegrationGet } from "./integration.js"
-import { cmdConfigureOpencode } from "./configure-opencode.js"
+
 
 // ── Argument Parser ─────────────────────────────────────────────────
 
@@ -133,16 +133,11 @@ export function runCli(entity: string, args: string[], db: Vault0Database, conte
       return handleIntegration(args, context)
     }
 
-    // Handle "configure" command separately — it doesn't need DB access
-    if (entity === "configure") {
-      return handleConfigure(args)
-    }
-
     // Look up the top-level container command
     const container = TOP_LEVEL_LOOKUP.get(entity)
 
     if (!container) {
-      console.error(`Unknown command: "${entity}". Use "vault0 task ...", "vault0 board ...", "vault0 integration ...", or "vault0 configure ...".`)
+      console.error(`Unknown command: "${entity}". Use "vault0 task ...", "vault0 board ...", or "vault0 integration ...".`)
       console.log(generateUsage())
       return 1
     }
@@ -171,30 +166,6 @@ function handleIntegration(args: string[], context?: CliContext): number {
   const result = cmdIntegrationGet(context.config, parsed.flags)
   console.log(result.output)
   return result.exitCode
-}
-
-function handleConfigure(args: string[]): number {
-  const subcommand = args[0]
-  if (subcommand !== "opencode") {
-    console.error(`Unknown configure target: "${subcommand || ""}". Usage: vault0 configure opencode [--dry-run] [--defaults]`)
-    return 1
-  }
-
-  const parsed = parseArgs(args.slice(1))
-
-  // cmdConfigureOpencode is async (uses readline), so we need to handle the promise
-  // In CLI mode, index.tsx calls process.exit after runCli, but since this is async
-  // we return 0 and let the async function handle exit
-  cmdConfigureOpencode(parsed.flags).then(exitCode => {
-    process.exit(exitCode)
-  }).catch(error => {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`Error: ${message}`)
-    process.exit(1)
-  })
-
-  // Return value won't actually be used since we process.exit above
-  return 0
 }
 
 function handleContainer(container: CommandDef, args: string[], db: Vault0Database): number {

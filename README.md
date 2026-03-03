@@ -55,31 +55,11 @@ Vault0 integrates with [OpenCode](https://opencode.ai/) via the **Model Context 
 
 #### Quick Setup
 
-```bash
-vault0 configure opencode            # Interactive wizard
-vault0 configure opencode --defaults # Accept all defaults (no prompts)
-vault0 configure opencode --dry-run  # Preview changes without writing
-```
-
-This command:
-1. Detects your OpenCode agents (from `~/.config/opencode/agent/`)
-2. Asks which agents should get vault0 integration (or uses smart defaults)
-3. Configures the MCP server in OpenCode's config
-4. Generates a plugin that injects per-agent instruction blocks
-5. Saves integration config to `~/.config/vault0/config.json`
-
-#### What Gets Configured
-
-| File | Purpose |
-|------|---------|
-| `~/.config/opencode/config.json` | Adds `vault0` MCP server entry |
-| `~/.config/opencode/plugins/vault0.ts` | Plugin that fetches per-agent instructions |
-| `~/.config/vault0/config.json` | Stores which instruction blocks each agent receives |
+Add vault0 as an MCP server in your OpenCode config (see [Manual MCP Configuration](#manual-mcp-configuration) below), then configure agent tool permissions using the example configs in the `opencode/` directory.
 
 #### How It Works
 
 The MCP server runs as a **stdio subprocess** — OpenCode starts it automatically and manages its lifecycle. The server:
-
 - Opens the repo's `.vault0/vault0.db` directly (no CLI subprocess bridge)
 - Exposes 7 task management tools (`vault0-task-list`, `vault0-task-add`, etc.)
 - Serves composable instruction blocks as MCP resources (`vault0://instructions/<name>`)
@@ -114,6 +94,22 @@ If you prefer manual setup, add this to your OpenCode config:
   }
 }
 ```
+
+#### Standalone MCP Setup
+
+If you don't have `vault0` installed yet or prefer a Makefile-driven setup:
+
+```bash
+make opencode-mcp
+```
+
+Then add to your shell config (`~/.zshrc` or `~/.bashrc`):
+
+```bash
+export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode
+```
+
+Edit `~/.config/vault0/opencode/opencode.jsonc` to configure agent names and tool permissions to match your setup.
 
 > **Migrating from the old `make opencode` setup?** See [MIGRATION.md](MIGRATION.md) for step-by-step instructions.
 
@@ -233,7 +229,6 @@ make typecheck            # Run TypeScript type checker
 make build                # Build standalone binary (no install)
 make install              # Build, sign, and install to ~/.local/bin
 make uninstall            # Remove from ~/.local/bin
-vault0 configure opencode # Configure OpenCode integration (optional)
 make clean                # Remove build artifacts
 
 # Database management (via Drizzle Kit)
