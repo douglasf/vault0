@@ -1,29 +1,20 @@
-{
-  // ============================================================================
-  // vault0conf — Vault0 integration config for OpenCode
-  // ============================================================================
-  // This config defines vault0 tool permissions and instructions per agent.
-  // Merge into or reference from your main opencode.jsonc.
-  //
-  // Tool variants: Each base tool has agent-specific variants with rich
-  // descriptions containing behavioral guidance. All variants share identical
-  // schemas and handlers — only the name and description differ.
-  //
-  // Role mapping (adapt agent names to your setup):
-  //   orchestrator = Task discovery, execution loop, approvals
-  //   executor     = Task implementation, status updates
-  //   planner      = Plan creation, subtask/dependency setup
-  //   git          = Post-commit task approval
-  //   investigator = Read-only
-  //   coordinator  = Read-only
-  // ============================================================================
+// ── Reference Configuration for Per-Agent Tool Permissions ──────────
+// This file shows how to configure tool permissions per agent in OpenCode.
+// It is a REFERENCE ONLY — you do not need to use it for basic setup.
+//
+// For basic setup, run: vault0 mcp init
+//
+// If you want fine-grained control over which agents can use which tools,
+// customize the agent entries below and add them to your opencode.json.
+// Replace agent names (marsellus, wolf, vincent, etc.) with your own.
 
+{
   "$schema": "https://opencode.ai/config.json",
 
   "mcp": {
     "vault0": {
       "type": "local",
-      "command": ["vault0", "mcp-serve"],
+      "command": ["vault0", "mcp", "serve"],
       "enabled": true
     }
   },
