@@ -176,7 +176,7 @@ export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Da
   // ── 1. task-view (universal) ────────────────────────────────────────
   server.tool(
     "task-view",
-    "When a ULID appears, call this to resolve it — ULIDs always refer to vault0 tasks. Results are snapshots, not live views. Always query fresh: call task-view before mutating any task. On error, stop and report to orchestrator. **IMPORTANT CRITICAL** When you delegate implementation of this task to a subagent it is CRITICAL that you include the task id in the delegation prompt",
+    "When a ULID appears, call this to resolve it — ULIDs always refer to vault0 tasks. **IMPORTANT** If a task has subtasks ALWAYS use the subtasks tool to get those as well. Results are snapshots, not live views. Always query fresh: call task-view before mutating any task. On error, stop and report to orchestrator. **IMPORTANT CRITICAL** When you delegate implementation of this task to a subagent it is CRITICAL that you include the task id in the delegation prompt",
     viewSchema,
     (args) => withErrorHandling(() => cmdView(db, args.id, "json")),
   )
@@ -240,7 +240,7 @@ export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Da
   // ── 9. task-complete-git (Git) ─────────────────────────────────────
   server.tool(
     "task-complete-git",
-    "MANDATORY post-commit workflow — run this AFTER EVERY COMMIT. First, call task-list(status: 'in_review') to discover all in_review tasks. For each, call task-view to read its details and correlate it to the commits you just made by scope, keywords, or intent. For every correlated task, call this tool with a solution referencing the commit hash and what was done. Before returning, verify you completed ALL correlated in_review tasks. After completing, STOP immediately — do not pick next tasks or continue other work. On error, stop and report.",
+    "MANDATORY post-commit workflow — run this AFTER EVERY COMMIT. First, call task-list(status: 'in_review') to discover all in_review tasks. For each, call task-view to read its details and correlate it to the commits you just made by scope, keywords, or intent. For every correlated task, call this tool with a solution referencing the commit hash and what was done. Before returning, verify you completed ALL correlated in_review tasks. Report on which files were moved to done. After completing, STOP immediately — do not pick next tasks or continue other work. On error, stop and report.",
     completeSchema,
     (args) => { const r = handleComplete(db, args); checkpoint(); return r },
   )
@@ -272,7 +272,7 @@ export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Da
   // ── 13. task-subtasks-orchestrator (Marsellus) ─────────────────────
   server.tool(
     "task-subtasks-orchestrator",
-    "Get subtasks. Use ready: true to discover actionable subtasks before delegating. Only delegate ready, unblocked tasks. Always include full ULID in delegation prompts. After all subtasks are done/cancelled, query the parent and promote it to in_review. On error, stop and report.",
+    "IMPORTANT CRITICAL Always use this too if you see that a task has subtasks. Use ready: true to discover actionable subtasks before delegating. Only delegate ready, unblocked tasks. IMPORTANT Always delegate with maximum parallelization. Always include full ULID in delegation prompts. After all subtasks are done/cancelled, query the parent and promote it to in_review. On error, stop and report.",
     subtasksSchema,
     (args) => handleSubtasks(db, args),
   )
