@@ -49,11 +49,11 @@ jobs:
 
       - name: Build binaries
         run: |
-          bun build --compile --minify --target=bun-linux-x64 ./src/index.tsx --outfile vault0-linux-x64
-          bun build --compile --minify --target=bun-linux-arm64 ./src/index.tsx --outfile vault0-linux-arm64
-          bun build --compile --minify --target=bun-darwin-x64 ./src/index.tsx --outfile vault0-darwin-x64
-          bun build --compile --minify --target=bun-darwin-arm64 ./src/index.tsx --outfile vault0-darwin-arm64
-          bun build --compile --minify --target=bun-windows-x64 ./src/index.tsx --outfile vault0-windows-x64.exe
+          bun build --compile --minify --target=bun-linux-x64 --define process.platform='"linux"' --define process.arch='"x64"' ./src/index.tsx --outfile vault0-linux-x64
+          bun build --compile --minify --target=bun-linux-arm64 --define process.platform='"linux"' --define process.arch='"arm64"' ./src/index.tsx --outfile vault0-linux-arm64
+          bun build --compile --minify --target=bun-darwin-x64 --define process.platform='"darwin"' --define process.arch='"x64"' ./src/index.tsx --outfile vault0-darwin-x64
+          bun build --compile --minify --target=bun-darwin-arm64 --define process.platform='"darwin"' --define process.arch='"arm64"' ./src/index.tsx --outfile vault0-darwin-arm64
+          bun build --compile --minify --target=bun-windows-x64 --define process.platform='"win32"' --define process.arch='"x64"' ./src/index.tsx --outfile vault0-windows-x64.exe
 
       - name: Package archives
         run: |
