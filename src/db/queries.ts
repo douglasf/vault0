@@ -132,10 +132,10 @@ export function createTask(
     parentId?: string
     title: string
     description?: string
-    priority?: string
-    type?: string
+    priority?: "critical" | "high" | "normal" | "low"
+    type?: "feature" | "bug" | "analysis"
     status?: Status
-    source?: string
+    source?: "manual" | "todo_md" | "opencode" | "opencode-plan" | "import"
     sourceRef?: string
   },
 ) {
@@ -183,7 +183,7 @@ export function createTask(
 export function updateTask(
   db: Vault0Database,
   taskId: string,
-  data: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[]; solution: string | null }>,
+  data: Partial<{ title: string; description: string; priority: "critical" | "high" | "normal" | "low"; type: "feature" | "bug" | "analysis" | null; tags: string[]; solution: string | null }>,
 ) {
   return db.transaction((tx) => {
     const current = tx.select().from(tasks).where(eq(tasks.id, taskId)).get()

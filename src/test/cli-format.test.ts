@@ -29,6 +29,8 @@ function mockTask(overrides: Partial<Task> = {}): Task {
     source: "manual",
     sourceRef: null,
     tags: [],
+    releaseId: null,
+    solution: null,
     sortOrder: 0,
     createdAt: now,
     updatedAt: now,

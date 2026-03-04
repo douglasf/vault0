@@ -250,7 +250,7 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
 
   // ── Field updates ──
 
-  const updates: Partial<{ title: string; description: string; priority: string; type: string | null; tags: string[]; solution: string | null }> = {}
+  const updates: Partial<{ title: string; description: string; priority: "critical" | "high" | "normal" | "low"; type: "feature" | "bug" | "analysis" | null; tags: string[]; solution: string | null }> = {}
 
   if (flags.title) updates.title = flags.title
   if (flags.description !== undefined) updates.description = flags.description

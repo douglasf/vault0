@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer, primaryKey, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core"
 import { relations } from "drizzle-orm"
 import { ulid } from "ulidx"
 
@@ -18,7 +18,7 @@ export const boards = sqliteTable("boards", {
 export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey().$defaultFn(() => ulid()),
   boardId: text("board_id").notNull().references(() => boards.id),
-  parentId: text("parent_id").references(() => tasks.id),
+  parentId: text("parent_id").references((): AnySQLiteColumn => tasks.id),
   title: text("title").notNull(),
   description: text("description"),
   status: text("status", {
