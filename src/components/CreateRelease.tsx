@@ -19,6 +19,8 @@ export interface CreateReleaseData {
   taskIds: string[]
   /** If set, bump version in this file to the new version */
   versionBump?: { file: string; path: string; oldVersion: string; newVersion: string }
+  /** Whether to git-commit the version bump (only relevant when versionBump is set) */
+  commitBump: boolean
 }
 
 export interface CreateReleaseProps {
@@ -32,7 +34,7 @@ export interface CreateReleaseProps {
   onCancel: () => void
 }
 
-type FormField = "name" | "description" | "version-bump" | "version-value" | "tasks" | "submit"
+type FormField = "name" | "description" | "version-bump" | "version-value" | "commit-bump" | "tasks" | "submit"
 
 const SPACE_SELECT_BINDING = [{ name: "space", action: "select-current" as const }]
 
@@ -59,6 +61,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     name: 2,            // FormInput box(1) + marginBottom(1)
     description: 2,     // FormInput box(1) + marginBottom(1)
     "version-bump": 2,  // toggle text(1) + marginBottom(1)
+    "commit-bump": 2,   // toggle text(1) + marginBottom(1)
     "version-value": 2, // FormInput box(1) + marginBottom(1)
     tasks: 1 + Math.min(doneTasks.length, 8) + 1, // header(1) + select(min(n,8)) + marginBottom(1)
     "no-tasks": 2,      // text(1) + marginBottom(1)
@@ -68,6 +71,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     () => new Set(doneTasks.map((t) => t.id)),
   )
   const [bumpVersion, setBumpVersion] = useState(false)
+  const [commitBump, setCommitBump] = useState(true)
   const [selectedVersionFileIdx, setSelectedVersionFileIdx] = useState(0)
   const [versionValue, setVersionValue] = useState("")
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -80,7 +84,10 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     const f: FormField[] = ["name", "description"]
     if (hasVersionFiles) {
       f.push("version-bump")
-      if (bumpVersion) f.push("version-value")
+      if (bumpVersion) {
+        f.push("version-value")
+        f.push("commit-bump")
+      }
     }
     if (doneTasks.length > 0) f.push("tasks")
     f.push("submit")
@@ -154,6 +161,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
       name,
       description: descRef.current?.value?.trim() || "",
       taskIds: Array.from(selectedTaskIds),
+      commitBump: bumpVersion && commitBump,
     }
 
     if (bumpVersion && selectedVersionFile && versionValue.trim()) {
@@ -166,7 +174,7 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     }
 
     onSubmit(data)
-  }, [selectedTaskIds, bumpVersion, selectedVersionFile, versionValue, onSubmit, doneTasks, allBoardTasks])
+  }, [selectedTaskIds, bumpVersion, commitBump, selectedVersionFile, versionValue, onSubmit, doneTasks, allBoardTasks])
 
   const toggleTask = useCallback((taskId: string) => {
     setSelectedTaskIds((prev) => {
@@ -259,6 +267,14 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
     description: "Advance from version value",
   })
 
+  // ── Field-specific: commit-bump ────────────────────────────────────────
+  useKeybind(scope, ["Enter", "Space"], useCallback(() => {
+    setCommitBump((prev) => !prev)
+  }, []), {
+    when: focusField === "commit-bump",
+    description: "Toggle commit version bump",
+  })
+
   // ── Field-specific: tasks ──────────────────────────────────────────────
   // ── Field-specific: submit ──────────────────────────────────────────────
   useKeybind(scope, "Enter", handleSubmit, {
@@ -300,7 +316,6 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
               <box height={1} marginBottom={1}>
                 <text onMouseDown={() => setFocusField("version-bump")}>
                   <span fg={isFocused("version-bump") ? theme.blue : theme.fg_0}>
-                    {isFocused("version-bump") ? "\u25B8 " : "  "}
                     Bump version?{" "}
                   </span>
                   <span fg={bumpVersion ? theme.green : theme.dim_0}>
@@ -316,14 +331,26 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
 
             {/* Version value input */}
             {bumpVersion && selectedVersionFile && (
-              <FormInput
-                ref={versionRef}
-                focused={isFocused("version-value")}
-                onMouseDown={() => setFocusField("version-value")}
-                value={versionValue}
-                onInput={(v: string) => setVersionValue(v)}
-                onSubmit={advance}
-              />
+              <>
+                <FormInput
+                  ref={versionRef}
+                  focused={isFocused("version-value")}
+                  onMouseDown={() => setFocusField("version-value")}
+                  value={versionValue}
+                  onInput={(v: string) => setVersionValue(v)}
+                  onSubmit={advance}
+                />
+                <box height={1} marginBottom={1}>
+                  <text onMouseDown={() => setFocusField("commit-bump")}>
+                    <span fg={isFocused("commit-bump") ? theme.blue : theme.fg_0}>
+                      Commit version bump?{" "}
+                    </span>
+                    <span fg={commitBump ? theme.green : theme.dim_0}>
+                      [{commitBump ? "x" : " "}]
+                    </span>
+                  </text>
+                </box>
+              </>
             )}
 
             {/* Task selector */}

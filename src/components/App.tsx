@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react"
+import { execSync } from "node:child_process"
 import { useRenderer, useTerminalDimensions } from "@opentui/react"
 import type { Vault0Database } from "../db/connection.js"
 import { DbContext } from "../lib/db-context.js"
@@ -598,7 +599,41 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
               if (state.currentBoardId) {
                 // Write version if bump was requested
                 if (data.versionBump) {
-                  writeVersion(data.versionBump.path, data.versionBump.file, data.versionBump.newVersion)
+                  const versionChanged = data.versionBump.oldVersion !== data.versionBump.newVersion
+
+                  if (data.commitBump && versionChanged) {
+                    // Smart commit: check for uncommitted changes before writing
+                    try {
+                      const statusBefore = execSync("git status --porcelain", { cwd: repoRoot, encoding: "utf-8" }).trim()
+                      if (statusBefore) {
+                        showToast("❌ Working tree has uncommitted changes", "Please commit or stash them first.")
+                        return
+                      }
+                    } catch {
+                      showToast("❌ Failed to check git status", "Is this a git repository?")
+                      return
+                    }
+
+                    // Working tree is clean — write the version bump
+                    writeVersion(data.versionBump.path, data.versionBump.file, data.versionBump.newVersion)
+
+                    // Commit the version bump
+                    try {
+                      execSync(`git add ${data.versionBump.file}`, { cwd: repoRoot, encoding: "utf-8" })
+                      execSync(`git commit -m "chore: bump version to ${data.versionBump.newVersion}"`, { cwd: repoRoot, encoding: "utf-8" })
+                    } catch (error) {
+                      // Revert on commit failure
+                      try {
+                        execSync(`git checkout -- ${data.versionBump.file}`, { cwd: repoRoot, encoding: "utf-8" })
+                      } catch { /* best effort revert */ }
+                      const message = error instanceof Error ? error.message : String(error)
+                      showToast("❌ Failed to commit version bump", message)
+                      return
+                    }
+                  } else {
+                    // No commit requested or version unchanged — just write
+                    writeVersion(data.versionBump.path, data.versionBump.file, data.versionBump.newVersion)
+                  }
                 }
                 createRelease(db, {
                   boardId: state.currentBoardId,
