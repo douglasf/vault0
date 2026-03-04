@@ -85,8 +85,9 @@ echo ""
 
 # ── Confirmation prompt ──────────────────────────────────
 echo "This will:"
-echo "  1. Create git tag $VERSION"
-echo "  2. Push tag to origin (triggers release workflow)"
+echo "  1. Push any unpushed commits to origin"
+echo "  2. Create git tag $VERSION"
+echo "  3. Push tag to origin (triggers release workflow)"
 echo ""
 printf "Are you sure? [y/N] "
 read -r confirm
@@ -97,11 +98,28 @@ fi
 
 echo ""
 
+# ── Push unpushed commits first ─────────────────────────
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+UPSTREAM="origin/$BRANCH"
+
+if git rev-parse --verify "$UPSTREAM" >/dev/null 2>&1; then
+  UNPUSHED=$(git rev-list "$UPSTREAM"..HEAD --count)
+  if [ "$UNPUSHED" -gt 0 ]; then
+    echo "📤 Pushing $UNPUSHED unpushed commit(s) on $BRANCH to origin..."
+    git push origin "$BRANCH"
+    echo ""
+  fi
+else
+  echo "📤 No upstream found for $BRANCH — pushing branch to origin..."
+  git push -u origin "$BRANCH"
+  echo ""
+fi
+
 # ── Create tag and push ─────────────────────────────────
 echo "🏷️  Creating tag $VERSION..."
 git tag -a "$VERSION" -m "Release $VERSION"
 
-echo "🚀 Pushing to origin..."
+echo "🚀 Pushing tag to origin..."
 git push origin "$VERSION"
 
 echo ""
