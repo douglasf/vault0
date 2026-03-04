@@ -1,4 +1,4 @@
-.PHONY: build install uninstall clean dev start help typecheck test opencode-mcp opencode-direct
+.PHONY: build install uninstall clean dev start help typecheck test
 
 # Ensure bun is discoverable (installed via ~/.bun)
 BUN := $(or $(shell which bun 2>/dev/null),$(HOME)/.bun/bin/bun)
@@ -19,8 +19,6 @@ help:
 	@echo "  make start      - Run once (bun run)"
 	@echo "  make typecheck  - Run TypeScript type checker"
 	@echo "  make clean      - Remove build artifacts"
-	@echo "  make opencode-mcp    - Install opencode MCP config to ~/.config/vault0"
-	@echo "  make opencode-direct - Install opencode direct config to ~/.config/vault0"
 	@echo "  make help       - Show this message"
 	@echo ""
 	@echo "Installation:"
@@ -99,26 +97,4 @@ clean:
 	rm -f vault0 vault0.exe
 	@echo "✓ Clean"
 
-opencode-mcp:
-	@echo "📦 Installing opencode mcp configuration..."
-	@mkdir -p $(HOME)/.config/vault0/opencode
-	@cp -R opencode/mcp/* $(HOME)/.config/vault0/opencode/
-	@echo ""
-	@echo "✓ Opencode config installed to ~/.config/vault0/opencode"
-	@echo ""
-	@echo "Add this to your ~/.zshrc or ~/.bashrc:"
-	@echo ""
-	@echo "  export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode"
-	@echo ""
-
-opencode-direct:
-	@echo "📦 Installing opencode direct configuration..."
-	@mkdir -p $(HOME)/.config/vault0/opencode
-	@cp -R opencode/direct/* $(HOME)/.config/vault0/opencode/
-	@echo ""
-	@echo "✓ Opencode config installed to ~/.config/vault0/opencode"
-	@echo ""
-	@echo "Add this to your ~/.zshrc or ~/.bashrc:"
-	@echo ""
-	@echo "  export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode"
-	@echo ""
+# For OpenCode integration, run: vault0 mcp init

@@ -55,53 +55,41 @@ vault0                    # launch from any directory
 
 Override the install prefix with `make install PREFIX=/usr/local/bin`.
 
-### OpenCode Integration (Optional)
+### OpenCode Integration
 
-Vault0 integrates with [OpenCode](https://opencode.ai/) to give AI agents direct access to task management tools. Two integration methods are available: **MCP** (14 tools — 7 base tools with role-specific variants) or **Direct** (7 tools).
+Vault0 provides an MCP server for integration with [OpenCode](https://opencode.ai). One command gets you up and running. The MCP provides 14 tools, many of which are identical in function but with different descriptions. This is how vault0 communicates proper tool usage.
 
-#### Method 1: MCP (Recommended)
-
-Vault0 runs as an MCP stdio server. Add to your OpenCode config:
-
-```json
-{
-  "mcp": {
-    "vault0": {
-      "type": "local",
-      "command": ["vault0", "mcp-serve"],
-      "enabled": true
-    }
-  }
-}
-```
-
-The MCP server opens the repo's `.vault0/vault0.db` directly and exposes 14 tools — 7 base task tools with role-specific variants for orchestrator, executor, git agent, and architect.
-
-#### Method 2: Direct Tools
-
-Tools are registered as custom OpenCode tools backed by standalone TypeScript scripts. Install with:
+#### Quick Start
 
 ```bash
-make opencode-direct
+vault0 mcp init --write
 ```
 
-This copies tool scripts and instruction files to `~/.config/vault0/opencode/`.
+This creates (or updates) an `opencode.json` file in your current directory with the vault0 MCP server entry. If you already have an `opencode.json`, it merges the vault0 config into it.
 
-#### Shared Setup
+#### Global Setup
 
-Both methods include an example `opencode.jsonc` with per-agent tool permissions (orchestrator, executor, planner, git, etc.). To install:
+If you want vault0 available across all your OpenCode projects:
 
 ```bash
-make opencode-mcp       # or: make opencode-direct
+vault0 mcp init --write --path ~/.config/opencode
 ```
 
-Then point OpenCode at the config:
+OpenCode will automatically pick up this configuration.
+
+#### Manual Setup
+
+If you prefer to paste the config yourself:
 
 ```bash
-export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode
+vault0 mcp init
 ```
 
-Edit `~/.config/vault0/opencode/opencode.jsonc` to rename agents and adjust tool permissions for your setup. The example configs use placeholder agent names — adapt them to match your OpenCode agents.
+This prints the JSON snippet. Copy and paste it into your `opencode.json` file.
+
+#### Advanced: Custom Tool Permissions
+
+For fine-grained control over which agents can use which vault0 tools, see [`opencode/reference-config.jsonc`](opencode/reference-config.jsonc). Customize the reference config and merge it into your OpenCode config. This is entirely optional — the basic setup above works without it.
 
 ## Usage
 
@@ -163,44 +151,6 @@ The `.vault0/` directory is automatically git-ignored on creation and is safe to
 | Runtime | [Bun](https://bun.sh/) (or Node 20+) |
 | ID Generation | [ULID](https://github.com/ulid/spec) (time-sortable unique IDs) |
 
-
-### Keybinding Architecture
-
-The keybinding system uses a priority-based scope registry. Each component creates a keybinding scope at an appropriate priority level, then registers individual keybindings via hooks. Higher-priority scopes shadow lower-priority ones, and opaque scopes block all key propagation even for unmatched keys.
-
-**Scope priorities:**
-
-| Priority | Level | Use Case |
-|----------|-------|----------|
-| 0 | ROOT | Global keys that always work (help toggle, quit) |
-| 10 | VIEW | Board, detail view, releases view |
-| 20 | OVERLAY | Modal dialogs, overlays, forms |
-| 30 | WIDGET | Inline pickers, search bars, autocompletes |
-
-**Adding a keybinding to a component:**
-
-```typescript
-import { useKeybindScope } from "../hooks/useKeybindScope.js"
-import { useKeybind } from "../hooks/useKeybind.js"
-import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
-
-// 1. Create a scope
-const scope = useKeybindScope("my-overlay", {
-  priority: SCOPE_PRIORITY.OVERLAY,
-  opaque: true,  // blocks lower-priority keys even if not handled
-})
-
-// 2. Register keybindings
-useKeybind(scope, "Escape", onClose, { description: "Close" })
-useKeybind(scope, ["k", "ArrowUp"], scrollUp, { description: "Scroll up" })
-```
-
-**Key concepts:**
-- **Opaque scopes** block all keys from reaching lower-priority scopes, even if the key isn't handled. Use for modals and forms to prevent accidental board actions.
-- **`when` flag** on individual bindings allows conditional activation without removing the scope.
-- **`active` flag** on scopes deactivates all bindings in the scope (used for sub-mode layering, e.g. detail view deactivates when dependency picker opens).
-
-See `src/lib/keybind-registry.ts` for the registry implementation and `src/lib/keybind-context.ts` for the React provider/context setup.
 
 ## Development
 
