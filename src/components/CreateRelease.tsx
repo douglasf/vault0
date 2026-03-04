@@ -260,6 +260,13 @@ export function CreateRelease({ doneTasks, allBoardTasks, versionFiles, onSubmit
   })
 
   // ── Field-specific: tasks ──────────────────────────────────────────────
+  // ── Field-specific: submit ──────────────────────────────────────────────
+  useKeybind(scope, "Enter", handleSubmit, {
+    when: focusField === "submit",
+    description: "Submit release",
+  })
+
+  // ── Field-specific: tasks ──────────────────────────────────────────────
   useKeybind(scope, "a", toggleAllTasks, {
     when: focusField === "tasks",
     description: "Toggle all tasks",
