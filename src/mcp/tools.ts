@@ -208,7 +208,7 @@ export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Da
   // ── 5. task-move-orchestrator (Marsellus) ──────────────────────────
   server.tool(
     "task-move-orchestrator",
-    "Move task through workflow: backlog → todo → in_progress → in_review. When all subtasks are in in_review, promote the parent from todo to in_review. Use solution field to record context about why you moved it. Always call task-view first to verify current status. Valid targets: backlog, todo, in_progress, in_review. Cannot move to done. On error, stop and report.",
+    "Move task through workflow: backlog → todo → in_progress → in_review. When all subtasks are in in_review, promote the parent to in_review as well. Use solution field to record context about why you moved it. Always call task-view first to verify current status. Valid targets: backlog, todo, in_progress, in_review. Never move a task from done. Cannot move to done. On error, stop and report.",
     moveSchema,
     (args) => { const r = handleMove(db, args.id, args); checkpoint(); return r },
   )

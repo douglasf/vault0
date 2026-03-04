@@ -1,5 +1,11 @@
 # Vault0 — Terminal Kanban Board
 
+<div align="center">
+
+![Vault0 App](vault0.png)
+
+</div>
+
 A local-first, per-repo terminal UI kanban board with hierarchical tasks, dependency tracking, and SQLite persistence. Designed for developers who live in the terminal.
 
 **Vault0** is named after Fallout lore — Vault 0 is the control center that monitors and controls the entire vault network. This TUI is your control center for task management.
@@ -51,67 +57,51 @@ Override the install prefix with `make install PREFIX=/usr/local/bin`.
 
 ### OpenCode Integration (Optional)
 
-Vault0 integrates with [OpenCode](https://opencode.ai/) via the **Model Context Protocol (MCP)**. This gives AI agents direct access to vault0's task management tools and composable instruction blocks — no file copying or environment variable overrides required.
+Vault0 integrates with [OpenCode](https://opencode.ai/) to give AI agents direct access to task management tools. Two integration methods are available: **MCP** (14 tools — 7 base tools with role-specific variants) or **Direct** (7 tools).
 
-#### Quick Setup
+#### Method 1: MCP (Recommended)
 
-Add vault0 as an MCP server in your OpenCode config (see [Manual MCP Configuration](#manual-mcp-configuration) below), then configure agent tool permissions using the example configs in the `opencode/` directory.
-
-#### How It Works
-
-The MCP server runs as a **stdio subprocess** — OpenCode starts it automatically and manages its lifecycle. The server:
-- Opens the repo's `.vault0/vault0.db` directly (no CLI subprocess bridge)
-- Exposes 7 task management tools (`vault0-task-list`, `vault0-task-add`, etc.)
-- Serves composable instruction blocks as MCP resources (`vault0://instructions/<name>`)
-- Supports filesystem overrides via `~/.config/vault0/instructions/<name>.md`
-
-#### Composable Instruction Blocks
-
-Instructions are split into focused, composable blocks organized by **concept/workflow** — not by agent role. Any agent config can compose them based on which vault0 tools the agent has access to:
-
-| Block | Purpose | Tool trigger |
-|-------|---------|-------------|
-| `tool-reference` | All 7 vault0 tools, valid values, hierarchy rules | Any vault0 tool |
-| `task-delegation` | Discovering ready tasks and delegating to other agents | `task-list`, `task-subtasks` |
-| `task-execution` | Claiming a task, implementing it, submitting for review | `task-view`, `task-move` |
-| `task-planning` | Creating structured plans as vault0 tasks | `task-add` |
-| `task-completion` | Marking tasks done after commits | `task-complete` |
-
-Blocks are role-agnostic — the same blocks work whether your agents are named "Orchestrator"/"Executor" or "Build"/"Plan" or a single "Executor" agent with every tool.
-
-#### Manual MCP Configuration
-
-If you prefer manual setup, add this to your OpenCode config:
+Vault0 runs as an MCP stdio server. Add to your OpenCode config:
 
 ```json
 {
-  "mcpServers": {
+  "mcp": {
     "vault0": {
-      "type": "stdio",
-      "command": "vault0",
-      "args": ["mcp-serve"]
+      "type": "local",
+      "command": ["vault0", "mcp-serve"],
+      "enabled": true
     }
   }
 }
 ```
 
-#### Standalone MCP Setup
+The MCP server opens the repo's `.vault0/vault0.db` directly and exposes 14 tools — 7 base task tools with role-specific variants for orchestrator, executor, git agent, and architect.
 
-If you don't have `vault0` installed yet or prefer a Makefile-driven setup:
+#### Method 2: Direct Tools
+
+Tools are registered as custom OpenCode tools backed by standalone TypeScript scripts. Install with:
 
 ```bash
-make opencode-mcp
+make opencode-direct
 ```
 
-Then add to your shell config (`~/.zshrc` or `~/.bashrc`):
+This copies tool scripts and instruction files to `~/.config/vault0/opencode/`.
+
+#### Shared Setup
+
+Both methods include an example `opencode.jsonc` with per-agent tool permissions (orchestrator, executor, planner, git, etc.). To install:
+
+```bash
+make opencode-mcp       # or: make opencode-direct
+```
+
+Then point OpenCode at the config:
 
 ```bash
 export OPENCODE_CONFIG_DIR=~/.config/vault0/opencode
 ```
 
-Edit `~/.config/vault0/opencode/opencode.jsonc` to configure agent names and tool permissions to match your setup.
-
-> **Migrating from the old `make opencode` setup?** See [MIGRATION.md](MIGRATION.md) for step-by-step instructions.
+Edit `~/.config/vault0/opencode/opencode.jsonc` to rename agents and adjust tool permissions for your setup. The example configs use placeholder agent names — adapt them to match your OpenCode agents.
 
 ## Usage
 
