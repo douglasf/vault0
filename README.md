@@ -32,19 +32,29 @@ A local-first, per-repo terminal UI kanban board with hierarchical tasks, depend
 
 ## Installation
 
-### Prerequisites
-
-- **Bun** >= 1.0.0 (or Node 20+)
-- **Terminal** >= 80x24 (recommended)
-
-### Install from Source
+### Quick Install (Recommended)
 
 ```bash
-git clone <repo-url> vault0
-cd vault0
-bun install
-bun run src/index.tsx
+curl -fsSL https://raw.githubusercontent.com/douglasf/vault0/main/install.sh | sh
 ```
+
+This detects your platform, downloads the latest prebuilt binary, and installs to `~/.local/bin`. Override the install directory with `VAULT0_INSTALL_DIR`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/douglasf/vault0/main/install.sh | VAULT0_INSTALL_DIR=/usr/local/bin sh
+```
+
+### Manual Download
+
+Download a prebuilt binary from [GitHub Releases](https://github.com/douglasf/vault0/releases). Available targets:
+
+| Platform | Architecture | Binary |
+|----------|-------------|--------|
+| macOS | Apple Silicon | `vault0-darwin-arm64` |
+| macOS | Intel | `vault0-darwin-x64` |
+| Linux | x64 | `vault0-linux-x64` |
+| Linux | ARM64 | `vault0-linux-arm64` |
+| Windows | x64 | `vault0-windows-x64.exe` |
 
 ### Build & Install (Compiled Binary)
 
@@ -54,6 +64,17 @@ vault0                    # launch from any directory
 ```
 
 Override the install prefix with `make install PREFIX=/usr/local/bin`.
+
+### Install from Source
+
+Requires **Bun** >= 1.0.0.
+
+```bash
+git clone https://github.com/douglasf/vault0.git
+cd vault0
+bun install
+bun run src/index.tsx
+```
 
 ### OpenCode Integration
 

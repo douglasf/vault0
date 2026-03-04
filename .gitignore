@@ -4,3 +4,5 @@ dist/
 *.db
 .DS_Store
 .envrc
+*.tar.gz
+*.zip
