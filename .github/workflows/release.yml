@@ -47,6 +47,12 @@ jobs:
             @opentui/core-win32-x64@0.1.81 \
             @opentui/core-win32-arm64@0.1.81
 
+      - name: Strip platform constraints for cross-compilation
+        run: |
+          for pkg in node_modules/@opentui/core-*/package.json; do
+            jq 'del(.os, .cpu)' "$pkg" > "$pkg.tmp" && mv "$pkg.tmp" "$pkg"
+          done
+
       - name: Build binaries
         run: |
           bun build --compile --minify --target=bun-linux-x64 --define process.platform='"linux"' --define process.arch='"x64"' ./src/index.tsx --outfile vault0-linux-x64
