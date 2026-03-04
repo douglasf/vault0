@@ -55,11 +55,36 @@ jobs:
 
       - name: Build binaries
         run: |
-          bun build --compile --minify --target=bun-linux-x64 --define process.platform='"linux"' --define process.arch='"x64"' ./src/index.tsx --outfile vault0-linux-x64
-          bun build --compile --minify --target=bun-linux-arm64 --define process.platform='"linux"' --define process.arch='"arm64"' ./src/index.tsx --outfile vault0-linux-arm64
-          bun build --compile --minify --target=bun-darwin-x64 --define process.platform='"darwin"' --define process.arch='"x64"' ./src/index.tsx --outfile vault0-darwin-x64
-          bun build --compile --minify --target=bun-darwin-arm64 --define process.platform='"darwin"' --define process.arch='"arm64"' ./src/index.tsx --outfile vault0-darwin-arm64
-          bun build --compile --minify --target=bun-windows-x64 --define process.platform='"win32"' --define process.arch='"x64"' ./src/index.tsx --outfile vault0-windows-x64.exe
+          # The @opentui/core bundle uses a dynamic template-literal import to load
+          # platform-specific native modules:
+          #   await import(`@opentui/core-${process.platform}-${process.arch}/index.ts`)
+          # Bun's bundler cannot resolve template-literal imports for cross-compilation
+          # targets even with --define, because it doesn't fold them into static strings
+          # for module resolution. We fix this by patching the dynamic import to a static
+          # one for each target platform before building.
+          CORE_JS="node_modules/@opentui/core/index-ve2seej0.js"
+          CORE_JS_ORIG="${CORE_JS}.orig"
+          cp "$CORE_JS" "$CORE_JS_ORIG"
+
+          build_target() {
+            local platform=$1 arch=$2 bun_target=$3 outfile=$4
+            # Restore original, then patch the dynamic import to a static one
+            cp "$CORE_JS_ORIG" "$CORE_JS"
+            sed -i "s|import(\`@opentui/core-\${process.platform}-\${process.arch}/index.ts\`)|import(\"@opentui/core-${platform}-${arch}/index.ts\")|g" "$CORE_JS"
+            bun build --compile --minify --target="$bun_target" \
+              --define process.platform="'\"${platform}\"'" \
+              --define process.arch="'\"${arch}\"'" \
+              ./src/index.tsx --outfile "$outfile"
+          }
+
+          build_target linux  x64   bun-linux-x64     vault0-linux-x64
+          build_target linux  arm64 bun-linux-arm64   vault0-linux-arm64
+          build_target darwin x64   bun-darwin-x64    vault0-darwin-x64
+          build_target darwin arm64 bun-darwin-arm64  vault0-darwin-arm64
+          build_target win32  x64   bun-windows-x64   vault0-windows-x64.exe
+
+          # Restore original source
+          mv "$CORE_JS_ORIG" "$CORE_JS"
 
       - name: Package archives
         run: |
