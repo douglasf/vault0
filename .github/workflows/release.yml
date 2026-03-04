@@ -37,6 +37,16 @@ jobs:
             exit 1
           fi
 
+      - name: Install cross-platform native modules
+        run: |
+          bun add --no-save \
+            @opentui/core-darwin-x64@0.1.81 \
+            @opentui/core-darwin-arm64@0.1.81 \
+            @opentui/core-linux-x64@0.1.81 \
+            @opentui/core-linux-arm64@0.1.81 \
+            @opentui/core-win32-x64@0.1.81 \
+            @opentui/core-win32-arm64@0.1.81
+
       - name: Build binaries
         run: |
           bun build --compile --minify --target=bun-linux-x64 ./src/index.tsx --outfile vault0-linux-x64
