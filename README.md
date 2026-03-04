@@ -57,7 +57,7 @@ Override the install prefix with `make install PREFIX=/usr/local/bin`.
 
 ### OpenCode Integration
 
-Vault0 provides an MCP server for integration with [OpenCode](https://opencode.ai). One command gets you up and running. The MCP provides 14 tools, many of which are identical in function but with different descriptions. This is how vault0 communicates proper tool usage.
+Vault0 provides an MCP server. Setup is specifically for [OpenCode](https://opencode.ai). One command gets you up and running. The MCP provides 14 tools, many of which are identical in function but with different descriptions. This is how vault0 communicates proper tool usage.
 
 #### Quick Start
 
