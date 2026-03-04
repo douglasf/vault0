@@ -190,6 +190,7 @@ make build                # Build standalone binary (no install)
 make install              # Build, sign, and install to ~/.local/bin
 make uninstall            # Remove from ~/.local/bin
 make clean                # Remove build artifacts
+make release              # Tag and push a new release
 
 # Database management (via Drizzle Kit)
 bun run db:generate       # Generate migration from schema changes

@@ -1,4 +1,4 @@
-.PHONY: build install uninstall clean dev start help typecheck test
+.PHONY: build install uninstall clean dev start help typecheck test release
 
 # Ensure bun is discoverable (installed via ~/.bun)
 BUN := $(or $(shell which bun 2>/dev/null),$(HOME)/.bun/bin/bun)
@@ -19,6 +19,7 @@ help:
 	@echo "  make start      - Run once (bun run)"
 	@echo "  make typecheck  - Run TypeScript type checker"
 	@echo "  make clean      - Remove build artifacts"
+	@echo "  make release    - Tag and push a new release"
 	@echo "  make help       - Show this message"
 	@echo ""
 	@echo "Installation:"
@@ -96,5 +97,8 @@ clean:
 	@echo "Cleaning build artifacts..."
 	rm -f vault0 vault0.exe
 	@echo "✓ Clean"
+
+release:
+	@bash scripts/release.sh
 
 # For OpenCode integration, run: vault0 mcp init
