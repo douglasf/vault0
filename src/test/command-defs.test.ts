@@ -65,8 +65,8 @@ describe("command-defs registry", () => {
     expect(CMD_BOARD.subcommands!.length).toBe(3)
   })
 
-  test("top-level commands has exactly 2 entries (task, board)", () => {
-    expect(TOP_LEVEL_COMMANDS.length).toBe(2)
+  test("top-level commands has exactly 3 entries (task, board, mcp)", () => {
+    expect(TOP_LEVEL_COMMANDS.length).toBe(3)
   })
 
   test("edit command includes dep-add and dep-remove flags but not dep-list", () => {

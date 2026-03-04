@@ -1,3 +1,5 @@
+import { existsSync, lstatSync, readFileSync, readlinkSync, writeFileSync, mkdirSync } from "node:fs"
+import { dirname, join, resolve } from "node:path"
 import type { Vault0Database } from "../db/connection.js"
 import type { CommandResult } from "./commands.js"
 import type { OutputFormat } from "./format.js"
@@ -311,10 +313,146 @@ export const CMD_BOARD: CommandDef = {
   ],
 }
 
+// ── MCP Subcommand Definitions ──────────────────────────────────────
+
+export const CMD_MCP_SERVE: CommandDef = {
+  name: "serve",
+  aliases: [],
+  description: "Start the MCP server (stdio transport)",
+  args: [],
+  options: [
+    {
+      long: "path",
+      description: "Repository root directory",
+      valuePlaceholder: "<DIR>",
+    },
+    ...GLOBAL_OPTIONS,
+  ],
+}
+
+export const CMD_MCP_INIT: CommandDef = {
+  name: "init",
+  aliases: [],
+  description: "Generate MCP config snippet for OpenCode integration",
+  args: [],
+  options: [
+    { long: "write", short: "w", description: "Write config to .opencode/opencode.jsonc", boolean: true },
+    { long: "path", short: "p", description: "Target file path (default: .opencode/opencode.jsonc in repo root)", valuePlaceholder: "<path>" },
+    { long: "force", short: "f", description: "Overwrite existing file (don't merge)", boolean: true },
+    ...GLOBAL_OPTIONS,
+  ],
+  action: (_db, _pos, flags, _format) => cmdMcpInit(flags),
+}
+
+// ── MCP Init Implementation ─────────────────────────────────────────
+
+const MCP_SNIPPET = {
+  mcp: {
+    vault0: {
+      type: "local",
+      command: ["vault0", "mcp", "serve"],
+      enabled: true,
+    },
+  },
+}
+
+/** Walk up from startDir looking for .git/ directory, return its parent as repo root */
+function findRepoRoot(startDir: string = process.cwd()): string {
+  let current = resolve(startDir)
+  while (current !== "/") {
+    if (existsSync(join(current, ".git"))) {
+      return current
+    }
+    current = resolve(current, "..")
+  }
+  return process.cwd()
+}
+
+function cmdMcpInit(flags: Record<string, string>): CommandResult {
+  const snippet = JSON.stringify(MCP_SNIPPET, null, 2)
+
+  if (!flags.write) {
+    return {
+      success: true,
+      message: `Add this to your .opencode/opencode.jsonc:\n\n${snippet}`,
+    }
+  }
+
+  const targetFile = flags.path ? resolve(flags.path) : join(findRepoRoot(), ".opencode", "opencode.jsonc")
+  const targetDir = dirname(targetFile)
+
+  try {
+    // Check if target is a symlink — refuse to write, show snippet instead
+    if (existsSync(targetFile) && lstatSync(targetFile).isSymbolicLink()) {
+      const linkTarget = readlinkSync(targetFile)
+      return {
+        success: true,
+        message: `The target file is a symlink:\n  ${targetFile} → ${linkTarget}\n\nAdd this snippet to the linked file manually:\n\n${snippet}`,
+      }
+    }
+
+    // Ensure .opencode/ directory exists
+    if (!existsSync(targetDir)) {
+      mkdirSync(targetDir, { recursive: true })
+    }
+
+    if (!existsSync(targetFile)) {
+      writeFileSync(targetFile, `${snippet}\n`, "utf-8")
+      return { success: true, message: `Created ${targetFile} with MCP server entry` }
+    }
+
+    // File exists
+    if (flags.force) {
+      writeFileSync(targetFile, `${snippet}\n`, "utf-8")
+      return { success: true, message: `Overwrote ${targetFile} with MCP server entry` }
+    }
+
+    // Try to merge
+    const existing = readFileSync(targetFile, "utf-8")
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(existing)
+    } catch {
+      return {
+        success: false,
+        message: `Failed to parse existing ${targetFile} (may contain JSONC comments). Use --force to overwrite.`,
+      }
+    }
+
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return {
+        success: false,
+        message: `Existing ${targetFile} is not a JSON object. Use --force to overwrite.`,
+      }
+    }
+
+    // Merge mcp.vault0 entry
+    const mcp = (parsed.mcp as Record<string, unknown>) ?? {}
+    mcp.vault0 = MCP_SNIPPET.mcp.vault0
+    parsed.mcp = mcp
+
+    writeFileSync(targetFile, `${JSON.stringify(parsed, null, 2)}\n`, "utf-8")
+    return { success: true, message: `Updated ${targetFile} with MCP server entry` }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { success: false, message: `Failed to write ${targetFile}: ${message}` }
+  }
+}
+
+/** Top-level "mcp" container command */
+export const CMD_MCP: CommandDef = {
+  name: "mcp",
+  aliases: [],
+  description: "Manage MCP server integration",
+  args: [],
+  options: [],
+  subcommands: [CMD_MCP_SERVE, CMD_MCP_INIT],
+}
+
 // ── Registries ──────────────────────────────────────────────────────
 
 /** All top-level container commands */
-export const TOP_LEVEL_COMMANDS: CommandDef[] = [CMD_TASK, CMD_BOARD]
+export const TOP_LEVEL_COMMANDS: CommandDef[] = [CMD_TASK, CMD_BOARD, CMD_MCP]
 
 // ── Lookup Helpers ──────────────────────────────────────────────────
 

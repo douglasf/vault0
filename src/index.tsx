@@ -115,7 +115,7 @@ function acquireTuiLock(repoRoot: string, watchMode = false): (() => void) | nul
 
 // ── CLI Entities (subcommand routing) ───────────────────────────────────
 
-const CLI_ENTITIES = new Set(["task", "board", "mcp-serve", "integration"])
+const CLI_ENTITIES = new Set(["task", "board", "mcp"])
 
 // ── CLI Argument Parsing ────────────────────────────────────────────────
 
@@ -127,8 +127,8 @@ Usage:
   vault0                          Launch interactive board (TUI)
   vault0 task <command> [options] Manage tasks via CLI
   vault0 board <command>          Manage boards via CLI
-  vault0 integration get          Query integration config
-  vault0 mcp-serve                Start MCP server (stdio transport)
+  vault0 mcp serve                Start MCP server (stdio transport)
+  vault0 mcp init                 Generate MCP config snippet
   vault0 --path DIR               Launch board for specific directory
   vault0 --help                   Show this help message
   vault0 --version                Show version
@@ -188,18 +188,6 @@ async function main() {
 
   const firstArg = args[0]
 
-  // ── MCP server mode ─────────────────────────────────────────────────
-  if (firstArg === "mcp-serve") {
-    // Extract --path if present
-    const pathIdx = args.indexOf("--path")
-    if (pathIdx !== -1 && args[pathIdx + 1]) {
-      repoRoot = args[pathIdx + 1]
-    }
-    const { startMcpServer } = await import("./mcp/server.js")
-    await startMcpServer(repoRoot)
-    return
-  }
-
   const isCliMode = firstArg !== undefined && CLI_ENTITIES.has(firstArg)
 
   if (isCliMode) {
@@ -210,6 +198,17 @@ async function main() {
     if (pathIdx !== -1 && cliArgs[pathIdx + 1]) {
       repoRoot = cliArgs[pathIdx + 1]
       cliArgs.splice(pathIdx, 2)
+    }
+
+    // ── MCP server mode (special routing) ───────────────────────────
+    // "mcp serve" must be intercepted before standard DB initialization
+    // because the MCP server manages its own DB lifecycle and redirects
+    // stdout to stderr for stdio transport.
+    const subcommand = cliArgs[0]
+    if (entity === "mcp" && subcommand === "serve") {
+      const { startMcpServer } = await import("./mcp/server.js")
+      await startMcpServer(repoRoot)
+      return
     }
 
     // Initialize config and database

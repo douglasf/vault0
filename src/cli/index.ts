@@ -13,7 +13,7 @@ import { generateHelp, generateUsage } from "./help.js"
 const MULTI_VALUE_FLAGS = new Set(["task-id"])
 
 /** Boolean flags that don't consume a following value */
-const BOOLEAN_FLAGS = new Set(["blocked", "ready", "all", "help", "dep-list", "include-subtasks", "dry-run", "defaults"])
+const BOOLEAN_FLAGS = new Set(["blocked", "ready", "all", "help", "dep-list", "include-subtasks", "dry-run", "defaults", "write", "force"])
 
 interface ParsedArgs {
   positional: string[]
