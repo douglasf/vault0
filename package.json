@@ -1,6 +1,6 @@
 {
   "name": "vault0",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Terminal kanban board with dependency tracking and SQLite persistence",
   "author": "Douglas Frisk",
   "license": "MIT",
