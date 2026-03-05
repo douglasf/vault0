@@ -15,23 +15,8 @@ import { renderExitScreen } from "./lib/exit-screen.js"
 import { existsSync, mkdirSync, appendFileSync, writeFileSync, readFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
 import { execSync } from "node:child_process"
-
-// Version is injected at compile time via --define in Makefile.
-// During dev (bun run), the placeholder remains and we fall back to reading package.json.
-declare const __VAULT0_VERSION__: string | undefined
-const VERSION: string = (() => {
-  // Compile-time injected value (bundled binary)
-  try {
-    if (typeof __VAULT0_VERSION__ !== "undefined") return __VAULT0_VERSION__
-  } catch { /* not defined — dev mode */ }
-  // Dev mode: read from package.json relative to this file
-  try {
-    const path = join(import.meta.dir, "..", "package.json")
-    return JSON.parse(readFileSync(path, "utf-8")).version
-  } catch {
-    return "dev"
-  }
-})()
+import { VERSION, checkForUpdate, getCachedUpdateInfo } from "./lib/version.js"
+import type { UpdateInfo } from "./lib/version.js"
 
 // ── Single Instance Lock ────────────────────────────────────────────────
 
@@ -129,6 +114,7 @@ Usage:
   vault0 board <command>          Manage boards via CLI
   vault0 mcp serve                Start MCP server (stdio transport)
   vault0 mcp init                 Generate MCP config snippet
+  vault0 update                   Install the latest version of Vault0
   vault0 --path DIR               Launch board for specific directory
   vault0 --help                   Show this help message
   vault0 --version                Show version
@@ -187,6 +173,13 @@ async function main() {
   // Extract --path from anywhere in the args for CLI mode too
 
   const firstArg = args[0]
+
+  // ── Self-update command ───────────────────────────────────────────
+  if (firstArg === "update") {
+    const { runUpdate } = await import("./cli/update.js")
+    await runUpdate()
+    return
+  }
 
   const isCliMode = firstArg !== undefined && CLI_ENTITIES.has(firstArg)
 
@@ -327,6 +320,14 @@ async function main() {
 
     // ── Launch OpenTUI renderer ───────────────────────────────────────────
     // OpenTUI handles alternate screen, raw mode, and cleanup automatically.
+
+    // Start background version check (non-blocking)
+    let resolvedUpdateInfo: UpdateInfo | null = null
+    const updateCheckPromise = checkForUpdate().then((info) => {
+      resolvedUpdateInfo = info
+      return info
+    }).catch(() => null)
+
     const renderer = await createCliRenderer({
       exitOnCtrlC: true,
       useAlternateScreen: true,
@@ -344,7 +345,9 @@ async function main() {
         markDbClosed()
 
         try {
-          renderExitScreen()
+          // Use already-resolved update info, or fall back to cache
+          const updateInfo = resolvedUpdateInfo ?? getCachedUpdateInfo()
+          renderExitScreen(updateInfo)
         } catch {
           // Non-fatal — don't block exit if rendering fails
         }

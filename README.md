@@ -138,9 +138,23 @@ vault0 task edit abc12345 --dep-list
 vault0 board list
 vault0 task                               # Show available task commands
 vault0 task edit --help                   # Show edit command usage
+vault0 update                             # Install the latest version
 ```
 
 The CLI outputs plain text by default. Pass `--format json` for machine-readable output. Task IDs can be shortened — use the last 8+ characters.
+
+### Version Check & Auto-Update
+
+Vault0 checks for new versions in the background on every TUI launch. Version information is cached for 24 hours to avoid unnecessary network requests.
+
+When a newer version is available, an update notification is displayed on the exit screen after you quit the TUI:
+
+```
+Update available: 0.1.0 → 0.2.0
+Run `vault0 update` to upgrade
+```
+
+Run `vault0 update` to download and install the latest version in-place.
 
 ### Keyboard Shortcuts
 

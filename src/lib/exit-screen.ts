@@ -6,6 +6,8 @@
 import { fonts } from "@opentui/core"
 import { getSessionStats } from "./session-stats.js"
 import { theme } from "./theme.js"
+import { VERSION } from "./version.js"
+import type { UpdateInfo } from "./version.js"
 
 // ── ANSI helpers ────────────────────────────────────────────────────
 
@@ -81,10 +83,11 @@ function renderBanner(): string {
 
 // ── Main render function ────────────────────────────────────────────
 
-export function renderExitScreen(): void {
+export function renderExitScreen(updateInfo?: UpdateInfo | null): void {
   const stats = getSessionStats()
   const CYAN = hexToAnsi(theme.cyan)
   const GREEN = hexToAnsi(theme.green)
+  const YELLOW = hexToAnsi(theme.yellow)
   const FG = hexToAnsi(theme.fg_1)
 
   let output = renderBanner()
@@ -99,6 +102,13 @@ export function renderExitScreen(): void {
     if (stats.tasksDone > 0) {
       output += `   ${GREEN}✦${RESET}  ${FG}Tasks done${RESET}     ${BOLD}${GREEN}${stats.tasksDone}${RESET}\n`
     }
+  }
+
+  // Update notification
+  if (updateInfo) {
+    output += "\n"
+    output += `   ${YELLOW}Update available: ${DIM}${VERSION}${RESET} ${YELLOW}→ ${BOLD}${updateInfo.latestVersion}${RESET}\n`
+    output += `   ${DIM}Run \`vault0 update\` to upgrade${RESET}\n`
   }
 
   output += "\n"
