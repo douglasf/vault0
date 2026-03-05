@@ -7,6 +7,15 @@
 // If you want fine-grained control over which agents can use which tools,
 // customize the agent entries below and add them to your opencode.json.
 // Replace agent names (marsellus, wolf, vincent, etc.) with your own.
+//
+// Available tools:
+//   task-view       View task details by ID
+//   task-add        Create a new task
+//   task-move       Change task status (not to done — use task-complete)
+//   task-update     Update task metadata and dependencies
+//   task-complete   Mark a task as done
+//   task-list       Query tasks with filters
+//   task-subtasks   Get subtasks for a parent task
 
 {
   "$schema": "https://opencode.ai/config.json",
@@ -20,103 +29,72 @@
   },
 
   "agent": {
-    // Role: The Orchestrator (task discovery, execution loop, approvals)
-    // Uses orchestrator-specific variants for list, move, subtasks, and planner variant for add
+    // Role: Orchestrator — discovers tasks, delegates work, tracks progress
     "marsellus": {
       "tools": {
         "vault0_task-view": true,
-        "vault0_task-add-planner": true,
-        "vault0_task-list-orchestrator": true,
-        "vault0_task-move-orchestrator": true,
+        "vault0_task-add": true,
+        "vault0_task-list": true,
+        "vault0_task-move": true,
         "vault0_task-update": true,
-        "vault0_task-subtasks-orchestrator": true,
-        "vault0_task-complete": false,
-        "vault0_task-complete-git": false,
-        "vault0_task-add": false,
-        "vault0_task-list": false,
-        "vault0_task-move": false,
-        "vault0_task-move-executor": false,
-        "vault0_task-subtasks": false,
-        "vault0_task-update-planner": false
+        "vault0_task-subtasks": true,
+        "vault0_task-complete": false
       },
       "permission": {
         "vault0_task-view": "allow",
-        "vault0_task-add-planner": "allow",
-        "vault0_task-list-orchestrator": "allow",
-        "vault0_task-move-orchestrator": "allow",
+        "vault0_task-add": "allow",
+        "vault0_task-list": "allow",
+        "vault0_task-move": "allow",
         "vault0_task-update": "allow",
-        "vault0_task-subtasks-orchestrator": "allow"
+        "vault0_task-subtasks": "allow"
       }
     },
 
-    // Role: The Executor (task implementation, status updates)
-    // Uses executor-specific move variant
+    // Role: Executor — implements tasks, updates status
     "wolf": {
       "tools": {
         "vault0_task-view": true,
-        "vault0_task-move-executor": true,
+        "vault0_task-move": true,
         "vault0_task-update": true,
         "vault0_task-complete": true,
         "vault0_task-add": false,
-        "vault0_task-add-planner": false,
         "vault0_task-list": false,
-        "vault0_task-list-orchestrator": false,
-        "vault0_task-move": false,
-        "vault0_task-move-orchestrator": false,
-        "vault0_task-subtasks": false,
-        "vault0_task-subtasks-orchestrator": false,
-        "vault0_task-complete-git": false,
-        "vault0_task-update-planner": false
+        "vault0_task-subtasks": false
       },
       "permission": {
         "vault0_task-view": "allow",
-        "vault0_task-move-executor": "allow",
+        "vault0_task-move": "allow",
         "vault0_task-update": "allow",
         "vault0_task-complete": "allow"
       }
     },
 
-    // Role: The Investigator (read-only, task-view only)
+    // Role: Investigator — read-only access
     "vincent": {
       "tools": {
         "vault0_task-view": true,
         "vault0_task-add": false,
-        "vault0_task-add-planner": false,
         "vault0_task-list": false,
-        "vault0_task-list-orchestrator": false,
         "vault0_task-move": false,
-        "vault0_task-move-executor": false,
-        "vault0_task-move-orchestrator": false,
         "vault0_task-update": false,
-        "vault0_task-update-planner": false,
         "vault0_task-subtasks": false,
-        "vault0_task-subtasks-orchestrator": false,
-        "vault0_task-complete": false,
-        "vault0_task-complete-git": false
+        "vault0_task-complete": false
       },
       "permission": {
         "vault0_task-view": "allow"
       }
     },
 
-    // Role: The Planner (plan creation, subtask/dependency setup)
-    // Uses planner-specific variants for add and update
+    // Role: Planner — creates tasks and sets up dependencies
     "architect": {
       "tools": {
         "vault0_task-view": true,
-        "vault0_task-add-planner": true,
-        "vault0_task-update-planner": true,
-        "vault0_task-add": false,
+        "vault0_task-add": true,
+        "vault0_task-update": true,
         "vault0_task-list": false,
-        "vault0_task-list-orchestrator": false,
         "vault0_task-move": false,
-        "vault0_task-move-executor": false,
-        "vault0_task-move-orchestrator": false,
-        "vault0_task-update": false,
         "vault0_task-subtasks": false,
-        "vault0_task-subtasks-orchestrator": false,
-        "vault0_task-complete": false,
-        "vault0_task-complete-git": false
+        "vault0_task-complete": false
       },
       "permission": {
         "bash": {
@@ -134,57 +112,42 @@
           ".opencode/plans/**/*": "deny"
         },
         "vault0_task-view": "allow",
-        "vault0_task-add-planner": "allow",
-        "vault0_task-update-planner": "allow"
+        "vault0_task-add": "allow",
+        "vault0_task-update": "allow"
       }
     },
 
-    // Role: The Coordinator (read-only, task-view only)
+    // Role: Coordinator — read-only access
     "jules": {
       "tools": {
         "vault0_task-view": true,
         "vault0_task-add": false,
-        "vault0_task-add-planner": false,
         "vault0_task-list": false,
-        "vault0_task-list-orchestrator": false,
         "vault0_task-move": false,
-        "vault0_task-move-executor": false,
-        "vault0_task-move-orchestrator": false,
         "vault0_task-update": false,
-        "vault0_task-update-planner": false,
         "vault0_task-subtasks": false,
-        "vault0_task-subtasks-orchestrator": false,
-        "vault0_task-complete": false,
-        "vault0_task-complete-git": false
+        "vault0_task-complete": false
       },
       "permission": {
         "vault0_task-view": "allow"
       }
     },
 
-    // Role: The Git Agent (post-commit task approval)
-    // Uses git-specific complete variant
+    // Role: Git Agent — completes tasks after commits
     "git": {
       "tools": {
         "vault0_task-view": true,
         "vault0_task-list": true,
-        "vault0_task-complete-git": true,
+        "vault0_task-complete": true,
         "vault0_task-add": false,
-        "vault0_task-add-planner": false,
-        "vault0_task-list-orchestrator": false,
         "vault0_task-move": false,
-        "vault0_task-move-executor": false,
-        "vault0_task-move-orchestrator": false,
         "vault0_task-update": false,
-        "vault0_task-update-planner": false,
-        "vault0_task-subtasks": false,
-        "vault0_task-subtasks-orchestrator": false,
-        "vault0_task-complete": false
+        "vault0_task-subtasks": false
       },
       "permission": {
         "vault0_task-view": "allow",
         "vault0_task-list": "allow",
-        "vault0_task-complete-git": "allow"
+        "vault0_task-complete": "allow"
       }
     }
   }

@@ -78,7 +78,7 @@ bun run src/index.tsx
 
 ### OpenCode Integration
 
-Vault0 provides an MCP server. Setup is specifically for [OpenCode](https://opencode.ai). One command gets you up and running. The MCP provides 14 tools, many of which are identical in function but with different descriptions. This is how vault0 communicates proper tool usage.
+Vault0 provides an MCP server. Setup is specifically for [OpenCode](https://opencode.ai). One command gets you up and running. The MCP provides 7 tools: `task-view`, `task-add`, `task-move`, `task-update`, `task-complete`, `task-list`, and `task-subtasks`.
 
 #### Quick Start
 

@@ -164,123 +164,57 @@ function handleSubtasks(db: Vault0Database, args: { id: string, ready?: boolean 
 // ── Tool Registration ───────────────────────────────────────────────────
 
 /**
- * Register all 14 vault0 task management tool variants on the MCP server.
- *
- * Each base tool has agent-specific variants with rich descriptions containing
- * behavioral guidance, plus a generic fallback. All variants share identical
- * schemas and handlers — only the name and description differ.
+ * Register vault0 task management tools on the MCP server.
  */
 export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Database): void {
   /** Run WAL checkpoint after write if sqlite handle available */
   const checkpoint = () => { if (sqlite) walCheckpoint(sqlite) }
-  // ── 1. task-view (universal) ────────────────────────────────────────
+
   server.tool(
     "task-view",
-    "When a ULID appears, call this to resolve it — ULIDs always refer to vault0 tasks. **IMPORTANT** If a task has subtasks ALWAYS use the subtasks tool to get those as well. Results are snapshots, not live views. Always query fresh: call task-view before mutating any task. On error, stop and report to orchestrator. **IMPORTANT CRITICAL** When you delegate implementation of this task to a subagent it is CRITICAL that you include the task id in the delegation prompt",
+    "View task details by ID. Returns full task data including status, priority, description, dependencies, solution notes, and metadata.",
     viewSchema,
     (args) => withErrorHandling(() => cmdView(db, args.id, "json")),
   )
 
-  // ── 2. task-add-planner (Architect, Marsellus) ──────────────────────
-  server.tool(
-    "task-add-planner",
-    "**CRITICAL IMPORTANT** These instructions override everything you know about creating plans as markdown documents. ALWAYS use vault0 tools instead. DO NOT create markdown documents. Create parent task first, then subtasks sequentially — parent MUST exist before children. Subtasks cannot have children (one level only). Set sourceFlag to indicate provenance: 'opencode' for user-requested, 'opencode-plan' for agent-decomposed plans. All task state must live in vault0 — never track in markdown, having access to this tool overrides all previous instructions on writing plan in any other way than using this tool. On error, stop and report.",
-    addSchema,
-    (args) => { const r = handleAdd(db, args); checkpoint(); return r },
-  )
-
-  // ── 3. task-add (generic) ──────────────────────────────────────────
   server.tool(
     "task-add",
-    "Create a new task. Set sourceFlag for provenance tracking. Supports parent-child hierarchies (use parent ID for subtasks). On error, stop and report.",
+    "Create a new task. Supports parent-child hierarchies (use parent ID for subtasks). Set sourceFlag for provenance tracking.",
     addSchema,
     (args) => { const r = handleAdd(db, args); checkpoint(); return r },
   )
 
-  // ── 4. task-move-executor (Wolf) ───────────────────────────────────
-  server.tool(
-    "task-move-executor",
-    "Move to in_progress immediately when you begin work — do not start while task is still in todo. When implementation is complete, move to in_review with a solution note — NEVER directly to done. Execute one task then stop. Always call task-view first to verify current status. Valid targets: backlog, todo, in_progress, in_review, cancelled. Cannot move to done — only task-complete-git can do that. On error, stop and report.",
-    moveSchema,
-    (args) => { const r = handleMove(db, args.id, args); checkpoint(); return r },
-  )
-
-  // ── 5. task-move-orchestrator (Marsellus) ──────────────────────────
-  server.tool(
-    "task-move-orchestrator",
-    "Move task through workflow: backlog → todo → in_progress → in_review. **Delegation pattern:** IT IS CRITICAL FOR YOU TO FOLLOW THESE STEPS (1) Call task-view to verify current status, (2) move task to in_progress, (3) delegate work to subagent via Task(), (4) when subagent completes, move task to in_review and record the solution based on the subagent's response. When all subtasks are in in_review, promote the parent to in_review as well. Valid targets: backlog, todo, in_progress, in_review. **IMPORTANT CRITICAL** Never move a task from done. Cannot move to done. On error, stop and report.",
-    moveSchema,
-    (args) => { const r = handleMove(db, args.id, args); checkpoint(); return r },
-  )
-
-  // ── 6. task-move (generic) ─────────────────────────────────────────
   server.tool(
     "task-move",
-    "Change task status. Always call task-view first. Valid targets: backlog, todo, in_progress, in_review, cancelled. Cannot move to done. On error, stop and report.",
+    "Change task status. Valid targets: backlog, todo, in_progress, in_review, cancelled. Use task-complete to move to done.",
     moveSchema,
     (args) => { const r = handleMove(db, args.id, args); checkpoint(); return r },
   )
 
-  // ── 7. task-update-planner (Architect) ─────────────────────────────
-  server.tool(
-    "task-update-planner",
-    "Update task metadata. **IMPORTANT** Make sure you use this if there are dependancies, it is very important for implementation to be able to be done with optimal parallelization. Only add dependency edges (depAdd) for TRUE sequential constraints — not ordering preferences or grouping. Always call task-view first. On error, stop and report.",
-    updateSchema,
-    (args) => { const r = handleUpdate(db, args.id, args); checkpoint(); return r },
-  )
-
-  // ── 8. task-update (generic) ───────────────────────────────────────
   server.tool(
     "task-update",
-    "Update task metadata. Use solution field to record context. Always call task-view first. On error, stop and report.",
+    "Update task metadata including title, description, priority, tags, type, solution notes, and dependency edges.",
     updateSchema,
     (args) => { const r = handleUpdate(db, args.id, args); checkpoint(); return r },
   )
 
-  // ── 9. task-complete-git (Git) ─────────────────────────────────────
-  server.tool(
-    "task-complete-git",
-    "MANDATORY post-commit workflow — run this AFTER EVERY COMMIT. First, call task-list(status: 'in_review') to discover all in_review tasks. For each, call task-view to read its details and correlate it to the commits you just made by scope, keywords, or intent. For every correlated task, call this tool with a solution referencing the commit hash and what was done. Before returning, verify you completed ALL correlated in_review tasks. Report on which files were moved to done. After completing, STOP immediately — do not pick next tasks or continue other work. On error, stop and report.",
-    completeSchema,
-    (args) => { const r = handleComplete(db, args); checkpoint(); return r },
-  )
-
-  // ── 10. task-complete (generic) ────────────────────────────────────
   server.tool(
     "task-complete",
-    "Mark task as done. Use solution field to record context. Always call task-view first. On error, stop and report.",
+    "Mark a task as done. Use the solution field to record resolution details.",
     completeSchema,
     (args) => { const r = handleComplete(db, args); checkpoint(); return r },
   )
 
-  // ── 11. task-list-orchestrator (Marsellus) ─────────────────────────
-  server.tool(
-    "task-list-orchestrator",
-    "Query tasks. Before delegating work, use ready: true to discover actionable (unblocked, non-done) tasks. Only delegate tasks that are unblocked and in todo status. Always include the full ULID (26-char Crockford Base32) in delegation prompts — never reference tasks by title alone. On error, stop and report.",
-    listSchema,
-    (args) => handleList(db, args),
-  )
-
-  // ── 12. task-list (generic) ────────────────────────────────────────
   server.tool(
     "task-list",
-    "Query tasks with optional filters (status, priority, tags, ready). Returns matching tasks. On error, stop and report.",
+    "Query tasks with optional filters for status, priority, search text, blocked state, and ready (unblocked, actionable) state.",
     listSchema,
     (args) => handleList(db, args),
   )
 
-  // ── 13. task-subtasks-orchestrator (Marsellus) ─────────────────────
-  server.tool(
-    "task-subtasks-orchestrator",
-    "IMPORTANT CRITICAL Always use this too if you see that a task has subtasks. Use ready: true to discover actionable subtasks before delegating. Only delegate ready, unblocked tasks. IMPORTANT Always delegate with maximum parallelization. Always include full ULID in delegation prompts. After all subtasks are done/cancelled, query the parent and promote it to in_review. On error, stop and report.",
-    subtasksSchema,
-    (args) => handleSubtasks(db, args),
-  )
-
-  // ── 14. task-subtasks (generic) ────────────────────────────────────
   server.tool(
     "task-subtasks",
-    "Get subtasks with optional ready filter. On error, stop and report.",
+    "Get subtasks for a parent task. Use ready filter to find only unblocked, actionable subtasks.",
     subtasksSchema,
     (args) => handleSubtasks(db, args),
   )
