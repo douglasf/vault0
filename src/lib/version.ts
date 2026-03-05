@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
-import { join } from "node:path"
+import { join, dirname } from "node:path"
 import { homedir } from "node:os"
 
 // Version is injected at compile time via --define in Makefile.
@@ -113,7 +113,7 @@ export async function checkForUpdate(cachePath?: string): Promise<UpdateInfo | n
     // Write cache
     const cached: CachedUpdateCheck = { checkedAt: new Date().toISOString(), update }
     try {
-      mkdirSync(filePath.substring(0, filePath.lastIndexOf("/")), { recursive: true })
+      mkdirSync(dirname(filePath), { recursive: true })
       writeFileSync(filePath, JSON.stringify(cached))
     } catch { /* cache write failure is non-fatal */ }
 
