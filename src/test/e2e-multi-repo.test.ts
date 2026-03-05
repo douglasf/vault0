@@ -36,7 +36,11 @@ function createRepoFixture(): RepoFixture {
 
 function cleanupRepo(repo: RepoFixture): void {
   repo.sqlite.close()
-  rmSync(repo.dir, { recursive: true, force: true })
+  try {
+    rmSync(repo.dir, { recursive: true, force: true })
+  } catch {
+    /* Windows may hold file locks briefly after sqlite.close() — temp dir cleanup is best-effort */
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -163,8 +167,8 @@ describe("config discovery per repo", () => {
   })
 
   afterEach(() => {
-    rmSync(repoA, { recursive: true, force: true })
-    rmSync(repoB, { recursive: true, force: true })
+    try { rmSync(repoA, { recursive: true, force: true }) } catch { /* best-effort */ }
+    try { rmSync(repoB, { recursive: true, force: true }) } catch { /* best-effort */ }
   })
 
   test("project config in repo A does not affect repo B", () => {
@@ -257,10 +261,10 @@ describe("session switching simulation", () => {
     const listA2 = cmdList(dbA, { status: "todo" }, "json")
     expect((listA2.data as unknown[]).length).toBe(2)
 
-    // Cleanup
+    // Cleanup — best-effort rm; Windows may hold SQLite file locks briefly
     sessionA.sqlite.close()
     sessionB.sqlite.close()
-    rmSync(dirA, { recursive: true, force: true })
-    rmSync(dirB, { recursive: true, force: true })
+    try { rmSync(dirA, { recursive: true, force: true }) } catch { /* EBUSY on Windows */ }
+    try { rmSync(dirB, { recursive: true, force: true }) } catch { /* EBUSY on Windows */ }
   })
 })
