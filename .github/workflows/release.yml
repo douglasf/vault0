@@ -71,7 +71,7 @@ jobs:
         run: bun test
 
       - name: Build binary
-        run: bun build --compile --minify src/index.tsx --outfile ${{ matrix.artifact }}${{ matrix.ext }}
+        run: bun build --compile --minify --define __VAULT0_VERSION__="\"${{ github.ref_name }}\"" src/index.tsx --outfile ${{ matrix.artifact }}${{ matrix.ext }}
 
       - name: Package (unix)
         if: runner.os != 'Windows'
