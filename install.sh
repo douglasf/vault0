@@ -163,24 +163,38 @@ main() {
   echo "  Directory: ${INSTALL_DIR}"
   echo ""
 
-  download_url="https://github.com/${REPO}/releases/download/${version}/${BINARY_NAME}-${TARGET}${suffix}"
+  # Release assets are archives: .tar.gz for unix, .zip for windows
+  artifact_name="${BINARY_NAME}-${TARGET}"
+  if [ "$platform" = "windows" ]; then
+    archive_ext=".zip"
+  else
+    archive_ext=".tar.gz"
+  fi
+  download_url="https://github.com/${REPO}/releases/download/${version}/${artifact_name}${archive_ext}"
 
   tmpdir="$(mktemp -d)"
-  tmpfile="${tmpdir}/${BINARY_NAME}${suffix}"
+  archive_file="${tmpdir}/${artifact_name}${archive_ext}"
 
   echo "Downloading ${download_url}..."
-  if ! download "$download_url" "$tmpfile"; then
+  if ! download "$download_url" "$archive_file"; then
     rm -rf "$tmpdir"
     echo ""
-    echo "Error: Download failed for ${BINARY_NAME}-${TARGET}${suffix}" >&2
+    echo "Error: Download failed for ${artifact_name}${archive_ext}" >&2
     echo "No prebuilt binary available for your platform." >&2
     fallback_build
   fi
 
+  # Extract binary from archive
+  if [ "$platform" = "windows" ]; then
+    unzip -qo "$archive_file" -d "$tmpdir"
+  else
+    tar xzf "$archive_file" -C "$tmpdir"
+  fi
+
   # Install binary
   mkdir -p "$INSTALL_DIR"
-  chmod +x "$tmpfile"
-  mv "$tmpfile" "${INSTALL_DIR}/${BINARY_NAME}${suffix}"
+  chmod +x "${tmpdir}/${artifact_name}${suffix}"
+  mv "${tmpdir}/${artifact_name}${suffix}" "${INSTALL_DIR}/${BINARY_NAME}${suffix}"
   rm -rf "$tmpdir"
 
   echo ""
