@@ -49,9 +49,13 @@ jobs:
 
       - name: Strip platform constraints for cross-compilation
         run: |
+          # Strip os/cpu from package.json files in node_modules
           for pkg in node_modules/@opentui/core-*/package.json; do
             jq 'del(.os, .cpu)' "$pkg" > "$pkg.tmp" && mv "$pkg.tmp" "$pkg"
           done
+          # Also strip os/cpu from bun.lock — bun's resolver checks lockfile
+          # metadata during cross-compilation and skips mismatched packages
+          sed -i 's/"os": "[^"]*", "cpu": "[^"]*"//g' bun.lock
 
       - name: Build binaries
         run: |
