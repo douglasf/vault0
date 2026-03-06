@@ -8,6 +8,7 @@ import { useKeybindRegistry } from "../lib/keybind-context.js"
 import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { theme } from "../lib/theme.js"
 import { ModalOverlay } from "./ModalOverlay.js"
+import { FormInput } from "./FormInput.js"
 
 export interface HelpOverlayProps {
   onClose: () => void
@@ -97,8 +98,6 @@ const shortcutSections: readonly ShortcutSection[] = [
     shortcuts: [
       ["f", "Search tasks by title / description"],
       ["F (Shift+f)", "Open filter menu (status, priority, source)"],
-      ["r", "Toggle 'ready tasks only' filter"],
-      ["b", "Toggle 'blocked tasks only' filter"],
     ],
   },
   {
@@ -287,9 +286,9 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
 
   // ── Adaptive scroll height (shrink-to-content) ─────────────────────────
   // Modal chrome: 4 (modal margin) + 2 (padding) + 2 (title) = 8
-  // Above scrollbox: 1 (spacer) + 3 (filter input box) + 1 (match count/spacer) = 5
+  // Above scrollbox: 1 (spacer) + 2 (FormInput: height=1 + marginBottom=1) + 1 (match count/spacer) = 4
   // Below scrollbox: 1 (marginTop) + 1 (footer) = 2
-  const chromeHeight = 8 + 5 + 2
+  const chromeHeight = 8 + 4 + 2
   // Each item is 1 row; headers/dividers with marginTop add 1 extra
   const itemContentHeight = filteredItems.reduce((sum, item, i) => {
     const extra = (item.kind === "header" || item.kind === "divider") && i > 0 ? 1 : 0
@@ -322,28 +321,16 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
     <ModalOverlay onClose={onClose} title="Vault0 — Help" size="large">
       <text> </text>
       {/* Filter input */}
-      <box
-        flexDirection="row"
-        border={true}
-        borderStyle="single"
-        borderColor={theme.fg_1}
-        title="Filter"
-        minHeight={3}
-      >
-        <input
-          ref={inputRef}
-          focused
-          value={filter}
-          placeholder="type to filter…"
-          textColor={theme.fg_0}
-          paddingX={1}
-          onInput={(value: string) => {
-            setFilter(value)
-            resetScroll()
-          }}
-          flexGrow={1}
-        />
-      </box>
+      <FormInput
+        ref={inputRef}
+        focused
+        value={filter}
+        placeholder="type to filter…"
+        onInput={(value: string) => {
+          setFilter(value)
+          resetScroll()
+        }}
+      />
 
       {isFiltered ? (
         <text fg={theme.fg_0}>
