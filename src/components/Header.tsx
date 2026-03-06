@@ -4,6 +4,7 @@ import { useDb } from "../lib/db-context.js"
 import { theme } from "../lib/theme.js"
 import { getBoard } from "../db/queries.js"
 import { SORT_FIELD_LABELS } from "../lib/constants.js"
+import type { RepoStatus } from "../hooks/useRepoStatus.js"
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -15,6 +16,8 @@ export interface HeaderProps {
   searchTerm?: string
   /** Current sort field */
   sortField: SortField
+  /** Git repository status (null if not in a git repo) */
+  repoStatus?: RepoStatus | null
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -50,14 +53,40 @@ function useBoardName(boardId: string): string {
  * Uses `flexShrink={0}` so the header always occupies exactly two lines
  * regardless of terminal height.
  */
-export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, sortField }: HeaderProps) {
+export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, sortField, repoStatus }: HeaderProps) {
   const boardName = useBoardName(boardId)
 
   return (
     <box flexDirection="column" width="100%" marginBottom={1} flexShrink={0} backgroundColor={theme.bg_0}>
-      {/* Line 1: Logo + status indicators */}
+      {/* Line 1: Logo + git status + filter indicators */}
       <box flexDirection="row" justifyContent="space-between" paddingX={1}>
-        <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>Vault0</text>
+        <box flexDirection="row">
+          <text attributes={TextAttributes.BOLD} fg={theme.fg_1}>Vault0</text>
+          {repoStatus && repoStatus.branch && (
+            <box flexDirection="row">
+              <text>{" - "}</text>
+              <text fg={theme.cyan} attributes={TextAttributes.BOLD}>
+                {repoStatus.branch}{" "}
+              </text>
+              {(repoStatus.ahead > 0 || repoStatus.behind > 0) && (
+                <text fg={theme.fg_1}>
+                  {repoStatus.ahead > 0 ? `↑${repoStatus.ahead} ` : ""}
+                  {repoStatus.behind > 0 ? `↓${repoStatus.behind} ` : ""}
+                </text>
+              )}
+              {repoStatus.modifiedCount > 0 && (
+                <text fg={theme.dim_0}>
+                  {repoStatus.modifiedCount}Δ{" "}
+                </text>
+              )}
+              {repoStatus.state !== "clean" && (
+                <text fg={theme.yellow} attributes={TextAttributes.BOLD}>
+                  ({repoStatus.state}){" "}
+                </text>
+              )}
+            </box>
+          )}
+        </box>
         <box flexDirection="row">
           {searchTerm && (
             <text fg={theme.cyan}> 🔍 {searchTerm} </text>
@@ -69,7 +98,7 @@ export function Header({ boardId, filters, activeFilterCount = 0, searchTerm, so
             <text fg={theme.cyan} attributes={TextAttributes.BOLD}>
               {" "}{activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active{" "}
             </text>
-          )}
+          )} 
         </box>
       </box>
 

@@ -29,6 +29,7 @@ import { ThemePicker } from "./ThemePicker.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
+import { useRepoStatus } from "../hooks/useRepoStatus.js"
 import { parseTags } from "../lib/tags.js"
 
 import { useKeybindScope } from "../hooks/useKeybindScope.js"
@@ -96,6 +97,7 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
 
   const actions = useTaskActions()
   const filterHook = useFilters()
+  const repoStatus = useRepoStatus(repoRoot)
 
   // Clear pendingFocusTaskId after it's been passed to the board components
   useEffect(() => {
@@ -255,13 +257,6 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
     setState((prev) => ({ ...prev, uiMode: "filter" }))
   }, []), { description: "Filter bar" })
 
-  useKeybind("board", "r", useCallback(() => {
-    filterHook.toggleReady()
-  }, [filterHook]), { description: "Toggle ready filter" })
-
-  useKeybind("board", "b", useCallback(() => {
-    filterHook.toggleBlocked()
-  }, [filterHook]), { description: "Toggle blocked filter" })
 
   useKeybind("board", "c", useCallback(() => {
     const task = highlightedTaskRef.current
@@ -355,7 +350,7 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
   return (
         <ToastContext.Provider value={toastState}>
         <box flexDirection="column" width="100%" height={terminalRows} backgroundColor={theme.bg_1}>
-          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} sortField={sortField} />
+          <Header boardId={state.currentBoardId} filters={filterHook.filters} activeFilterCount={filterHook.activeFilterCount} searchTerm={filterHook.filters.search} sortField={sortField} repoStatus={repoStatus} />
 
           <Toast />
 
