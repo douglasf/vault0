@@ -152,7 +152,7 @@ export function TaskDetail({
 // ── Section line types ──────────────────────────────────────────────
 
 interface LineData {
-  type: "heading" | "field" | "dep" | "subtask" | "history" | "blank" | "text" | "blocked-banner" | "markdown"
+  type: "heading" | "field" | "dep" | "subtask" | "history" | "blank" | "text" | "blocked-banner" | "markdown" | "tags"
   label?: string
   value?: string
   color?: string
@@ -160,6 +160,7 @@ interface LineData {
   dimmed?: boolean
   status?: string
   done?: boolean
+  tags?: string[]
 }
 
 /**
@@ -220,6 +221,15 @@ function SectionLine({ line }: { line: LineData }) {
       return (
         <markdown content={line.value ?? ""} syntaxStyle={getMarkdownSyntaxStyle()} conceal={true} />
       )
+    case "tags":
+      return (
+        <box flexDirection="row" flexWrap="wrap" columnGap={1}>
+          <text fg={theme.dim_0}>{line.label}: </text>
+          {(line.tags ?? []).map((tag, i) => (
+            <text key={tag} fg={theme.cyan} bg={theme.bg_2}> {tag} </text>
+          ))}
+        </box>
+      )
     case "blank":
       return <box><text> </text></box>
     default:
@@ -263,7 +273,7 @@ function buildSections(detail: TaskDetailType): LineData[] {
 
   const tags = detail.tags as string[] | null
   if (tags && tags.length > 0) {
-    lines.push({ type: "field", label: "Tags", value: `[${tags.join(", ")}]` })
+    lines.push({ type: "tags", label: "Tags", tags })
   }
 
   lines.push({

@@ -137,6 +137,7 @@ export function createTask(
     status?: Status
     source?: "manual" | "todo_md" | "opencode" | "opencode-plan" | "import"
     sourceRef?: string
+    tags?: string[]
   },
 ) {
   // Prevent creating subtasks of subtasks — only top-level tasks can have children
@@ -160,6 +161,7 @@ export function createTask(
       status: data.status ?? "backlog",
       source: data.source ?? "manual",
       sourceRef: data.sourceRef,
+      tags: data.tags,
     })
     .returning()
     .get()

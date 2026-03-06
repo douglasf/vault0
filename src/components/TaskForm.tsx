@@ -21,6 +21,7 @@ export interface TaskFormData {
   title: string
   description: string
   solution: string
+  tags: string
   priority: Priority
   status: Status
   type: TaskType | null
@@ -39,7 +40,7 @@ export interface TaskFormProps {
   onCancel: () => void
 }
 
-type FormField = "title" | "description" | "solution" | "priority" | "type" | "status" | "submit"
+type FormField = "title" | "description" | "solution" | "tags" | "priority" | "type" | "status" | "submit"
 
 const PRIORITIES: Priority[] = ["low", "normal", "high", "critical"]
 
@@ -69,6 +70,7 @@ function cycleOption<T>(options: readonly T[], current: T, delta: 1 | -1): T {
  */
 export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onSubmit, onCancel }: TaskFormProps) {
   const titleRef = useRef<InputRenderable>(null)
+  const tagsRef = useRef<InputRenderable>(null)
   const descRef = useRef<TextareaRenderable>(null)
   const solutionRef = useRef<TextareaRenderable>(null)
   const scrollRef = useRef<ScrollBoxRenderable>(null)
@@ -86,8 +88,8 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onS
   // Parent title line if present: 2 (text + margin)
   const chromeHeight = 11 + (parentTitle ? 2 : 0)
   const fields: FormField[] = useMemo(() => mode === "create"
-    ? ["title", "description", "priority", "type", "status", "submit"]
-    : ["title", "description", "solution", "priority", "type", "submit"],
+    ? ["title", "description", "tags", "priority", "type", "status", "submit"]
+    : ["title", "description", "solution", "tags", "priority", "type", "submit"],
   [mode])
 
   const { focusField, setFocusField, advance, retreat, isFocused } = useFormNavigation(fields, "title" as FormField)
@@ -98,6 +100,7 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onS
     title: 3,          // bordered input(3)
     description: 10,   // bordered textarea(8+2)
     solution: 10,      // bordered textarea(8+2)
+    tags: 3,           // bordered input(3)
     priority: 2,       // cycler(1) + marginBottom(1)
     type: 2,           // cycler(1) + marginBottom(1)
     status: 2,         // cycler(1) + marginBottom(1)
@@ -136,8 +139,9 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onS
     const titleValue = titleRef.current?.value?.trim() || ""
     const descValue = descRef.current?.editBuffer?.getText() || ""
     const solutionValue = solutionRef.current?.editBuffer?.getText() || ""
+    const tagsValue = tagsRef.current?.value?.trim() || ""
     if (titleValue) {
-      onSubmit({ title: titleValue, description: descValue, solution: solutionValue, priority, status, type: taskType })
+      onSubmit({ title: titleValue, description: descValue, solution: solutionValue, tags: tagsValue, priority, status, type: taskType })
     }
   }, [onSubmit, priority, status, taskType])
 
@@ -382,6 +386,15 @@ export function TaskForm({ mode, task, parentTitle, initialStatus, repoRoot, onS
             </>
           )}
 
+
+          <FormInput
+            ref={tagsRef}
+            focused={isFocused("tags")}
+            value={task?.tags?.join(", ") || ""}
+            placeholder="Tags (comma-separated)"
+            onMouseDown={() => setFocusField("tags")}
+            onSubmit={advance}
+          />
 
           <box
             height={1}

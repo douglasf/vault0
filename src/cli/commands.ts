@@ -1,6 +1,7 @@
 import { writeFileSync, existsSync, readFileSync } from "node:fs"
 import type { Vault0Database } from "../db/connection.js"
 import type { Status, Priority, Source, TaskType, ExportedTask, TaskExportEnvelope, BoardExportEnvelope } from "../lib/types.js"
+import { parseTags } from "../lib/tags.js"
 import { tasks } from "../db/schema.js"
 import { eq, sql } from "drizzle-orm"
 import {
@@ -147,7 +148,7 @@ export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format
   // Handle tags separately since createTask doesn't accept them
   let finalTask = task
   if (flags.tags) {
-    const tagList = flags.tags.split(",").map((t) => t.trim()).filter(Boolean)
+    const tagList = parseTags(flags.tags)
     if (tagList.length > 0) {
       finalTask = updateTask(db, task.id, { tags: tagList })
     }
@@ -259,7 +260,7 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
     updates.type = flags.type ? validateTaskType(flags.type) : null
   }
   if (flags.tags !== undefined) {
-    updates.tags = flags.tags.split(",").map((t) => t.trim()).filter(Boolean)
+    updates.tags = parseTags(flags.tags)
   }
   if (flags.solution !== undefined) {
     updates.solution = flags.solution || null

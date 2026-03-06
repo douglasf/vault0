@@ -7,8 +7,8 @@ import { recordTaskCreated, recordStatusChange } from "../lib/session-stats.js"
 import { useDb } from "../lib/db-context.js"
 
 export interface UseTaskActionsResult {
-  createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => ReturnType<typeof createTask>
-  updateTaskData: (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null, solution?: string | null) => ReturnType<typeof updateTask>
+  createNewTask: (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null, tags?: string[]) => ReturnType<typeof createTask>
+  updateTaskData: (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null, solution?: string | null, tags?: string[]) => ReturnType<typeof updateTask>
   updateStatus: (taskId: string, newStatus: Status) => void
   cyclePriority: (taskId: string) => void
   deleteTask: (taskId: string) => void
@@ -18,7 +18,7 @@ export interface UseTaskActionsResult {
 export function useTaskActions(): UseTaskActionsResult {
   const db = useDb()
   const createNewTask = useCallback(
-    (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null) => {
+    (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null, tags?: string[]) => {
       const result = createTask(db, {
         boardId,
         title,
@@ -27,6 +27,7 @@ export function useTaskActions(): UseTaskActionsResult {
         type: type ?? undefined,
         parentId,
         status,
+        tags,
       })
       recordTaskCreated()
       return result
@@ -35,13 +36,14 @@ export function useTaskActions(): UseTaskActionsResult {
   )
 
   const updateTaskData = useCallback(
-    (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null, solution?: string | null) => {
+    (taskId: string, title: string, description: string, priority: Priority, type?: TaskType | null, solution?: string | null, tags?: string[]) => {
       return updateTask(db, taskId, {
         title,
         description,
         priority,
         type: type !== undefined ? type : undefined,
         solution: solution !== undefined ? solution : undefined,
+        tags,
       })
     },
     [db],

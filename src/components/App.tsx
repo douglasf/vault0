@@ -29,6 +29,7 @@ import { ThemePicker } from "./ThemePicker.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
 import { useDbWatcher } from "../hooks/useDbWatcher.js"
+import { parseTags } from "../lib/tags.js"
 
 import { useKeybindScope } from "../hooks/useKeybindScope.js"
 import { useKeybind } from "../hooks/useKeybind.js"
@@ -443,7 +444,8 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
             initialStatus={currentLaneRef.current}
             repoRoot={repoRoot}
             onSubmit={(data) => {
-              const created = actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status, data.type)
+              const tags = data.tags ? parseTags(data.tags) : undefined
+              const created = actions.createNewTask(state.currentBoardId, data.title, data.description, data.priority, state.createParent?.id, data.status, data.type, tags)
               showToast("Task created", `Title: ${data.title}`)
               setState((prev) => ({ ...prev, uiMode: "board", createParent: undefined, pendingFocusTaskId: created.id }))
             }}
@@ -458,7 +460,8 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
             repoRoot={repoRoot}
             onSubmit={(data) => {
               if (state.selectedTask) {
-                actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority, data.type, data.solution || null)
+                const tags = data.tags ? parseTags(data.tags) : undefined
+                actions.updateTaskData(state.selectedTask.id, data.title, data.description, data.priority, data.type, data.solution || null, tags)
                 showToast("Task updated", `Title: ${data.title}`)
               }
               setState((prev) => ({ ...prev, uiMode: "board" }))

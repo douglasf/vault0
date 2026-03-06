@@ -17,7 +17,7 @@ A local-first, per-repo terminal UI kanban board with hierarchical tasks, depend
 - **Dependency Tracking**: Mark tasks as blocked/ready based on upstream dependencies
 - **Cycle Detection**: Prevents circular dependencies via DAG reachability checks
 - **Hierarchical Tasks**: Create subtasks from the board view (`A`) or detail view
-- **Priority & Tags**: Organize with critical/high/normal/low priorities
+- **Priority & Tags**: Organize with critical/high/normal/low priorities and comma-separated tags (editable in create/edit dialogs, displayed as badge chips in detail view, deduplicated on save)
 - **Live Search & Filtering**: Inline text search (`f`), multi-section filter menu (`F`), ready/blocked toggles
 - **SQLite Persistence**: Per-repo database at `.vault0/vault0.db` with embedded migrations
 - **Keyboard-First**: Vim-inspired navigation, all actions via keyboard

@@ -65,6 +65,25 @@ describe("createTask", () => {
     expect(task.sourceRef).toBe("ref-123")
   })
 
+  test("creates task with tags", () => {
+    const task = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Tagged task",
+      tags: ["frontend", "urgent"],
+    })
+
+    expect(task.tags).toEqual(["frontend", "urgent"])
+  })
+
+  test("creates task with empty tags defaults to empty array", () => {
+    const task = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "No tags",
+    })
+
+    expect(task.tags).toEqual([])
+  })
+
   test("records initial status history entry (fromStatus=null)", () => {
     const task = createTask(testDb.db, {
       boardId: testDb.boardId,
@@ -202,6 +221,28 @@ describe("updateTask", () => {
 
     const updated = updateTask(testDb.db, task.id, { tags: ["frontend", "bug"] })
     expect(updated?.tags).toEqual(["frontend", "bug"])
+  })
+
+  test("clears tags with empty array", () => {
+    const task = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Task",
+      tags: ["old-tag"],
+    })
+
+    const updated = updateTask(testDb.db, task.id, { tags: [] })
+    expect(updated?.tags).toEqual([])
+  })
+
+  test("replaces tags entirely on update", () => {
+    const task = createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Task",
+      tags: ["alpha", "beta"],
+    })
+
+    const updated = updateTask(testDb.db, task.id, { tags: ["gamma"] })
+    expect(updated?.tags).toEqual(["gamma"])
   })
 
   test("sets updatedAt timestamp", () => {
