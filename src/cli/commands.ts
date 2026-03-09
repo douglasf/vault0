@@ -170,7 +170,7 @@ export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format
  */
 export function cmdList(db: Vault0Database, flags: Record<string, string>, format: OutputFormat): CommandResult {
   const boardId = flags.board || getDefaultBoardId(db)
-  let cards = getTaskCards(db, boardId)
+  let cards = getTaskCards(db, boardId, { search: flags.search || undefined })
 
   // Apply filters
   if (flags.status) {
@@ -181,14 +181,6 @@ export function cmdList(db: Vault0Database, flags: Record<string, string>, forma
   if (flags.priority) {
     const priority = validatePriority(flags.priority)
     cards = cards.filter((c) => c.priority === priority)
-  }
-
-  if (flags.search) {
-    const search = flags.search.toLowerCase()
-    cards = cards.filter((c) =>
-      c.title.toLowerCase().includes(search) ||
-      c.description?.toLowerCase().includes(search)
-    )
   }
 
   if (flags.blocked === "true" || flags.blocked === "") {

@@ -12,6 +12,28 @@ function isDependencySatisfied(task?: Task): boolean {
   return task?.status === "done" || task?.status === "in_review"
 }
 
+/**
+ * Normalize user input into a safe FTS5 query string.
+ *
+ * Semantics: each whitespace-separated token becomes a prefix match joined
+ * by implicit AND. For example `"fix bug"` → `"fix" * AND "bug" *` which
+ * matches rows containing words starting with both "fix" and "bug" in any
+ * indexed column. Special FTS5 operators (AND, OR, NOT, NEAR, quotes,
+ * parentheses, carets, colons, plus, minus, asterisks) are stripped or
+ * escaped so arbitrary user input never causes a query syntax error.
+ *
+ * Returns `undefined` for empty/blank input so callers can skip the FTS join.
+ */
+export function sanitizeFtsQuery(raw: string | undefined | null): string | undefined {
+  if (!raw) return undefined
+  // Strip FTS5 special characters that could break syntax
+  const cleaned = raw.replace(/[":()^*+\-\\]/g, " ")
+  const tokens = cleaned.split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return undefined
+  // Each token becomes a quoted prefix match, joined with AND
+  return tokens.map((t) => `"${t}" *`).join(" AND ")
+}
+
 // ── Board Queries ───────────────────────────────────────────────────
 
 export function getBoards(db: Vault0Database) {
@@ -63,13 +85,22 @@ export function getTasksByStatus(db: Vault0Database, boardId: string): Map<Statu
  * - isBlocked: has at least one incomplete dependency
  * - parentTitle: title of the parent task (for subtasks)
  */
-export function getTaskCards(db: Vault0Database, boardId: string, opts?: { includeArchived?: boolean; includeReleased?: boolean }): TaskCard[] {
+export function getTaskCards(db: Vault0Database, boardId: string, opts?: { includeArchived?: boolean; includeReleased?: boolean; search?: string }): TaskCard[] {
+  const ftsQuery = sanitizeFtsQuery(opts?.search)
+
   const conditions = [eq(tasks.boardId, boardId)]
   if (!opts?.includeArchived) {
     conditions.push(isNull(tasks.archivedAt))
   }
   if (!opts?.includeReleased) {
     conditions.push(isNull(tasks.releaseId))
+  }
+
+  // When search is active, add an FTS5 filter via subquery
+  if (ftsQuery) {
+    conditions.push(
+      sql`${tasks.id} IN (SELECT tasks_fts.id FROM tasks_fts WHERE tasks_fts MATCH ${ftsQuery})`,
+    )
   }
 
   const allTasks = db
@@ -86,6 +117,20 @@ export function getTaskCards(db: Vault0Database, boardId: string, opts?: { inclu
 
   // Build a lookup for quick task resolution
   const taskById = new Map(allTasks.map((t) => [t.id, t]))
+
+  // When searching, parent tasks may not be in the result set.
+  // Batch-load any missing parent titles so subtasks still get parentTitle.
+  const missingParentIds = allTasks
+    .filter((t) => t.parentId && !taskById.has(t.parentId))
+    .map((t) => t.parentId as string)
+  const parentTitleMap = new Map<string, string>()
+  if (missingParentIds.length > 0) {
+    const uniqueIds = [...new Set(missingParentIds)]
+    const parents = db.select({ id: tasks.id, title: tasks.title }).from(tasks).where(inArray(tasks.id, uniqueIds)).all()
+    for (const p of parents) {
+      parentTitleMap.set(p.id, p.title)
+    }
+  }
 
   return allTasks
     .map((task) => {
@@ -104,8 +149,10 @@ export function getTaskCards(db: Vault0Database, boardId: string, opts?: { inclu
         !isBlocked &&
         (task.status === "backlog" || task.status === "todo")
 
-      // Resolve parent title for subtasks
-      const parentTitle = task.parentId ? taskById.get(task.parentId)?.title : undefined
+      // Resolve parent title for subtasks (check result set first, then fallback map)
+      const parentTitle = task.parentId
+        ? (taskById.get(task.parentId)?.title ?? parentTitleMap.get(task.parentId))
+        : undefined
 
       return {
         ...task,

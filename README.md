@@ -128,6 +128,7 @@ vault0 --version          # Show version
 ```bash
 vault0 task add --title "Fix login bug" --priority high --status todo
 vault0 task list --status in_progress
+vault0 task list --search "login bug"    # FTS5 search across title, description, solution, tags
 vault0 task list --format json
 vault0 task view abc12345
 vault0 task edit abc12345 --priority critical

@@ -307,6 +307,31 @@ describe("cmdList", () => {
     expect(cards).toHaveLength(1)
   })
 
+  test("filters by --search (solution match)", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Solved task" })
+    // Use cmdEdit to set solution, mirroring real CLI usage
+    cmdEdit(testDb.db, task.id, { solution: "Fixed by upgrading dependency" }, "json")
+
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Other task" })
+
+    const result = cmdList(testDb.db, { search: "upgrading" }, "json")
+    expect(result.success).toBe(true)
+    const cards = JSON.parse(result.message)
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Solved task")
+  })
+
+  test("filters by --search (tags match)", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Tagged task", tags: ["refactor", "performance"] })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Untagged task" })
+
+    const result = cmdList(testDb.db, { search: "performance" }, "json")
+    expect(result.success).toBe(true)
+    const cards = JSON.parse(result.message)
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Tagged task")
+  })
+
   test("filters by --blocked flag", () => {
     const taskA = createTask(testDb.db, { boardId: testDb.boardId, title: "Blocked task" })
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Blocker" })

@@ -13,6 +13,8 @@ import {
   getTaskDetail,
   archiveDoneTasks,
   unarchiveTask,
+  hardDeleteTask,
+  sanitizeFtsQuery,
 } from "../db/queries.js"
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1607,5 +1609,250 @@ describe("archiveDoneTasks", () => {
     // Child should be cascade-archived via archiveTask
     const archivedChild = testDb.db.select().from(tasks).where(eq(tasks.id, child.id)).get()
     expect(archivedChild?.archivedAt).toBeDefined()
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// sanitizeFtsQuery
+// ═══════════════════════════════════════════════════════════════════
+
+describe("sanitizeFtsQuery", () => {
+  test("returns undefined for empty/null/undefined input", () => {
+    expect(sanitizeFtsQuery("")).toBeUndefined()
+    expect(sanitizeFtsQuery(null)).toBeUndefined()
+    expect(sanitizeFtsQuery(undefined)).toBeUndefined()
+    expect(sanitizeFtsQuery("   ")).toBeUndefined()
+  })
+
+  test("converts single token to quoted prefix match", () => {
+    expect(sanitizeFtsQuery("bug")).toBe('"bug" *')
+  })
+
+  test("joins multiple tokens with AND", () => {
+    expect(sanitizeFtsQuery("fix bug")).toBe('"fix" * AND "bug" *')
+  })
+
+  test("strips FTS5 special characters", () => {
+    // Quotes, parens, caret, asterisk, plus, minus, backslash, colon
+    expect(sanitizeFtsQuery('"hello"')).toBe('"hello" *')
+    expect(sanitizeFtsQuery("(foo)")).toBe('"foo" *')
+    expect(sanitizeFtsQuery("foo*bar")).toBe('"foo" * AND "bar" *')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// getTaskCards with search
+// ═══════════════════════════════════════════════════════════════════
+
+describe("getTaskCards search", () => {
+  let testDb: TestDb
+
+  beforeEach(() => {
+    testDb = createTestDb()
+  })
+
+  afterEach(() => {
+    closeTestDb(testDb.sqlite)
+  })
+
+  test("search by title returns matching tasks", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Implement authentication" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Fix database bug" })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "authentication" })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Implement authentication")
+  })
+
+  test("search by description returns matching tasks", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Task A", description: "This involves refactoring the parser" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Task B", description: "Simple UI tweak" })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "parser" })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Task A")
+  })
+
+  test("search by solution returns matching tasks", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Bug report" })
+    updateTask(testDb.db, task.id, { solution: "Fixed by increasing the timeout" })
+
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Other task" })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "timeout" })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Bug report")
+  })
+
+  test("search by tags returns matching tasks", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Frontend work", tags: ["frontend", "react"] })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Backend work", tags: ["backend", "api"] })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "react" })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Frontend work")
+  })
+
+  test("empty search returns all tasks (same as no search)", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Task A" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Task B" })
+
+    const allCards = getTaskCards(testDb.db, testDb.boardId)
+    const searchCards = getTaskCards(testDb.db, testDb.boardId, { search: "" })
+
+    expect(searchCards).toHaveLength(allCards.length)
+  })
+
+  test("search returns no results for non-matching query", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Something" })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "zzzznonexistent" })
+    expect(cards).toHaveLength(0)
+  })
+
+  test("search excludes archived tasks by default", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Searchable archived" })
+    archiveTask(testDb.db, task.id)
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "Searchable" })
+    expect(cards).toHaveLength(0)
+  })
+
+  test("search includes archived tasks when includeArchived is true", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Searchable archived" })
+    archiveTask(testDb.db, task.id)
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "Searchable", includeArchived: true })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Searchable archived")
+  })
+
+  test("search preserves enrichment fields (dependencyCount, isBlocked, etc.)", () => {
+    const taskA = createTask(testDb.db, { boardId: testDb.boardId, title: "Searchable blocker target", status: "backlog" })
+    const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Searchable blocked task", status: "backlog" })
+    addDependency(testDb.db, taskB.id, taskA.id)
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "Searchable" })
+    expect(cards.length).toBeGreaterThanOrEqual(2)
+
+    const cardB = cards.find((c) => c.id === taskB.id)
+    expect(cardB).toBeDefined()
+    expect(cardB?.dependencyCount).toBe(1)
+    expect(cardB?.blockerCount).toBe(1)
+    expect(cardB?.isBlocked).toBe(true)
+  })
+
+  test("search with prefix matching works", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Authentication module" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Authorization check" })
+
+    // "auth" should match both via prefix
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "auth" })
+    expect(cards).toHaveLength(2)
+  })
+
+  test("search with multiple terms uses AND semantics", () => {
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Fix authentication bug" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Fix database bug" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Authentication feature" })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "fix auth" })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].title).toBe("Fix authentication bug")
+  })
+
+  test("search populates parentTitle for matching subtasks", () => {
+    const parent = createTask(testDb.db, { boardId: testDb.boardId, title: "Epic parent" })
+    createTask(testDb.db, { boardId: testDb.boardId, parentId: parent.id, title: "Unique subtask name" })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "Unique subtask" })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].parentTitle).toBe("Epic parent")
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// FTS sync on update / delete / hard-delete
+// ═══════════════════════════════════════════════════════════════════
+
+describe("FTS sync", () => {
+  let testDb: TestDb
+
+  beforeEach(() => {
+    testDb = createTestDb()
+  })
+
+  afterEach(() => {
+    closeTestDb(testDb.sqlite)
+  })
+
+  test("updating title makes task findable by new title", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Original title" })
+    updateTask(testDb.db, task.id, { title: "Completely changed heading" })
+
+    const cards = getTaskCards(testDb.db, testDb.boardId, { search: "changed heading" })
+    expect(cards).toHaveLength(1)
+    expect(cards[0].id).toBe(task.id)
+
+    // Old title should no longer match
+    const oldCards = getTaskCards(testDb.db, testDb.boardId, { search: "Original title" })
+    expect(oldCards).toHaveLength(0)
+  })
+
+  test("updating description syncs to FTS", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Desc sync test", description: "alpha bravo" })
+    updateTask(testDb.db, task.id, { description: "charlie delta" })
+
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "charlie" })).toHaveLength(1)
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "alpha" })).toHaveLength(0)
+  })
+
+  test("updating solution syncs to FTS", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Sol sync test" })
+    updateTask(testDb.db, task.id, { solution: "Resolved via workaround" })
+
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "workaround" })).toHaveLength(1)
+
+    // Clear solution
+    updateTask(testDb.db, task.id, { solution: null })
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "workaround" })).toHaveLength(0)
+  })
+
+  test("updating tags syncs to FTS", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Tag sync test", tags: ["frontend"] })
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "frontend" })).toHaveLength(1)
+
+    updateTask(testDb.db, task.id, { tags: ["backend", "api"] })
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "frontend" })).toHaveLength(0)
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "backend" })).toHaveLength(1)
+  })
+
+  test("archiveTask (soft delete) removes task from default search", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Archive sync target" })
+    archiveTask(testDb.db, task.id)
+
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "Archive sync target" })).toHaveLength(0)
+    // Still findable with includeArchived
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "Archive sync target", includeArchived: true })).toHaveLength(1)
+  })
+
+  test("hardDeleteTask removes task from FTS entirely", () => {
+    const task = createTask(testDb.db, { boardId: testDb.boardId, title: "Hard delete FTS target" })
+    hardDeleteTask(testDb.db, task.id)
+
+    // Gone even with includeArchived
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "Hard delete FTS target", includeArchived: true })).toHaveLength(0)
+  })
+
+  test("creating task via insert makes it immediately searchable", () => {
+    createTask(testDb.db, {
+      boardId: testDb.boardId,
+      title: "Freshly inserted",
+      description: "unique xylophone keyword",
+      tags: ["zebra"],
+    })
+
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "xylophone" })).toHaveLength(1)
+    expect(getTaskCards(testDb.db, testDb.boardId, { search: "zebra" })).toHaveLength(1)
   })
 })

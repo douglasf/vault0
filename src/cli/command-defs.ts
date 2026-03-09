@@ -129,7 +129,7 @@ export const CMD_LIST: CommandDef = {
   options: [
     { long: "status", description: "Filter by status", valuePlaceholder: "<status>", validValues: ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"] },
     { long: "priority", description: "Filter by priority", valuePlaceholder: "<level>", validValues: ["critical", "high", "normal", "low"] },
-    { long: "search", description: "Search title and description", valuePlaceholder: "<string>" },
+    { long: "search", description: "Search title, description, solution, and tags (FTS5)", valuePlaceholder: "<string>" },
     { long: "blocked", description: "Show only blocked tasks", boolean: true },
     { long: "ready", description: "Show only ready tasks", boolean: true },
     OPT_BOARD,

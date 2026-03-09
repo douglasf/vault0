@@ -62,7 +62,7 @@ const viewSchema = {
 const listSchema = {
   status: z.enum(["backlog", "todo", "in_progress", "in_review", "done", "cancelled"]).optional().describe("Filter by status"),
   priority: z.enum(["critical", "high", "normal", "low"]).optional().describe("Filter by priority"),
-  search: z.string().optional().describe("Search tasks by title or description"),
+  search: z.string().optional().describe("Search tasks by title, description, solution, and tags"),
   blocked: z.boolean().optional().describe("Filter to blocked tasks only"),
   ready: z.boolean().optional().describe("Filter to ready (unblocked, actionable) tasks only"),
 }

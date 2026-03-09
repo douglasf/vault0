@@ -114,6 +114,67 @@ CREATE INDEX IF NOT EXISTS \`idx_tasks_release\` ON \`tasks\` (\`release_id\`);`
     sql: `-- Add solution field for recording how a task was resolved.
 ALTER TABLE \`tasks\` ADD COLUMN \`solution\` text;`,
   },
+  {
+    tag: "0005_add_fts5_search",
+    sql: `-- FTS5 virtual table for full-text search on tasks.
+-- Covers title, description, solution, and flattened tags.
+CREATE VIRTUAL TABLE IF NOT EXISTS \`tasks_fts\` USING fts5(
+\tid UNINDEXED,
+\ttitle,
+\tdescription,
+\tsolution,
+\ttags
+);
+--> statement-breakpoint
+-- Backfill existing tasks into FTS index.
+-- Uses DELETE first to ensure idempotency (no duplicates on re-run).
+DELETE FROM \`tasks_fts\`;
+--> statement-breakpoint
+INSERT INTO \`tasks_fts\` (\`id\`, \`title\`, \`description\`, \`solution\`, \`tags\`)
+SELECT
+\t\`id\`,
+\t\`title\`,
+\tCOALESCE(\`description\`, ''),
+\tCOALESCE(\`solution\`, ''),
+\tCOALESCE(REPLACE(REPLACE(REPLACE(\`tags\`, '["', ''), '"]', ''), '","', ' '), '')
+FROM \`tasks\`;
+--> statement-breakpoint
+-- Trigger: insert into FTS on task insert.
+CREATE TRIGGER IF NOT EXISTS \`trg_tasks_fts_insert\`
+AFTER INSERT ON \`tasks\`
+BEGIN
+\tINSERT INTO \`tasks_fts\` (\`id\`, \`title\`, \`description\`, \`solution\`, \`tags\`)
+\tVALUES (
+\t\tNEW.\`id\`,
+\t\tNEW.\`title\`,
+\t\tCOALESCE(NEW.\`description\`, ''),
+\t\tCOALESCE(NEW.\`solution\`, ''),
+\t\tCOALESCE(REPLACE(REPLACE(REPLACE(NEW.\`tags\`, '["', ''), '"]', ''), '","', ' '), '')
+\t);
+END;
+--> statement-breakpoint
+-- Trigger: update FTS on task update (delete old row, insert new).
+CREATE TRIGGER IF NOT EXISTS \`trg_tasks_fts_update\`
+AFTER UPDATE ON \`tasks\`
+BEGIN
+\tDELETE FROM \`tasks_fts\` WHERE \`id\` = OLD.\`id\`;
+\tINSERT INTO \`tasks_fts\` (\`id\`, \`title\`, \`description\`, \`solution\`, \`tags\`)
+\tVALUES (
+\t\tNEW.\`id\`,
+\t\tNEW.\`title\`,
+\t\tCOALESCE(NEW.\`description\`, ''),
+\t\tCOALESCE(NEW.\`solution\`, ''),
+\t\tCOALESCE(REPLACE(REPLACE(REPLACE(NEW.\`tags\`, '["', ''), '"]', ''), '","', ' '), '')
+\t);
+END;
+--> statement-breakpoint
+-- Trigger: remove from FTS on task delete.
+CREATE TRIGGER IF NOT EXISTS \`trg_tasks_fts_delete\`
+AFTER DELETE ON \`tasks\`
+BEGIN
+\tDELETE FROM \`tasks_fts\` WHERE \`id\` = OLD.\`id\`;
+END;`,
+  },
 ]
 
 // ── Migration Runner ────────────────────────────────────────────────

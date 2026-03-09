@@ -193,6 +193,35 @@ describe("vault0_task-list", () => {
     expect(data[0].title).toBe("Fix login bug")
   })
 
+  test("filters by search on solution field", () => {
+    const added = toolAdd(testDb.db, { title: "Solved issue" })
+    const id = (added.data as Record<string, unknown>).id as string
+    toolUpdate(testDb.db, id, { solution: "Applied the hotfix patch" })
+    toolAdd(testDb.db, { title: "Other issue" })
+
+    const result = toolList(testDb.db, { search: "hotfix" })
+    const data = result.data as Array<Record<string, unknown>>
+    expect(data.length).toBe(1)
+    expect(data[0].title).toBe("Solved issue")
+  })
+
+  test("filters by search on tags field", () => {
+    toolAdd(testDb.db, { title: "Tagged item", tags: "infrastructure,devops" })
+    toolAdd(testDb.db, { title: "Plain item" })
+
+    const result = toolList(testDb.db, { search: "devops" })
+    const data = result.data as Array<Record<string, unknown>>
+    expect(data.length).toBe(1)
+    expect(data[0].title).toBe("Tagged item")
+  })
+
+  test("search is case-insensitive", () => {
+    toolAdd(testDb.db, { title: "UPPERCASE Title" })
+    const result = toolList(testDb.db, { search: "uppercase" })
+    const data = result.data as Array<Record<string, unknown>>
+    expect(data.length).toBe(1)
+  })
+
   test("filters by ready flag", () => {
     const parent = toolAdd(testDb.db, { title: "Parent" })
     const parentId = (parent.data as Record<string, unknown>).id as string

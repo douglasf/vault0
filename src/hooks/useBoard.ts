@@ -127,7 +127,10 @@ export function useBoard(boardId: string, filters?: Filters, sortField?: SortFie
     }
 
     try {
-      let cards = getTaskCards(db, boardId, { includeArchived: filters?.showArchived })
+      let cards = getTaskCards(db, boardId, {
+        includeArchived: filters?.showArchived,
+        search: filters?.search,
+      })
 
       // Apply filters before grouping
       if (filters?.statuses?.length) {
@@ -141,13 +144,6 @@ export function useBoard(boardId: string, filters?: Filters, sortField?: SortFie
       if (filters?.sources?.length) {
         const sources = filters.sources
         cards = cards.filter((c) => sources.includes(c.source))
-      }
-      if (filters?.search) {
-        const term = filters.search.toLowerCase()
-        cards = cards.filter((c) =>
-          c.title.toLowerCase().includes(term) ||
-          c.description?.toLowerCase().includes(term)
-        )
       }
       if (filters?.readyOnly) {
         cards = cards.filter((c) => c.isReady)

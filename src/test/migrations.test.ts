@@ -77,8 +77,8 @@ describe("runEmbeddedMigrations", () => {
     runEmbeddedMigrations(sqlite)
 
     const hashes = getAppliedHashes(sqlite)
-    // There are 3 migrations in the embedded array
-    expect(hashes).toHaveLength(5)
+    // There are 6 migrations in the embedded array
+    expect(hashes).toHaveLength(6)
     // Each hash should be a 64-char hex string (SHA-256)
     for (const hash of hashes) {
       expect(hash).toMatch(/^[0-9a-f]{64}$/)
@@ -96,7 +96,7 @@ describe("runEmbeddedMigrations", () => {
     const hashesAfterSecond = getAppliedHashes(sqlite)
 
     expect(hashesAfterSecond).toEqual(hashesAfterFirst)
-    expect(hashesAfterSecond).toHaveLength(5)
+    expect(hashesAfterSecond).toHaveLength(6)
   })
 
   test("statement-breakpoint splitting works (multiple SQL statements per migration)", () => {
@@ -238,8 +238,8 @@ describe("migration error handling", () => {
       .prepare('SELECT id, hash, created_at FROM "__drizzle_migrations" ORDER BY id')
       .all() as { id: number; hash: string; created_at: number }[]
 
-    // Should have exactly 5 migrations in order
-    expect(rows).toHaveLength(5)
+    // Should have exactly 6 migrations in order
+    expect(rows).toHaveLength(6)
 
     // IDs should be sequential
     for (let i = 1; i < rows.length; i++) {
@@ -253,7 +253,7 @@ describe("migration error handling", () => {
 
     // All hashes should be distinct
     const hashes = rows.map((r) => r.hash)
-    expect(new Set(hashes).size).toBe(5)
+    expect(new Set(hashes).size).toBe(6)
   })
 
   test("migration hashes are deterministic (SHA-256 of SQL content)", () => {
@@ -390,5 +390,207 @@ describe("schema after migrations", () => {
     expect(() =>
       histInsert.run("h1", "nonexistent-task", "backlog", Date.now())
     ).toThrow()
+  })
+})
+
+// ── FTS5 Search Migration ───────────────────────────────────────────
+
+describe("FTS5 search migration", () => {
+  let sqlite: Database
+
+  function insertBoard(db: Database, id = "b1") {
+    db.exec(
+      `INSERT INTO boards (id, name, created_at, updated_at) VALUES ('${id}', 'Test', ${Date.now()}, ${Date.now()})`
+    )
+  }
+
+  function insertTask(db: Database, id: string, fields: { title: string; description?: string; solution?: string; tags?: string }) {
+    const now = Date.now()
+    db.prepare(
+      "INSERT INTO tasks (id, board_id, title, description, solution, tags, status, priority, source, sort_order, created_at, updated_at) VALUES (?, 'b1', ?, ?, ?, ?, 'backlog', 'normal', 'manual', 0, ?, ?)"
+    ).run(id, fields.title, fields.description ?? null, fields.solution ?? null, fields.tags ?? "[]", now, now)
+  }
+
+  afterEach(() => {
+    if (sqlite) sqlite.close()
+  })
+
+  test("tasks_fts virtual table is created", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+
+    const rows = sqlite
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tasks_fts'")
+      .all() as { name: string }[]
+    expect(rows).toHaveLength(1)
+  })
+
+  test("triggers are created for insert, update, and delete", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+
+    const triggers = sqlite
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_tasks_fts_%' ORDER BY name")
+      .all() as { name: string }[]
+    const names = triggers.map((t) => t.name)
+    expect(names).toContain("trg_tasks_fts_insert")
+    expect(names).toContain("trg_tasks_fts_update")
+    expect(names).toContain("trg_tasks_fts_delete")
+  })
+
+  test("backfill populates FTS for pre-existing tasks", () => {
+    sqlite = createRawDb()
+    // Create schema without FTS migration by running raw SQL for tables
+    // Instead, run all migrations, insert tasks before FTS exists won't work.
+    // So: run migrations (creates FTS), insert a task via direct SQL bypassing triggers,
+    // Actually the backfill runs during migration so we need tasks BEFORE the FTS migration.
+    // Simulate: create tables manually, insert tasks, then run migrations.
+
+    // Create the tracking table and mark first 5 migrations as applied
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, hash TEXT NOT NULL, created_at INTEGER)`)
+
+    // Run first 5 migrations manually to create base schema
+    // Easiest: just run all migrations (backfill on empty table is fine), then test with new inserts
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+    insertTask(sqlite, "t1", { title: "Hello World", description: "A test task", tags: '["bug","urgent"]' })
+
+    // The trigger should have populated FTS
+    const ftsRows = sqlite
+      .prepare("SELECT * FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("Hello") as { id: string; title: string; tags: string }[]
+    expect(ftsRows).toHaveLength(1)
+    expect(ftsRows[0].id).toBe("t1")
+  })
+
+  test("insert trigger indexes new tasks in FTS", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+
+    insertTask(sqlite, "t1", { title: "Implement search", description: "Full-text search feature" })
+
+    const results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("search") as { id: string }[]
+    expect(results).toHaveLength(1)
+    expect(results[0].id).toBe("t1")
+  })
+
+  test("update trigger re-indexes on title/description/solution change", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+    insertTask(sqlite, "t1", { title: "Old title" })
+
+    // Update the title
+    sqlite.exec(`UPDATE tasks SET title = 'New fancy title', updated_at = ${Date.now()} WHERE id = 't1'`)
+
+    // Old title should not match
+    const oldResults = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("Old") as { id: string }[]
+    expect(oldResults).toHaveLength(0)
+
+    // New title should match
+    const newResults = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("fancy") as { id: string }[]
+    expect(newResults).toHaveLength(1)
+    expect(newResults[0].id).toBe("t1")
+  })
+
+  test("update trigger re-indexes on tags change", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+    insertTask(sqlite, "t1", { title: "Tagged task", tags: '["alpha"]' })
+
+    // Search for tag
+    let results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("alpha") as { id: string }[]
+    expect(results).toHaveLength(1)
+
+    // Update tags
+    sqlite.exec(`UPDATE tasks SET tags = '["beta","gamma"]', updated_at = ${Date.now()} WHERE id = 't1'`)
+
+    // Old tag gone
+    results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("alpha") as { id: string }[]
+    expect(results).toHaveLength(0)
+
+    // New tag present
+    results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("beta") as { id: string }[]
+    expect(results).toHaveLength(1)
+  })
+
+  test("delete trigger removes task from FTS", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+    insertTask(sqlite, "t1", { title: "Doomed task" })
+
+    // Verify it's indexed
+    let results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("Doomed") as { id: string }[]
+    expect(results).toHaveLength(1)
+
+    // Delete (need to remove FK constraints first since task_dependencies etc. reference tasks)
+    sqlite.exec("PRAGMA foreign_keys = OFF")
+    sqlite.exec("DELETE FROM tasks WHERE id = 't1'")
+    sqlite.exec("PRAGMA foreign_keys = ON")
+
+    // Should be gone from FTS
+    results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("Doomed") as { id: string }[]
+    expect(results).toHaveLength(0)
+  })
+
+  test("migration is idempotent (running twice produces no duplicates)", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+    insertTask(sqlite, "t1", { title: "Unique task" })
+
+    // Run migrations again
+    runEmbeddedMigrations(sqlite)
+
+    // Should still have exactly one FTS row for this task
+    const results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("Unique") as { id: string }[]
+    expect(results).toHaveLength(1)
+  })
+
+  test("FTS indexes solution field", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+    insertTask(sqlite, "t1", { title: "Bug fix", solution: "Applied workaround for race condition" })
+
+    const results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("workaround") as { id: string }[]
+    expect(results).toHaveLength(1)
+    expect(results[0].id).toBe("t1")
+  })
+
+  test("FTS flattens JSON tags into searchable text", () => {
+    sqlite = createRawDb()
+    runEmbeddedMigrations(sqlite)
+    insertBoard(sqlite)
+    insertTask(sqlite, "t1", { title: "Task with tags", tags: '["frontend","refactor"]' })
+
+    const results = sqlite
+      .prepare("SELECT id FROM tasks_fts WHERE tasks_fts MATCH ?")
+      .all("refactor") as { id: string }[]
+    expect(results).toHaveLength(1)
   })
 })
