@@ -361,15 +361,20 @@ describe("cmdList", () => {
     const taskB = createTask(testDb.db, { boardId: testDb.boardId, title: "Blocked task", status: "backlog" })
     const blocker = createTask(testDb.db, { boardId: testDb.boardId, title: "Blocker", status: "todo" })
     addDependency(testDb.db, taskB.id, blocker.id)
+    createTask(testDb.db, { boardId: testDb.boardId, title: "In progress task", status: "in_progress" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "In review task", status: "in_review" })
+    createTask(testDb.db, { boardId: testDb.boardId, title: "Done task", status: "done" })
 
     const result = cmdList(testDb.db, { ready: "true" }, "json")
     expect(result.success).toBe(true)
     const cards = JSON.parse(result.message)
-    // "Ready task" and "Blocker" are both ready (no unmet deps and backlog/todo status)
     const readyTitles = cards.map((c: Record<string, unknown>) => c.title)
     expect(readyTitles).toContain("Ready task")
     expect(readyTitles).toContain("Blocker")
+    expect(readyTitles).toContain("In progress task")
     expect(readyTitles).not.toContain("Blocked task")
+    expect(readyTitles).not.toContain("In review task")
+    expect(readyTitles).not.toContain("Done task")
   })
 
   test("json format returns array", () => {

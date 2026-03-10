@@ -188,7 +188,7 @@ export function cmdList(db: Vault0Database, flags: Record<string, string>, forma
   }
 
   if (flags.ready === "true" || flags.ready === "") {
-    cards = cards.filter((c) => c.isReady)
+    cards = cards.filter((c) => !c.isBlocked && c.status !== "in_review" && c.status !== "done")
   }
 
   if (format === "json") {
@@ -468,7 +468,7 @@ export function cmdSubtasks(db: Vault0Database, taskId: string, flags: Record<st
   let subtasks = allCards.filter((c) => c.parentId === resolvedId)
 
   if (flags.ready === "true" || flags.ready === "") {
-    subtasks = subtasks.filter((c) => c.isReady)
+    subtasks = subtasks.filter((c) => !c.isBlocked && c.status !== "in_review" && c.status !== "done")
   }
 
   if (format === "json") {

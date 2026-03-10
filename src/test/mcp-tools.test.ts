@@ -490,6 +490,27 @@ describe("vault0_task-subtasks", () => {
     expect(titles).toContain("Sub A")
     expect(titles).not.toContain("Sub B")
   })
+
+  test("ready filter includes in_progress but excludes in_review and done", () => {
+    const parent = toolAdd(testDb.db, { title: "Parent" })
+    const parentId = (parent.data as Record<string, unknown>).id as string
+    const subA = toolAdd(testDb.db, { title: "Sub A", parent: parentId })
+    const subB = toolAdd(testDb.db, { title: "Sub B", parent: parentId })
+    const subC = toolAdd(testDb.db, { title: "Sub C", parent: parentId, status: "done" })
+    const subAId = (subA.data as Record<string, unknown>).id as string
+    const subBId = (subB.data as Record<string, unknown>).id as string
+
+    // Move A to in_progress, B to in_review — both unblocked
+    toolMove(testDb.db, subAId, "in_progress")
+    toolMove(testDb.db, subBId, "in_review")
+
+    const result = toolSubtasks(testDb.db, parentId, true)
+    const data = result.data as Array<Record<string, unknown>>
+    const titles = data.map(t => t.title)
+    expect(titles).toContain("Sub A")
+    expect(titles).not.toContain("Sub B") // in_review excluded
+    expect(titles).not.toContain("Sub C") // done excluded
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════

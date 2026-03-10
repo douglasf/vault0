@@ -131,7 +131,7 @@ export const CMD_LIST: CommandDef = {
     { long: "priority", description: "Filter by priority", valuePlaceholder: "<level>", validValues: ["critical", "high", "normal", "low"] },
     { long: "search", description: "Search title, description, solution, and tags (FTS5)", valuePlaceholder: "<string>" },
     { long: "blocked", description: "Show only blocked tasks", boolean: true },
-    { long: "ready", description: "Show only ready tasks", boolean: true },
+    { long: "ready", description: "Show only ready tasks (unblocked, not in_review/done)", boolean: true },
     OPT_BOARD,
     ...GLOBAL_OPTIONS,
   ],
@@ -206,7 +206,7 @@ export const CMD_SUBTASKS: CommandDef = {
   description: "List subtasks for a task",
   args: [{ name: "ID", required: true, description: "Task ID or suffix" }],
   options: [
-    { long: "ready", description: "Show only ready subtasks (no unmet dependencies, backlog/todo status)", boolean: true },
+    { long: "ready", description: "Show only ready subtasks (unblocked, not in_review/done)", boolean: true },
     ...GLOBAL_OPTIONS,
   ],
   action: (db, pos, flags, format) => cmdSubtasks(db, pos[0] || flags.id || "", flags, format),
