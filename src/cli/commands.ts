@@ -193,6 +193,21 @@ export function cmdList(db: Vault0Database, flags: Record<string, string>, forma
     cards = cards.filter((c) => !c.isBlocked && c.status !== "in_review" && c.status !== "done")
   }
 
+  const tagOrValue = flags.tag || flags["tags-any"]
+  if (tagOrValue) {
+    const filterTags = parseTags(tagOrValue)
+    if (filterTags.length > 0) {
+      cards = cards.filter((c) => c.tags?.some((t: string) => filterTags.includes(t)))
+    }
+  }
+
+  if (flags["tags-all"]) {
+    const filterTags = parseTags(flags["tags-all"])
+    if (filterTags.length > 0) {
+      cards = cards.filter((c) => filterTags.every((t: string) => c.tags?.includes(t)))
+    }
+  }
+
   if (format === "json") {
     return { success: true, message: jsonOutput(cards), data: cards }
   }

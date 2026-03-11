@@ -506,11 +506,17 @@ function AppContent({ db, dbPath, repoRoot, config }: AppProps) {
             onToggleStatus={filterHook.toggleStatus}
             onTogglePriority={filterHook.togglePriority}
             onToggleSource={filterHook.toggleSource}
+            onToggleTag={filterHook.toggleTag}
             onToggleReady={filterHook.toggleReady}
             onToggleBlocked={filterHook.toggleBlocked}
             onToggleArchived={filterHook.toggleArchived}
             onClear={filterHook.clearFilters}
             onClose={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+            availableTags={
+              state.currentBoardId
+                ? [...new Set(getTaskCards(db, state.currentBoardId, { includeArchived: filterHook.filters.showArchived }).flatMap((c) => c.tags ?? []))].sort()
+                : []
+            }
           />
         )}
 

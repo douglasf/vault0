@@ -6,6 +6,9 @@ export interface UseFiltersResult {
   toggleStatus: (status: Status) => void
   togglePriority: (priority: Priority) => void
   toggleSource: (source: Source) => void
+  toggleTag: (tag: string) => void
+  setTagsAll: (tags: string[]) => void
+  clearTags: () => void
   toggleReady: () => void
   toggleBlocked: () => void
   toggleArchived: () => void
@@ -47,6 +50,28 @@ export function useFilters(): UseFiltersResult {
     }))
   }, [])
 
+  const toggleTag = useCallback((tag: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      tags: toggleInArray(prev.tags, tag),
+    }))
+  }, [])
+
+  const setTagsAll = useCallback((tags: string[]) => {
+    setFilters((prev) => ({
+      ...prev,
+      tagsAll: tags.length > 0 ? tags : undefined,
+    }))
+  }, [])
+
+  const clearTags = useCallback(() => {
+    setFilters((prev) => ({
+      ...prev,
+      tags: undefined,
+      tagsAll: undefined,
+    }))
+  }, [])
+
   const toggleReady = useCallback(() => {
     setFilters((prev) => ({
       ...prev,
@@ -80,6 +105,8 @@ export function useFilters(): UseFiltersResult {
     if (filters.statuses?.length) count += filters.statuses.length
     if (filters.priorities?.length) count += filters.priorities.length
     if (filters.sources?.length) count += filters.sources.length
+    if (filters.tags?.length) count += filters.tags.length
+    if (filters.tagsAll?.length) count += filters.tagsAll.length
     if (filters.readyOnly) count++
     if (filters.blockedOnly) count++
     if (filters.showArchived) count++
@@ -96,6 +123,9 @@ export function useFilters(): UseFiltersResult {
     toggleStatus,
     togglePriority,
     toggleSource,
+    toggleTag,
+    setTagsAll,
+    clearTags,
     toggleReady,
     toggleBlocked,
     toggleArchived,

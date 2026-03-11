@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { TextAttributes } from "@opentui/core"
-import type { ScrollBoxRenderable, SelectOption } from "@opentui/core"
+import type { InputRenderable, ScrollBoxRenderable, SelectOption } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { Filters, Status, Priority, Source } from "../lib/types.js"
 import { VISIBLE_STATUSES, PRIORITY_ORDER, STATUS_LABELS, PRIORITY_LABELS } from "../lib/constants.js"
@@ -15,29 +15,56 @@ export interface FilterBarProps {
   onToggleStatus: (status: Status) => void
   onTogglePriority: (priority: Priority) => void
   onToggleSource: (source: Source) => void
+  onToggleTag: (tag: string) => void
   onToggleReady: () => void
   onToggleBlocked: () => void
   onToggleArchived: () => void
   onClear: () => void
   onClose: () => void
+  availableTags: string[]
 }
 
-type SectionKey = "status" | "priority" | "source" | "toggles" | "actions"
-
-const SECTIONS: SectionKey[] = ["status", "priority", "source", "toggles", "actions"]
+type SectionKey = "status" | "priority" | "source" | "tags" | "tags-chips" | "toggles" | "actions"
 
 const PRIORITIES = Object.keys(PRIORITY_ORDER) as Priority[]
 const SOURCES: Source[] = ["manual", "opencode", "opencode-plan", "todo_md", "import"]
 const TOGGLE_KEYS = ["readyOnly", "blockedOnly", "showArchived"] as const
 const SPACE_SELECT_BINDING = [{ name: "space", action: "select-current" as const }]
 
-const SECTION_HEIGHTS = [
-  1 + VISIBLE_STATUSES.length + 1,  // status
-  1 + PRIORITIES.length + 1,         // priority
-  1 + SOURCES.length + 1,            // source
-  1 + TOGGLE_KEYS.length + 1,        // toggles
-  1,                                  // actions
-]
+const STATUS_HEIGHT = 1 + VISIBLE_STATUSES.length + 1
+const PRIORITY_HEIGHT = 1 + PRIORITIES.length + 1
+const SOURCE_HEIGHT = 1 + SOURCES.length + 1
+const TOGGLES_HEIGHT = 1 + TOGGLE_KEYS.length + 1
+const ACTIONS_HEIGHT = 1
+
+/** Tags input section: label(1) + input(1) + suggestions (up to 5) + margin(1) */
+function getTagsInputHeight(suggestionCount: number): number {
+  return 1 + 1 + Math.min(suggestionCount, 5) + 1
+}
+
+/** Tags chips section: chips row(1) + margin(1) */
+const TAGS_CHIPS_HEIGHT = 1 + 1
+
+function buildSections(hasChips: boolean): SectionKey[] {
+  const sections: SectionKey[] = ["status", "priority", "source", "tags"]
+  if (hasChips) sections.push("tags-chips")
+  sections.push("toggles", "actions")
+  return sections
+}
+
+function getSectionHeights(sections: SectionKey[], tagSuggestionCount: number): number[] {
+  return sections.map((s) => {
+    switch (s) {
+      case "status": return STATUS_HEIGHT
+      case "priority": return PRIORITY_HEIGHT
+      case "source": return SOURCE_HEIGHT
+      case "tags": return getTagsInputHeight(tagSuggestionCount)
+      case "tags-chips": return TAGS_CHIPS_HEIGHT
+      case "toggles": return TOGGLES_HEIGHT
+      case "actions": return ACTIONS_HEIGHT
+    }
+  })
+}
 
 const TOGGLE_LABELS: Record<string, string> = {
   readyOnly: "Ready Only",
@@ -77,38 +104,67 @@ function makeToggleOptions(filters: Filters): SelectOption[] {
   }))
 }
 
+/** Simple fuzzy match: all characters of query appear in order in target */
+function fuzzyMatch(query: string, target: string): boolean {
+  const q = query.toLowerCase()
+  const t = target.toLowerCase()
+  let qi = 0
+  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+    if (t[ti] === q[qi]) qi++
+  }
+  return qi === q.length
+}
+
 export function FilterBar({
   filters,
   onToggleStatus,
   onTogglePriority,
   onToggleSource,
+  onToggleTag,
   onToggleReady,
   onToggleBlocked,
   onToggleArchived,
   onClear,
   onClose,
+  availableTags,
 }: FilterBarProps) {
   const [sectionIdx, setSectionIdx] = useState(0)
+  const [tagInput, setTagInput] = useState("")
+  const [focusedTagIndex, setFocusedTagIndex] = useState(0)
+  const tagInputRef = useRef<InputRenderable>(null)
   const scrollRef = useRef<ScrollBoxRenderable>(null)
   const { height: terminalRows } = useTerminalDimensions()
+
+  const selectedTags = filters.tags ?? []
+  const hasChips = selectedTags.length > 0
+  const sections = useMemo(() => buildSections(hasChips), [hasChips])
+  const clampedIdx = Math.min(sectionIdx, sections.length - 1)
+  const currentSection = sections[clampedIdx]
+  const chipMode = currentSection === "tags-chips"
+
+  // Fuzzy-match available tags against input, excluding already-selected ones
+  const tagSuggestions = useMemo(() => {
+    const unselected = availableTags.filter((t) => !selectedTags.includes(t))
+    if (!tagInput) return unselected.slice(0, 5)
+    return unselected.filter((t) => fuzzyMatch(tagInput, t)).slice(0, 5)
+  }, [availableTags, selectedTags, tagInput])
 
   // Modal chrome: 4 (modal margin) + 2 (padding) + 1 (title) = 7
   // Help text outside scrollbox: 1 (help text) + 1 (marginBottom) = 2
   const chromeHeight = 7 + 2
-  const contentHeight = SECTION_HEIGHTS.reduce((sum, h) => sum + h, 0)
+  const sectionHeights = getSectionHeights(sections, tagSuggestions.length)
+  const contentHeight = sectionHeights.reduce((sum: number, h: number) => sum + h, 0)
   const availableHeight = Math.max(5, terminalRows - chromeHeight)
   const needsScroll = contentHeight > availableHeight
   const scrollHeight = needsScroll ? availableHeight : contentHeight
-
-  const currentSection = SECTIONS[sectionIdx]
 
   // ── Auto-scroll to keep focused section visible ────────────────────────
   const scrollToSection = useCallback(
     (idx: number) => {
       if (!scrollRef.current) return
       let sectionTop = 0
-      for (let i = 0; i < idx; i++) sectionTop += SECTION_HEIGHTS[i]
-      const sectionBottom = sectionTop + SECTION_HEIGHTS[idx]
+      for (let i = 0; i < idx; i++) sectionTop += sectionHeights[i]
+      const sectionBottom = sectionTop + sectionHeights[idx]
       const currentScroll = scrollRef.current.scrollTop
       if (sectionTop < currentScroll) {
         scrollRef.current.scrollTo(sectionTop)
@@ -116,23 +172,77 @@ export function FilterBar({
         scrollRef.current.scrollTo(sectionBottom - scrollHeight)
       }
     },
-    [scrollHeight],
+    [scrollHeight, sectionHeights],
   )
 
   // Scroll when section changes
   scrollToSection(sectionIdx)
+
+  const handleTagInputSubmit = useCallback(() => {
+    if (!tagInput) return
+    const match = tagSuggestions[0]
+    if (match) {
+      onToggleTag(match)
+      setTagInput("")
+      if (tagInputRef.current) tagInputRef.current.value = ""
+    }
+  }, [tagInput, tagSuggestions, onToggleTag])
+
+  const handleTagInputChange = useCallback((value: string) => {
+    setTagInput(value)
+  }, [])
+
+  const handleTagBackspace = useCallback(() => {
+    if (tagInput === "" && selectedTags.length > 0) {
+      onToggleTag(selectedTags[selectedTags.length - 1])
+    }
+  }, [tagInput, selectedTags, onToggleTag])
 
   const scope = useKeybindScope("filter-bar", {
     priority: SCOPE_PRIORITY.WIDGET,
     opaque: false,
   })
   useKeybind(scope, "Tab", useCallback(() => {
-    setSectionIdx((prev) => Math.min(SECTIONS.length - 1, prev + 1))
-  }, []), { description: "Next section" })
+    setSectionIdx((prev) => Math.min(sections.length - 1, prev + 1))
+  }, [sections.length]), { description: "Next section" })
   useKeybind(scope, "Shift+Tab", useCallback(() => {
     setSectionIdx((prev) => Math.max(0, prev - 1))
   }, []), { description: "Previous section" })
   useKeybind(scope, "c", onClear, { description: "Clear all filters" })
+  useKeybind(scope, "Backspace", handleTagBackspace, {
+    description: "Remove last tag",
+    when: currentSection === "tags" && !chipMode && tagInput === "",
+  })
+  useKeybind(scope, "Right", useCallback(() => {
+    setFocusedTagIndex((prev) => Math.min(prev + 1, selectedTags.length - 1))
+  }, [selectedTags.length]), {
+    description: "Next tag chip",
+    when: chipMode,
+  })
+  useKeybind(scope, "Left", useCallback(() => {
+    setFocusedTagIndex((prev) => Math.max(prev - 1, 0))
+  }, []), {
+    description: "Previous tag chip",
+    when: chipMode,
+  })
+  useKeybind(scope, "Delete", useCallback(() => {
+    const tag = selectedTags[focusedTagIndex]
+    if (!tag) return
+    onToggleTag(tag)
+    // Adjust focus after removal
+    if (selectedTags.length <= 1) {
+      // No tags left after removal → chips section will disappear, move back to tags input
+      setSectionIdx((prev) => Math.max(0, prev - 1))
+      setFocusedTagIndex(0)
+    } else if (focusedTagIndex >= selectedTags.length - 1) {
+      // Was on last tag → move to new last
+      setFocusedTagIndex(selectedTags.length - 2)
+    }
+    // Otherwise keep same index (next tag slides into position)
+  }, [focusedTagIndex, selectedTags, onToggleTag]), {
+    description: "Remove focused tag",
+    when: chipMode,
+  })
   useKeybind(scope, ["Enter", "Space"], useCallback(() => {
     if (currentSection === "actions") onClear()
   }, [currentSection, onClear]), {
@@ -163,7 +273,7 @@ export function FilterBar({
   return (
     <ModalOverlay onClose={onClose} size="medium" title=" ⚙ Filters ">
       <text fg={theme.dim_0} marginBottom={1}>
-        Tab/S-Tab section · ↑/↓ item · Enter/Space toggle · c clear · Esc close
+        Tab/S-Tab section · ↑/↓ item · Enter/Space toggle · ←/→ chip nav · Del remove chip · c clear · Esc close
       </text>
 
       <scrollbox ref={scrollRef} scrollY focused={false} flexGrow={0} flexShrink={1} height={scrollHeight}>
@@ -223,6 +333,54 @@ export function FilterBar({
           backgroundColor={theme.bg_1}
         />
       </box>
+
+      {/* Tags Input */}
+      <box flexDirection="column" marginBottom={1} flexShrink={0}>
+        <text attributes={TextAttributes.BOLD} fg={currentSection === "tags" ? theme.blue : theme.fg_0}>
+          Tags:
+        </text>
+        <box height={1}>
+          <input
+            ref={tagInputRef}
+            focused={currentSection === "tags"}
+            value=""
+            placeholder="Type to search tags…"
+            textColor={theme.fg_0}
+            focusedTextColor={theme.fg_1}
+            onInput={handleTagInputChange}
+            onSubmit={handleTagInputSubmit}
+            flexGrow={1}
+          />
+        </box>
+        {currentSection === "tags" && tagSuggestions.length > 0 && (
+          <box flexDirection="column">
+            {tagSuggestions.map((tag) => (
+              <text
+                key={tag}
+                fg={selectedTags.includes(tag) ? theme.cyan : theme.dim_0}
+                onMouseDown={() => { onToggleTag(tag); setTagInput(""); if (tagInputRef.current) tagInputRef.current.value = "" }}
+              >  {tag}</text>
+            ))}
+          </box>
+        )}
+      </box>
+
+      {/* Tag Chips (only when tags are selected) */}
+      {selectedTags.length > 0 && (
+        <box flexDirection="column" marginBottom={1} flexShrink={0}>
+          <box flexDirection="row" flexWrap="wrap" columnGap={1}>
+            {selectedTags.map((tag, idx) => (
+              <text
+                key={tag}
+                fg={chipMode && focusedTagIndex === idx ? theme.bg_1 : theme.cyan}
+                bg={chipMode && focusedTagIndex === idx ? theme.cyan : theme.bg_2}
+                attributes={chipMode && focusedTagIndex === idx ? TextAttributes.BOLD : TextAttributes.NONE}
+                onMouseDown={() => onToggleTag(tag)}
+              > {tag} ✕ </text>
+            ))}
+          </box>
+        </box>
+      )}
 
       {/* Toggles */}
       <box flexDirection="column" marginBottom={1} flexShrink={0}>

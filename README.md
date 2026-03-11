@@ -129,6 +129,9 @@ vault0 --version          # Show version
 vault0 task add --title "Fix login bug" --priority high --status todo
 vault0 task list --status in_progress
 vault0 task list --search "login bug"    # FTS5 search across title, description, solution, tags
+vault0 task list --tag bug,ui            # Tasks with ANY of these tags (OR match)
+vault0 task list --tags-any bug,ui       # Alias for --tag
+vault0 task list --tags-all bug,ui       # Tasks with ALL of these tags (AND match)
 vault0 task list --format json
 vault0 task view abc12345
 vault0 task edit abc12345 --priority critical

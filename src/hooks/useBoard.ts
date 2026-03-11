@@ -151,6 +151,14 @@ export function useBoard(boardId: string, filters?: Filters, sortField?: SortFie
       if (filters?.blockedOnly) {
         cards = cards.filter((c) => c.isBlocked)
       }
+      if (filters?.tags?.length) {
+        const filterTags = filters.tags
+        cards = cards.filter((c) => c.tags?.some((t) => filterTags.includes(t)))
+      }
+      if (filters?.tagsAll?.length) {
+        const filterTagsAll = filters.tagsAll
+        cards = cards.filter((c) => filterTagsAll.every((t) => c.tags?.includes(t)))
+      }
 
       // Group cards by status, with parent-child grouping within each column
       for (const status of VISIBLE_STATUSES) {

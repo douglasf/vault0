@@ -65,6 +65,9 @@ const listSchema = {
   search: z.string().optional().describe("Search tasks by title, description, solution, and tags"),
   blocked: z.boolean().optional().describe("Filter to blocked tasks only"),
   ready: z.boolean().optional().describe("Filter to ready (unblocked, actionable) tasks only"),
+  tag: z.string().optional().describe("Filter by tag (comma-separated, tasks with ANY matching tag)"),
+  tagsAny: z.string().optional().describe("Alias for tag (comma-separated, tasks with ANY matching tag)"),
+  tagsAll: z.string().optional().describe("Filter by tags (comma-separated, tasks with ALL matching tags)"),
 }
 
 const addSchema = {
@@ -108,13 +111,16 @@ const subtasksSchema = {
 
 // ── Shared Handlers ─────────────────────────────────────────────────────
 
-function handleList(db: Vault0Database, args: { status?: string, priority?: string, search?: string, blocked?: boolean, ready?: boolean }) {
+function handleList(db: Vault0Database, args: { status?: string, priority?: string, search?: string, blocked?: boolean, ready?: boolean, tag?: string, tagsAny?: string, tagsAll?: string }) {
   const flags: Record<string, string> = {}
   if (args.status) flags.status = args.status
   if (args.priority) flags.priority = args.priority
   if (args.search) flags.search = args.search
   if (args.blocked) flags.blocked = "true"
   if (args.ready) flags.ready = "true"
+  if (args.tag) flags.tag = args.tag
+  if (args.tagsAny) flags.tag = args.tagsAny
+  if (args.tagsAll) flags["tags-all"] = args.tagsAll
   return withErrorHandling(() => cmdList(db, flags, "json"))
 }
 
@@ -207,7 +213,7 @@ export function registerTools(server: McpServer, db: Vault0Database, sqlite?: Da
 
   server.tool(
     "task-list",
-    "Query tasks with optional filters for status, priority, search text, blocked state, and ready (unblocked, actionable) state.",
+    "Query tasks with optional filters for status, priority, search text, blocked state, ready (unblocked, actionable) state, and tags.",
     listSchema,
     (args) => handleList(db, args),
   )

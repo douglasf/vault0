@@ -37,6 +37,8 @@ export type Filters = {
   statuses?: Status[]
   priorities?: Priority[]
   sources?: Source[]
+  tags?: string[]
+  tagsAll?: string[]
   readyOnly?: boolean
   blockedOnly?: boolean
   search?: string
