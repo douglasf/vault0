@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path"
 import type { Vault0Database } from "../db/connection.js"
 import type { CommandResult } from "./commands.js"
 import type { OutputFormat } from "./format.js"
+import type { Vault0Config } from "../lib/config.js"
 import {
   cmdAdd,
   cmdList,
@@ -47,11 +48,18 @@ export interface OptionDef {
   boolean?: boolean
 }
 
+/** Optional context passed from the main entry point */
+export interface CliContext {
+  repoRoot: string
+  config: Vault0Config
+}
+
 export type CommandAction = (
   db: Vault0Database,
   positional: string[],
   flags: Record<string, string>,
   format: OutputFormat,
+  context?: CliContext,
 ) => CommandResult
 
 export interface CommandDef {
@@ -118,7 +126,7 @@ export const CMD_ADD: CommandDef = {
     OPT_BOARD,
     ...GLOBAL_OPTIONS,
   ],
-  action: (_db, _pos, flags, format) => cmdAdd(_db, flags, format),
+  action: (_db, _pos, flags, format, context) => cmdAdd(_db, flags, format, context),
 }
 
 export const CMD_LIST: CommandDef = {
@@ -179,7 +187,7 @@ export const CMD_MOVE: CommandDef = {
     { long: "solution", description: "Solution notes (set when moving to done)", valuePlaceholder: "<string>" },
     ...GLOBAL_OPTIONS,
   ],
-  action: (db, pos, flags, format) => cmdMove(db, pos[0] || flags.id || "", flags, format),
+  action: (db, pos, flags, format, context) => cmdMove(db, pos[0] || flags.id || "", flags, format, context),
 }
 
 export const CMD_DELETE: CommandDef = {

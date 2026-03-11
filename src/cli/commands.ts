@@ -1,6 +1,7 @@
 import { writeFileSync, existsSync, readFileSync } from "node:fs"
 import type { Vault0Database } from "../db/connection.js"
 import type { Status, Priority, Source, TaskType, ExportedTask, TaskExportEnvelope, BoardExportEnvelope } from "../lib/types.js"
+import type { CliContext } from "./command-defs.js"
 import { parseTags } from "../lib/tags.js"
 import { tasks } from "../db/schema.js"
 import { eq, sql } from "drizzle-orm"
@@ -108,7 +109,7 @@ export interface CommandResult {
 /**
  * vault0 task add --title "..." [--description "..."] [--priority ...] [--status ...] [--parent ID] [--tags t1,t2] [--board ID] [--source ...] [--source-ref ...]
  */
-export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format: OutputFormat): CommandResult {
+export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format: OutputFormat, context?: CliContext): CommandResult {
   const title = flags.title
   if (!title) {
     return { success: false, message: formatError("--title is required") }
@@ -143,6 +144,7 @@ export function cmdAdd(db: Vault0Database, flags: Record<string, string>, format
     status,
     source,
     sourceRef,
+    lanePolicies: context?.config?.lanePolicies,
   })
 
   // Handle tags separately since createTask doesn't accept them
@@ -278,7 +280,7 @@ export function cmdEdit(db: Vault0Database, taskId: string, flags: Record<string
 /**
  * vault0 task move <ID> --status <STATUS>
  */
-export function cmdMove(db: Vault0Database, taskId: string, flags: Record<string, string>, format: OutputFormat): CommandResult {
+export function cmdMove(db: Vault0Database, taskId: string, flags: Record<string, string>, format: OutputFormat, context?: CliContext): CommandResult {
   if (!taskId) {
     return { success: false, message: formatError("Task ID is required. Usage: vault0 task move <ID> --status done") }
   }
@@ -289,7 +291,7 @@ export function cmdMove(db: Vault0Database, taskId: string, flags: Record<string
   const resolvedId = resolveTaskId(db, taskId)
   const newStatus = validateStatus(flags.status)
 
-  const { parentAutoCompleted } = updateTaskStatus(db, resolvedId, newStatus)
+  const { parentAutoCompleted } = updateTaskStatus(db, resolvedId, newStatus, context?.config?.lanePolicies)
 
   // If a solution was provided, save it on the task
   if (flags.solution !== undefined) {

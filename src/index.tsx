@@ -374,7 +374,7 @@ async function main() {
 
     createRoot(renderer).render(
       <KeybindProvider>
-        <App db={db} dbPath={dbPath} repoRoot={repoRoot} />
+        <App db={db} dbPath={dbPath} repoRoot={repoRoot} config={_config} />
       </KeybindProvider>,
     )
   } catch (error) {

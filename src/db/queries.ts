@@ -1,15 +1,29 @@
 import type { Vault0Database } from "./connection.js"
 import type { Status, Priority, TaskType, Source, Task, TaskDetail, TaskCard, Release, ReleaseWithTaskCount, VersionInfo, ExportedTask, ExportedDependency, BoardExportEnvelope } from "../lib/types.js"
+import type { LanePolicies } from "../lib/config.js"
 import { tasks, taskDependencies, taskStatusHistory, boards, releases } from "./schema.js"
 import { and, eq, isNull, or, sql, inArray, desc } from "drizzle-orm"
 import { wouldCreateCycle } from "../lib/dag.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
+import { validateTaskCreation, validateTaskMove } from "../lib/lane-policy.js"
 import { ulid } from "ulidx"
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function isDependencySatisfied(task?: Task): boolean {
   return task?.status === "done" || task?.status === "in_review"
+}
+
+/**
+ * Count non-archived, non-released tasks in a given status for a board.
+ */
+export function countTasksInLane(db: Vault0Database, boardId: string, status: Status): number {
+  const result = db
+    .select({ count: sql<number>`count(*)` })
+    .from(tasks)
+    .where(and(eq(tasks.boardId, boardId), eq(tasks.status, status), isNull(tasks.archivedAt), isNull(tasks.releaseId)))
+    .get()
+  return result?.count ?? 0
 }
 
 /**
@@ -185,6 +199,7 @@ export function createTask(
     source?: "manual" | "todo_md" | "opencode" | "opencode-plan" | "import"
     sourceRef?: string
     tags?: string[]
+    lanePolicies?: LanePolicies
   },
 ) {
   // Prevent creating subtasks of subtasks — only top-level tasks can have children
@@ -194,6 +209,14 @@ export function createTask(
     if (parent.parentId) {
       throw new Error("Cannot add a subtask to a subtask. Only top-level tasks can have subtasks.")
     }
+  }
+
+  // Enforce lane policies
+  const targetStatus = data.status ?? "backlog"
+  if (data.lanePolicies) {
+    const currentCount = countTasksInLane(db, data.boardId, targetStatus)
+    const violation = validateTaskCreation(data.lanePolicies, targetStatus, currentCount)
+    if (violation) throw new Error(violation.message)
   }
 
   const result = db
@@ -268,11 +291,18 @@ export interface StatusUpdateResult {
  * the parent task is automatically moved to "done" as well.
  * Throws if the task does not exist or is archived.
  */
-export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status): StatusUpdateResult {
+export function updateTaskStatus(db: Vault0Database, taskId: string, newStatus: Status, lanePolicies?: LanePolicies): StatusUpdateResult {
   return db.transaction((tx) => {
     const current = tx.select().from(tasks).where(eq(tasks.id, taskId)).get()
     if (!current) throw new Error(`Task ${taskId} not found`)
     if (current.archivedAt) throw new Error(`Cannot update status of archived task: ${taskId}`)
+
+    // Enforce WIP limits on move
+    if (lanePolicies) {
+      const currentCount = countTasksInLane(db, current.boardId, newStatus)
+      const violation = validateTaskMove(lanePolicies, newStatus, currentCount)
+      if (violation) throw new Error(violation.message)
+    }
 
     const now = new Date()
     const result: StatusUpdateResult = {}

@@ -1,10 +1,11 @@
 import type { Vault0Database } from "../db/connection.js"
-import type { Vault0Config } from "../lib/config.js"
 import type { OutputFormat } from "./format.js"
-import type { CommandDef } from "./command-defs.js"
+import type { CommandDef, CliContext } from "./command-defs.js"
 import { errorMessage } from "../lib/format.js"
 import { TOP_LEVEL_LOOKUP } from "./command-defs.js"
 import { generateHelp, generateUsage } from "./help.js"
+
+export type { CliContext } from "./command-defs.js"
 
 
 // ── Argument Parser ─────────────────────────────────────────────────
@@ -120,11 +121,6 @@ function buildSubcommandLookup(container: CommandDef): Map<string, CommandDef> {
  * @param db - Database connection
  */
 /** Optional context passed from the main entry point */
-export interface CliContext {
-  repoRoot: string
-  config: Vault0Config
-}
-
 export function runCli(entity: string, args: string[], db: Vault0Database, context?: CliContext): number {
   try {
     // Look up the top-level container command
@@ -136,7 +132,7 @@ export function runCli(entity: string, args: string[], db: Vault0Database, conte
       return 1
     }
 
-    return handleContainer(container, args, db)
+    return handleContainer(container, args, db, context)
   } catch (error) {
     const message = errorMessage(error)
     console.error(`Error: ${message}`)
@@ -144,7 +140,7 @@ export function runCli(entity: string, args: string[], db: Vault0Database, conte
   }
 }
 
-function handleContainer(container: CommandDef, args: string[], db: Vault0Database): number {
+function handleContainer(container: CommandDef, args: string[], db: Vault0Database, context?: CliContext): number {
   // First positional arg is the subcommand name
   const subName = args[0]
 
@@ -178,7 +174,7 @@ function handleContainer(container: CommandDef, args: string[], db: Vault0Databa
     return 1
   }
 
-  const result = cmdDef.action(db, parsed.positional, parsed.flags, parsed.format)
+  const result = cmdDef.action(db, parsed.positional, parsed.flags, parsed.format, context)
   console.log(result.message)
   return result.success ? 0 : 1
 }

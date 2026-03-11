@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 import type { Status, Priority, TaskType } from "../lib/types.js"
+import type { LanePolicies } from "../lib/config.js"
 import { createTask, updateTask, updateTaskStatus, archiveTask, unarchiveTask } from "../db/queries.js"
 import { tasks } from "../db/schema.js"
 import { eq } from "drizzle-orm"
@@ -15,7 +16,7 @@ export interface UseTaskActionsResult {
   undeleteTask: (taskId: string) => void
 }
 
-export function useTaskActions(): UseTaskActionsResult {
+export function useTaskActions(lanePolicies?: LanePolicies): UseTaskActionsResult {
   const db = useDb()
   const createNewTask = useCallback(
     (boardId: string, title: string, description?: string, priority?: Priority, parentId?: string, status?: Status, type?: TaskType | null, tags?: string[]) => {
@@ -28,11 +29,12 @@ export function useTaskActions(): UseTaskActionsResult {
         parentId,
         status,
         tags,
+        lanePolicies,
       })
       recordTaskCreated()
       return result
     },
-    [db],
+    [db, lanePolicies],
   )
 
   const updateTaskData = useCallback(
@@ -51,10 +53,10 @@ export function useTaskActions(): UseTaskActionsResult {
 
   const updateStatus = useCallback(
     (taskId: string, newStatus: Status) => {
-      updateTaskStatus(db, taskId, newStatus)
+      updateTaskStatus(db, taskId, newStatus, lanePolicies)
       recordStatusChange(newStatus)
     },
-    [db],
+    [db, lanePolicies],
   )
 
   const cyclePriority = useCallback(

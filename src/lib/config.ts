@@ -1,10 +1,30 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
+import type { Status } from "./types.js"
 
 // ── Config Types ────────────────────────────────────────────────────────
 
 export type Appearance = "dark" | "light" | "os"
+
+// ── Lane Policy Types ───────────────────────────────────────────────────
+
+/**
+ * Policy for a single lane (status column).
+ * Omitted fields use defaults: visible=true, no WIP limit.
+ */
+export interface LanePolicy {
+  /** Whether this lane is shown as a board column. Defaults to true. */
+  visible?: boolean
+  /** Maximum number of tasks allowed in this lane. Undefined = unlimited. */
+  wipLimit?: number
+}
+
+/**
+ * Per-lane policy configuration. Keys are Status values.
+ * Only lanes with non-default settings need entries.
+ */
+export type LanePolicies = Partial<Record<Status, LanePolicy>>
 
 // ── Main Config ─────────────────────────────────────────────────────────
 
@@ -19,6 +39,11 @@ export interface Vault0Config {
     /** Appearance mode: "dark", "light", or "os" (auto-detect from OS). Defaults to "dark". */
     appearance?: Appearance
   }
+  /**
+   * Per-lane policies: visibility, WIP limits, and creation rules.
+   * Keys are status names (e.g. "in_progress", "done").
+   */
+  lanePolicies?: LanePolicies
 }
 
 // ── Paths ───────────────────────────────────────────────────────────────
@@ -69,6 +94,11 @@ function mergeConfigs(
     merged.theme = { ...global.theme, ...project.theme }
   }
 
+  // Merge lane policies — project overrides per-lane, global provides defaults
+  if (global.lanePolicies || project.lanePolicies) {
+    merged.lanePolicies = { ...global.lanePolicies, ...project.lanePolicies }
+  }
+
   return merged
 }
 
@@ -113,6 +143,11 @@ export function saveGlobalConfig(updates: Partial<Vault0Config>): void {
   // Deep-merge theme section
   if (updates.theme) {
     existing.theme = { ...existing.theme, ...updates.theme }
+  }
+
+  // Deep-merge lane policies section
+  if (updates.lanePolicies) {
+    existing.lanePolicies = { ...existing.lanePolicies, ...updates.lanePolicies }
   }
 
   ensureGlobalConfig()

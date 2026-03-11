@@ -48,6 +48,7 @@ export interface AppProps {
   db: Vault0Database
   dbPath: string
   repoRoot: string
+  config?: import("../lib/config.js").Vault0Config
 }
 
 export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "confirm-delete" | "theme-picker" | "create-release" | "detail-dep-picker" | "detail-dep-remover" | "detail-confirm-delete" | "releases-confirm-delete"
@@ -76,18 +77,18 @@ export interface AppState {
   showHelp?: boolean
 }
 
-export function App({ db, dbPath, repoRoot }: AppProps) {
+export function App({ db, dbPath, repoRoot, config }: AppProps) {
   return (
     // @ts-expect-error ErrorBoundary class component vs OpenTUI JSX type mismatch (runtime-compatible)
     <ErrorBoundary>
       <DbContext.Provider value={db}>
-        <AppContent db={db} dbPath={dbPath} repoRoot={repoRoot} />
+        <AppContent db={db} dbPath={dbPath} repoRoot={repoRoot} config={config} />
       </DbContext.Provider>
     </ErrorBoundary>
   )
 }
 
-function AppContent({ db, dbPath, repoRoot }: AppProps) {
+function AppContent({ db, dbPath, repoRoot, config }: AppProps) {
   const renderer = useRenderer()
   const { width: terminalColumns, height: terminalRows } = useTerminalDimensions()
   const [state, setState] = useState<AppState>({
@@ -95,7 +96,7 @@ function AppContent({ db, dbPath, repoRoot }: AppProps) {
     uiMode: "board",
   })
 
-  const actions = useTaskActions()
+  const actions = useTaskActions(config?.lanePolicies)
   const filterHook = useFilters()
   const repoStatus = useRepoStatus(repoRoot)
 
