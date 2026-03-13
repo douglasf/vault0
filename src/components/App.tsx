@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { execSync } from "node:child_process"
+import { TextAttributes } from "@opentui/core"
 import { useRenderer, useTerminalDimensions } from "@opentui/react"
 import type { Vault0Database } from "../db/connection.js"
 import { DbContext } from "../lib/db-context.js"
@@ -18,9 +19,11 @@ import { HelpOverlay } from "./HelpOverlay.js"
 import { DependencyPicker } from "./DependencyPicker.js"
 import { DependencyRemover } from "./DependencyRemover.js"
 import { ConfirmDelete } from "./ConfirmDelete.js"
+import { ConfirmDialog } from "./ConfirmDialog.js"
 import { ConfirmDeleteRelease } from "./ConfirmDeleteRelease.js"
 import { CreateRelease } from "./CreateRelease.js"
 import { ReleasesView } from "./ReleasesView.js"
+import { ArchiveView } from "./ArchiveView.js"
 import { ErrorBanner } from "./ErrorBanner.js"
 import { Toast } from "./Toast.js"
 import { theme } from "../lib/theme.js"
@@ -38,7 +41,7 @@ import { SCOPE_PRIORITY } from "../lib/keybind-registry.js"
 import { useToastState } from "../hooks/useToast.js"
 import type { Task, Status, SortField, ReleaseWithTaskCount } from "../lib/types.js"
 import type { DbError } from "../lib/db-errors.js"
-import { getBoards, getTaskCards, getReleases, getReleaseTopLevelTasks, getReleaseTaskSubtasks, createRelease, restoreTaskFromRelease, restoreAllFromRelease, deleteRelease, addDependency, removeDependency, getTaskDetail } from "../db/queries.js"
+import { getBoards, getTaskCards, getReleases, getReleaseTopLevelTasks, getReleaseTaskSubtasks, createRelease, restoreTaskFromRelease, restoreAllFromRelease, deleteRelease, addDependency, removeDependency, getTaskDetail, getArchiveInboxTasks, getArchiveTaskSubtasks, restoreArchiveTask, restoreAllArchived, hardDeleteAllArchived, hardDeleteTask } from "../db/queries.js"
 import { copyToClipboard } from "../lib/clipboard.js"
 import { errorMessage } from "../lib/format.js"
 import { SORT_FIELDS } from "../lib/constants.js"
@@ -51,7 +54,7 @@ export interface AppProps {
   config?: import("../lib/config.js").Vault0Config
 }
 
-export type UIMode = "board" | "releases" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "confirm-delete" | "theme-picker" | "create-release" | "detail-dep-picker" | "detail-dep-remover" | "detail-confirm-delete" | "releases-confirm-delete"
+export type UIMode = "board" | "releases" | "archive" | "archive-confirm-delete" | "archive-confirm-delete-all" | "detail" | "create" | "edit" | "status-picker" | "filter" | "text-filter" | "confirm-delete" | "theme-picker" | "create-release" | "detail-dep-picker" | "detail-dep-remover" | "detail-confirm-delete" | "releases-confirm-delete"
 
 /** Modal overlay modes — board stays mounted but input is routed to the overlay */
 const MODAL_OVERLAY_MODES: ReadonlySet<UIMode> = new Set(["confirm-delete", "status-picker", "filter", "theme-picker", "create", "edit", "create-release"])
@@ -69,6 +72,8 @@ export interface AppState {
   createParent?: Task
   /** The release targeted for deletion confirmation */
   selectedRelease?: ReleaseWithTaskCount
+  /** The archive task targeted for single-task deletion confirmation */
+  selectedArchiveTask?: Task
   /** The UI mode to return to if the user cancels a delete confirmation */
   deleteReturnMode?: UIMode
   /** When set, the board will focus this task after the next render */
@@ -293,6 +298,10 @@ function AppContent({ db, dbPath, repoRoot, config }: AppProps) {
   useKeybind("board", "W", useCallback(() => {
     setState((prev) => ({ ...prev, uiMode: "releases" }))
   }, []), { description: "Releases view" })
+
+  useKeybind("board", "Z", useCallback(() => {
+    setState((prev) => ({ ...prev, uiMode: "archive" }))
+  }, []), { description: "Archive view" })
 
   // Escape dismisses toasts when in board mode (doesn't interfere with modal overlays)
   useKeybind("board", "Escape", useCallback(() => {
@@ -697,6 +706,78 @@ function AppContent({ db, dbPath, repoRoot, config }: AppProps) {
             }}
             onCancel={() => setState((prev) => ({ ...prev, selectedRelease: undefined, uiMode: "releases" }))}
           />
+        )}
+
+        {(state.uiMode === "archive" || state.uiMode === "archive-confirm-delete" || state.uiMode === "archive-confirm-delete-all") && (
+          <ArchiveView
+            archiveTasks={state.currentBoardId ? getArchiveInboxTasks(db, state.currentBoardId) : []}
+            getTaskSubtasks={(taskId) => getArchiveTaskSubtasks(db, taskId)}
+            onRestoreTask={(taskId) => {
+              restoreArchiveTask(db, taskId)
+              showToast("Task restored", "Task moved back to board")
+              forceRefresh()
+            }}
+            onRestoreAll={() => {
+              const count = restoreAllArchived(db, state.currentBoardId)
+              showToast("All restored", `${count} task${count !== 1 ? "s" : ""} moved to board`)
+              forceRefresh()
+            }}
+            onDeleteTask={(taskId) => {
+              hardDeleteTask(db, taskId)
+              showToast("Task deleted", "Permanently removed")
+              forceRefresh()
+            }}
+            onShowDeleteConfirmation={(task) => {
+              setState((prev) => ({ ...prev, uiMode: "archive-confirm-delete", selectedArchiveTask: task }))
+            }}
+            onShowDeleteAllConfirmation={() => {
+              setState((prev) => ({ ...prev, uiMode: "archive-confirm-delete-all" }))
+            }}
+            onBack={() => setState((prev) => ({ ...prev, uiMode: "board" }))}
+            inputActive={state.uiMode === "archive" && !state.showHelp}
+          />
+        )}
+
+        {state.uiMode === "archive-confirm-delete" && state.selectedArchiveTask && (
+          <ConfirmDialog
+            title="Permanently Delete Task"
+            onConfirm={() => {
+              if (state.selectedArchiveTask) {
+                hardDeleteTask(db, state.selectedArchiveTask.id)
+                showToast("Task deleted", `Permanently removed: ${state.selectedArchiveTask.title}`)
+                forceRefresh()
+              }
+              setState((prev) => ({ ...prev, selectedArchiveTask: undefined, uiMode: "archive" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, selectedArchiveTask: undefined, uiMode: "archive" }))}
+          >
+            <box flexDirection="column">
+              <text fg={theme.fg_1}>Do you want to permanently delete this task?</text>
+              <text fg={theme.red} attributes={TextAttributes.BOLD}>This action is irreversible.</text>
+              <box marginTop={1}>
+                <text fg={theme.dim_0}>Task: </text>
+                <text fg={theme.fg_1} attributes={TextAttributes.BOLD}>{state.selectedArchiveTask.title}</text>
+              </box>
+            </box>
+          </ConfirmDialog>
+        )}
+
+        {state.uiMode === "archive-confirm-delete-all" && (
+          <ConfirmDialog
+            title="Permanently Delete All"
+            onConfirm={() => {
+              const count = hardDeleteAllArchived(db, state.currentBoardId)
+              showToast("All deleted", `${count} task${count !== 1 ? "s" : ""} permanently removed`)
+              forceRefresh()
+              setState((prev) => ({ ...prev, uiMode: "archive" }))
+            }}
+            onCancel={() => setState((prev) => ({ ...prev, uiMode: "archive" }))}
+          >
+            <box flexDirection="column">
+              <text fg={theme.fg_1}>Permanently delete all archived and cancelled tasks?</text>
+              <text fg={theme.red} attributes={TextAttributes.BOLD}>This action is irreversible.</text>
+            </box>
+          </ConfirmDialog>
         )}
       </box>
     </ToastContext.Provider>

@@ -2,7 +2,7 @@ import type { Vault0Database } from "./connection.js"
 import type { Status, Priority, TaskType, Source, Task, TaskDetail, TaskCard, Release, ReleaseWithTaskCount, VersionInfo, ExportedTask, ExportedDependency, BoardExportEnvelope } from "../lib/types.js"
 import type { LanePolicies } from "../lib/config.js"
 import { tasks, taskDependencies, taskStatusHistory, boards, releases } from "./schema.js"
-import { and, eq, isNull, or, sql, inArray, desc } from "drizzle-orm"
+import { and, eq, isNull, isNotNull, or, sql, inArray, desc } from "drizzle-orm"
 import { wouldCreateCycle } from "../lib/dag.js"
 import { VISIBLE_STATUSES } from "../lib/constants.js"
 import { validateTaskCreation, validateTaskMove } from "../lib/lane-policy.js"
@@ -826,6 +826,107 @@ export function restoreAllFromRelease(db: Vault0Database, releaseId: string): nu
   }
 
   return releaseTasks.length
+}
+
+// ── Archive Inbox Queries ───────────────────────────────────────────
+
+/**
+ * Get all archived tasks (any status) + non-archived cancelled tasks for a board.
+ * Returns only top-level tasks that are not in a release.
+ */
+export function getArchiveInboxTasks(db: Vault0Database, boardId: string): Task[] {
+  return db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.boardId, boardId),
+        isNull(tasks.parentId),
+        isNull(tasks.releaseId),
+        or(
+          isNotNull(tasks.archivedAt),
+          eq(tasks.status, "cancelled"),
+        ),
+      ),
+    )
+    .orderBy(desc(tasks.updatedAt))
+    .all()
+}
+
+/**
+ * Get subtasks for an archive inbox task.
+ */
+export function getArchiveTaskSubtasks(db: Vault0Database, taskId: string): Task[] {
+  return db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.parentId, taskId))
+    .orderBy(tasks.sortOrder)
+    .all()
+}
+
+/**
+ * Restore a single archived/cancelled task back to the board.
+ * Unarchives if archived, moves cancelled back to backlog.
+ */
+export function restoreArchiveTask(db: Vault0Database, taskId: string): void {
+  const task = db.select().from(tasks).where(eq(tasks.id, taskId)).get()
+  if (!task) throw new Error(`Task ${taskId} not found`)
+
+  if (task.archivedAt) {
+    unarchiveTask(db, taskId)
+  }
+  if (task.status === "cancelled") {
+    db.update(tasks)
+      .set({ status: "backlog", updatedAt: new Date() })
+      .where(eq(tasks.id, taskId))
+      .run()
+    db.insert(taskStatusHistory)
+      .values({ taskId, fromStatus: "cancelled", toStatus: "backlog" })
+      .run()
+  }
+
+  // Also restore any cancelled subtasks
+  const cancelledSubtasks = db.select().from(tasks)
+    .where(and(eq(tasks.parentId, taskId), eq(tasks.status, "cancelled")))
+    .all()
+  for (const sub of cancelledSubtasks) {
+    db.update(tasks)
+      .set({ status: "backlog", updatedAt: new Date() })
+      .where(eq(tasks.id, sub.id))
+      .run()
+    db.insert(taskStatusHistory)
+      .values({ taskId: sub.id, fromStatus: "cancelled", toStatus: "backlog" })
+      .run()
+  }
+}
+
+/**
+ * Restore all archived/cancelled tasks back to the board.
+ * Returns the number of tasks restored.
+ */
+export function restoreAllArchived(db: Vault0Database, boardId: string): number {
+  const toRestore = getArchiveInboxTasks(db, boardId)
+  let count = 0
+  for (const task of toRestore) {
+    restoreArchiveTask(db, task.id)
+    count++
+  }
+  return count
+}
+
+/**
+ * Permanently delete all archived/cancelled tasks and their subtasks.
+ * Returns the number of top-level tasks deleted.
+ */
+export function hardDeleteAllArchived(db: Vault0Database, boardId: string): number {
+  const toDelete = getArchiveInboxTasks(db, boardId)
+  let count = 0
+  for (const task of toDelete) {
+    hardDeleteTask(db, task.id)
+    count++
+  }
+  return count
 }
 
 // ── Import ──────────────────────────────────────────────────────────

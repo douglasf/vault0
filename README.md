@@ -29,6 +29,7 @@ A local-first, per-repo terminal UI kanban board with hierarchical tasks, depend
 - **Config File Support**: Global (`~/.config/vault0/config.json`) and per-project (`.vault0/config.json`) configuration with deep merge
 - **OpenCode Integration**: CLI supports `opencode` and `opencode-plan` task sources for AI tool integration
 - **Releases**: Group completed tasks into named releases, optionally bump version files (package.json, pyproject.toml, Cargo.toml, pom.xml), and browse/restore from a releases archive view
+- **Archive Inbox**: Dedicated view (`Z`) for archived and cancelled tasks with bulk restore/delete actions
 
 ## Installation
 

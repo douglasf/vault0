@@ -112,6 +112,7 @@ const shortcutSections: readonly ShortcutSection[] = [
     shortcuts: [
       ["R (Shift+r)", "Create a new release from done tasks"],
       ["W (Shift+w)", "View releases (archives)"],
+      ["Z (Shift+z)", "View archive & cancelled tasks"],
       ["t", "Open theme picker (select theme + dark/light)"],
       ["?", "Show / close this help"],
       ["q", "Quit application"],
@@ -135,6 +136,7 @@ const DISPLAY_TO_REGISTRY: Record<string, string[]> = {
   "F (Shift+f)": ["F"],
   "R (Shift+r)": ["R"],
   "W (Shift+w)": ["W"],
+  "Z (Shift+z)": ["Z"],
   "Ctrl+C": ["Ctrl+c"],
   "Esc": ["Escape"],
   "+": ["+"],
