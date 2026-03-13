@@ -71,16 +71,16 @@ export function useBoardLogic({
     [filterCollapsed, tasksByStatus],
   )
 
-  // Check if board is empty (no tasks across all visible statuses)
-  const totalTasks = useMemo(
-    () => Array.from(tasksByStatus.values()).reduce((sum, tasks) => sum + tasks.length, 0),
-    [tasksByStatus],
-  )
-
   // Build row counts per column for navigation boundary clamping (respecting collapsed state)
   const rowCounts = useMemo(
     () => VISIBLE_STATUSES.map((status) => getColumnTasks(status).length),
     [getColumnTasks],
+  )
+
+  // Count visible tasks (after hideSubtasks filtering) — used to enable/disable nav keybinds
+  const totalTasks = useMemo(
+    () => rowCounts.reduce((sum, count) => sum + count, 0),
+    [rowCounts],
   )
 
   // Compute initial navigation position from focusTaskId (restores position after detail view)
