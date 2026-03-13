@@ -27,7 +27,7 @@ import { ArchiveView } from "./ArchiveView.js"
 import { ErrorBanner } from "./ErrorBanner.js"
 import { Toast } from "./Toast.js"
 import { theme } from "../lib/theme.js"
-import { saveGlobalConfig } from "../lib/config.js"
+import { saveGlobalConfig, saveProjectConfig } from "../lib/config.js"
 import { ThemePicker } from "./ThemePicker.js"
 import { useTaskActions } from "../hooks/useTaskActions.js"
 import { useFilters } from "../hooks/useFilters.js"
@@ -46,6 +46,8 @@ import { copyToClipboard } from "../lib/clipboard.js"
 import { errorMessage } from "../lib/format.js"
 import { SORT_FIELDS } from "../lib/constants.js"
 import { detectVersionFiles, writeVersion } from "../lib/version-detect.js"
+import { hydrateUiState, serializeUiState, isPersistableView } from "../lib/ui-config.js"
+import type { HydratedUiState, PersistableView } from "../lib/ui-config.js"
 
 export interface AppProps {
   db: Vault0Database
@@ -96,13 +98,26 @@ export function App({ db, dbPath, repoRoot, config }: AppProps) {
 function AppContent({ db, dbPath, repoRoot, config }: AppProps) {
   const renderer = useRenderer()
   const { width: terminalColumns, height: terminalRows } = useTerminalDimensions()
-  const [state, setState] = useState<AppState>({
-    currentBoardId: "",
-    uiMode: "board",
+
+  // Hydrate UI state from merged config on first render (synchronous, before any interaction)
+  const [hydrated] = useState<HydratedUiState>(() => {
+    const boardList = getBoards(db)
+    const boardIds = boardList.map((b) => b.id)
+    const fallback = boardIds[0] ?? ""
+    return hydrateUiState({
+      config: config?.ui,
+      availableBoardIds: boardIds,
+      fallbackBoardId: fallback,
+    })
   })
 
+  const [state, setState] = useState<AppState>(() => ({
+    currentBoardId: hydrated.currentBoardId,
+    uiMode: hydrated.activeView,
+  }))
+
   const actions = useTaskActions(config?.lanePolicies)
-  const filterHook = useFilters()
+  const filterHook = useFilters(hydrated.filters)
   const repoStatus = useRepoStatus(repoRoot)
 
   // Clear pendingFocusTaskId after it's been passed to the board components
@@ -130,13 +145,52 @@ function AppContent({ db, dbPath, repoRoot, config }: AppProps) {
   // State-tracked version of the highlighted task for the preview panel.
   // Only updates when the task ID actually changes, breaking the render loop.
   const [previewTask, setPreviewTask] = useState<Task | undefined>(undefined)
-  const [previewVisible, setPreviewVisible] = useState(false)
+  const [previewVisible, setPreviewVisible] = useState(hydrated.previewVisible)
 
   // Global toggle: when true, all subtasks are hidden in the board view
-  const [hideSubtasks, setHideSubtasks] = useState(false)
+  const [hideSubtasks, setHideSubtasks] = useState(hydrated.hideSubtasks)
 
   // Sort field for lane ordering (defaults to priority)
-  const [sortField, setSortField] = useState<SortField>("priority")
+  const [sortField, setSortField] = useState<SortField>(hydrated.sortField)
+
+  // ── Persist non-default UI state to project-local config ────────────
+  // Skip the initial render (hydration values are already on disk).
+  const isFirstRender = useRef(true)
+  // Track the last known persistable view so overlay modes don't lose activeView
+  const lastPersistableView = useRef<PersistableView>(hydrated.activeView)
+  useEffect(() => {
+    if (isPersistableView(state.uiMode)) {
+      lastPersistableView.current = state.uiMode as PersistableView
+    }
+  }, [state.uiMode])
+  // Stable key for persistable filter fields (excludes transient `search`).
+  // Used as a useEffect dependency so search keystrokes don't trigger config writes.
+  const { search: _persistSearch, ...persistableFilterFields } = filterHook.filters
+  const persistableFiltersKey = JSON.stringify(persistableFilterFields)
+  // Keep a ref to the full filters so the persistence effect can read the latest
+  // value without depending on the (transient-search-inclusive) filters object.
+  const filtersRef = useRef(filterHook.filters)
+  filtersRef.current = filterHook.filters
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    try {
+      // persistableFiltersKey is used as the dependency trigger (not filterHook.filters)
+      // so that transient search changes don't cause config writes.
+      void persistableFiltersKey
+      const uiConfig = serializeUiState({
+        currentBoardId: state.currentBoardId,
+        sortField,
+        previewVisible,
+        hideSubtasks,
+        filters: filtersRef.current,
+        activeView: isPersistableView(state.uiMode) ? state.uiMode as PersistableView : lastPersistableView.current,
+      })
+      saveProjectConfig(repoRoot, { ui: uiConfig })
+    } catch { /* non-fatal — don't crash the TUI for a config write failure */ }
+  }, [state.currentBoardId, state.uiMode, sortField, previewVisible, hideSubtasks, persistableFiltersKey, repoRoot]) // eslint-disable-line react-hooks/exhaustive-deps — persistableFiltersKey is an intentional proxy for non-search filter changes
 
   // Toast notification system — context-based so any component can trigger toasts
   const toastState = useToastState()
@@ -169,18 +223,6 @@ function AppContent({ db, dbPath, repoRoot, config }: AppProps) {
     // Force re-render so Board/NarrowTerminal fetches fresh data
     forceRefresh()
   }, [actions, forceRefresh])
-
-  // Initialize board on mount — fetch the first board from the database
-  const initializeBoard = useCallback(() => {
-    const boardList = getBoards(db)
-    if (boardList.length > 0) {
-      setState((prev) => ({ ...prev, currentBoardId: boardList[0].id }))
-    }
-  }, [db])
-
-  useEffect(() => {
-    initializeBoard()
-  }, [initializeBoard])
 
   const isModalOverlay = MODAL_OVERLAY_MODES.has(state.uiMode)
 

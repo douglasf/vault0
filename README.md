@@ -179,6 +179,21 @@ All data is stored locally in `.vault0/vault0.db` (per repository):
 
 The `.vault0/` directory is automatically git-ignored on creation and is safe to leave in your repository root. Vault0 automatically detects the Git repository root, so you can run it from any subdirectory and it will always use the same database. If you're not inside a Git repository, it falls back to the current working directory.
 
+### Per-Repo UI Persistence
+
+Vault0 persists stable UI state to `<repoRoot>/.vault0/config.json` so your board context survives between sessions. Persisted state includes:
+
+- **Sort field** (priority, title, created, updated)
+- **Preview pane visibility**
+- **Hide subtasks toggle**
+- **Filters** (statuses, priorities, sources, tags, ready/blocked toggles)
+- **Current board**
+- **Active view** (board, releases, archive)
+
+Only non-default values are stored — the local config file stays minimal. Transient state (search query, modals, navigation cursor, detail selection) is not persisted.
+
+When a local `.vault0/config.json` has a `ui` key, it is authoritative for all UI state (section-level override, not deep-merged with global config). If no local `ui` key exists, global config values apply as fallback.
+
 ## Architecture
 
 ### Technology Stack

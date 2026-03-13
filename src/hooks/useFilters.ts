@@ -26,8 +26,8 @@ function toggleInArray<T>(arr: T[] | undefined, value: T): T[] | undefined {
   return next.length > 0 ? next : undefined
 }
 
-export function useFilters(): UseFiltersResult {
-  const [filters, setFilters] = useState<Filters>({})
+export function useFilters(initialFilters?: Omit<Filters, "search">): UseFiltersResult {
+  const [filters, setFilters] = useState<Filters>(() => initialFilters ?? {})
 
   const toggleStatus = useCallback((status: Status) => {
     setFilters((prev) => ({

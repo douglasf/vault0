@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
-import type { Status } from "./types.js"
+import type { Status, SortField, Filters } from "./types.js"
 
 // ── Config Types ────────────────────────────────────────────────────────
 
@@ -26,6 +26,36 @@ export interface LanePolicy {
  */
 export type LanePolicies = Partial<Record<Status, LanePolicy>>
 
+// ── UI Persistence Types ────────────────────────────────────────────────
+
+/**
+ * Persisted UI state for stable board context across sessions.
+ * Only non-default values should be written to disk.
+ * Transient state (modals, detail selection, help, navigation cursor) is excluded.
+ */
+export interface UiConfig {
+  /** Currently active board ID */
+  currentBoardId?: string
+  /** Sort field for task columns */
+  sortField?: SortField
+  /** Whether the task preview pane is visible */
+  previewVisible?: boolean
+  /** Whether subtasks are hidden from the board view */
+  hideSubtasks?: boolean
+  /** Coarse top-level view to restore across sessions */
+  activeView?: "board" | "releases" | "archive"
+  /** Persisted filter settings */
+  filters?: Partial<Omit<Filters, "search">>
+}
+
+/** Default values for all UI config fields */
+export const UI_CONFIG_DEFAULTS: Required<Omit<UiConfig, "currentBoardId" | "filters">> = {
+  sortField: "priority",
+  previewVisible: false,
+  hideSubtasks: false,
+  activeView: "board",
+}
+
 // ── Main Config ─────────────────────────────────────────────────────────
 
 export interface Vault0Config {
@@ -44,6 +74,11 @@ export interface Vault0Config {
    * Keys are status names (e.g. "in_progress", "done").
    */
   lanePolicies?: LanePolicies
+  /**
+   * Persisted UI state for stable board context across sessions.
+   * Only stored in project-local config.
+   */
+  ui?: UiConfig
 }
 
 // ── Paths ───────────────────────────────────────────────────────────────
@@ -99,6 +134,15 @@ function mergeConfigs(
     merged.lanePolicies = { ...global.lanePolicies, ...project.lanePolicies }
   }
 
+  // Merge ui section — if local config has a `ui` key (even `{}`), it owns UI
+  // state entirely. Missing fields resolve to defaults, NOT global values.
+  // This makes `ui` presence a "this repo manages its own UI" signal.
+  if ("ui" in project) {
+    merged.ui = project.ui ?? {}
+  } else if (global.ui) {
+    merged.ui = global.ui
+  }
+
   return merged
 }
 
@@ -151,5 +195,84 @@ export function saveGlobalConfig(updates: Partial<Vault0Config>): void {
   }
 
   ensureGlobalConfig()
+  writeFileSync(configPath, `${JSON.stringify(existing, null, 2)}\n`, "utf-8")
+}
+
+// ── UI Config Pruning ──────────────────────────────────────────────────
+
+/**
+ * Remove UI config entries that match their default values.
+ * Returns undefined if no non-default values remain.
+ */
+export function pruneDefaultUi(ui: UiConfig): UiConfig | undefined {
+  const pruned: UiConfig = {}
+
+  // Keep non-default scalars
+  if (ui.currentBoardId !== undefined) pruned.currentBoardId = ui.currentBoardId
+  if (ui.sortField !== undefined && ui.sortField !== UI_CONFIG_DEFAULTS.sortField) pruned.sortField = ui.sortField
+  if (ui.previewVisible !== undefined && ui.previewVisible !== UI_CONFIG_DEFAULTS.previewVisible) pruned.previewVisible = ui.previewVisible
+  if (ui.hideSubtasks !== undefined && ui.hideSubtasks !== UI_CONFIG_DEFAULTS.hideSubtasks) pruned.hideSubtasks = ui.hideSubtasks
+  if (ui.activeView !== undefined && ui.activeView !== UI_CONFIG_DEFAULTS.activeView) pruned.activeView = ui.activeView
+
+  // Keep non-empty filters
+  if (ui.filters) {
+    const f = ui.filters
+    const kept: Partial<Omit<Filters, "search">> = {}
+    let hasFilter = false
+    for (const [key, val] of Object.entries(f)) {
+      if (val === undefined || val === null) continue
+      if (Array.isArray(val) && val.length === 0) continue
+      if (val === false) continue
+      ;(kept as Record<string, unknown>)[key] = val
+      hasFilter = true
+    }
+    if (hasFilter) pruned.filters = kept
+  }
+
+  return Object.keys(pruned).length > 0 ? pruned : undefined
+}
+
+// ── Project-Local Config Persistence ────────────────────────────────────
+
+/**
+ * Update the project-local config file with the given partial config.
+ * Deep-merges with the existing local config and writes back to disk.
+ * Preserves non-Vault0 keys that may exist in the file.
+ * If `updates.ui` is provided, it is pruned of default values via
+ * `pruneDefaultUi()` before writing. Even when all UI values are defaults,
+ * `ui: {}` is written to signal "this repo owns its UI state" and prevent
+ * global UI from leaking through during merge.
+ */
+export function saveProjectConfig(repoRoot: string, updates: Partial<Vault0Config>): void {
+  const configPath = getProjectConfigPath(repoRoot)
+  const dir = join(repoRoot, ".vault0")
+
+  // Load existing file as raw JSON to preserve unknown keys
+  let existing: Record<string, unknown> = {}
+  try {
+    if (existsSync(configPath)) {
+      const raw = readFileSync(configPath, "utf-8").trim()
+      if (raw) existing = JSON.parse(raw)
+    }
+  } catch { /* start fresh */ }
+
+  // Deep-merge theme section
+  if (updates.theme) {
+    existing.theme = { ...(existing.theme as Record<string, unknown> ?? {}), ...updates.theme }
+  }
+
+  // Deep-merge lane policies section
+  if (updates.lanePolicies) {
+    existing.lanePolicies = { ...(existing.lanePolicies as Record<string, unknown> ?? {}), ...updates.lanePolicies }
+  }
+
+  // Prune default UI values, but always write `ui` key (even as `{}`)
+  // to signal "this repo owns its UI state" and block global UI from leaking.
+  if (updates.ui !== undefined) {
+    const pruned = pruneDefaultUi(updates.ui)
+    existing.ui = pruned ?? {}
+  }
+
+  mkdirSync(dir, { recursive: true })
   writeFileSync(configPath, `${JSON.stringify(existing, null, 2)}\n`, "utf-8")
 }
