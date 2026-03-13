@@ -135,8 +135,11 @@ export function matchesKey(event: KeyEvent, spec: string): boolean {
 export class KeybindRegistry {
   private scopes: Map<string, Scope> = new Map()
   private scopeStack: Scope[] = []
+  /** Scopes that were explicitly unregistered — prevents auto-creation from stale binding effects */
+  private tombstones: Set<string> = new Set()
 
   registerScope(name: string, priority: number, opaque = false): () => void {
+    this.tombstones.delete(name)
     const existing = this.scopes.get(name)
     if (existing) {
       // Update priority/opaque on re-register, keep bindings
@@ -155,6 +158,7 @@ export class KeybindRegistry {
 
   unregisterScope(name: string): void {
     this.scopes.delete(name)
+    this.tombstones.add(name)
     this.rebuildStack()
   }
 
@@ -168,12 +172,20 @@ export class KeybindRegistry {
   }
 
   registerBinding(scopeName: string, binding: KeyBinding): () => void {
-    const scope = this.scopes.get(scopeName)
+    let scope = this.scopes.get(scopeName)
     if (!scope) {
-      // Scope may have been unregistered during a React effect cycle
-      // (e.g. overlay closes → scope deactivates → stale binding effect fires).
-      // Return a no-op cleanup instead of crashing.
-      return () => {}
+      // If the scope was explicitly unregistered (unmount), don't auto-create —
+      // this is a stale binding effect firing after cleanup.
+      if (this.tombstones.has(scopeName)) {
+        return () => {}
+      }
+      // Auto-create the scope with default config so bindings registered by
+      // child components (whose effects fire before parent effects) are not lost.
+      // The parent's useKeybindScope effect will update priority/opaque/active
+      // when it fires later in the same React commit phase.
+      scope = { name: scopeName, priority: SCOPE_PRIORITY.VIEW, opaque: false, active: true, bindings: new Map() }
+      this.scopes.set(scopeName, scope)
+      this.rebuildStack()
     }
     scope.bindings.set(binding.id, binding)
     return () => this.unregisterBinding(scopeName, binding.id)
